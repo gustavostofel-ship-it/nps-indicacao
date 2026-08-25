@@ -1,0 +1,115 @@
+--- app/config/page.tsx
++++ app/config/page.tsx
+@@ -4,7 +4,7 @@
+ import { Plus, Copy, Check, Trash2, Edit2, Settings, Users, LayoutDashboard, ChevronDown, ChevronUp } from 'lucide-react';
+ import toast from 'react-hot-toast';
+ 
+ export default function ConfigPage() {
+   const [setores, setSetores] = useState<any[]>([]);
+   const [usuarios, setUsuarios] = useState<any[]>([]);
+   const [convites, setConvites] = useState<any[]>([]);
+@@ -87,6 +87,83 @@
+   };
+ 
++function SetorItem({ setor, onUpdate, supabase }: any) {
++  const [expanded, setExpanded] = useState(false);
++  const [criterios, setCriterios] = useState<any[]>([]);
++  const [novoCriterio, setNovoCriterio] = useState('');
++
++  const toggleAtivo = async () => {
++    const toastId = toast.loading('Atualizando status...');
++    const { error } = await supabase.from('setores').update({ ativo: !setor.ativo }).eq('id', setor.id);
++    if (error) toast.error('Erro ao atualizar', { id: toastId });
++    else { toast.success('Status atualizado', { id: toastId }); onUpdate(); }
++  };
++
++  const loadCriterios = async () => {
++    const { data } = await supabase.from('criterios_avaliacao').select('*').eq('setor_id', setor.id).order('ordem', { ascending: true });
++    if (data) setCriterios(data);
++  };
++
++  useEffect(() => {
++    if (expanded) loadCriterios();
++  }, [expanded]);
++
++  const handleAddCriterio = async (e: React.FormEvent) => {
++    e.preventDefault();
++    if (!novoCriterio.trim()) return;
++    const toastId = toast.loading('Adicionando critério...');
++    const { error } = await supabase.from('criterios_avaliacao').insert({ setor_id: setor.id, nome: novoCriterio, ordem: criterios.length });
++    if (error) toast.error('Erro ao adicionar', { id: toastId });
++    else { toast.success('Adicionado!', { id: toastId }); setNovoCriterio(''); loadCriterios(); }
++  };
++
++  const toggleCriterioAtivo = async (id: string, ativo: boolean) => {
++    const toastId = toast.loading('Atualizando...');
++    const { error } = await supabase.from('criterios_avaliacao').update({ ativo: !ativo }).eq('id', id);
++    if (error) toast.error('Erro', { id: toastId });
++    else { toast.success('Atualizado', { id: toastId }); loadCriterios(); }
++  };
++
++  return (
++    <li className="flex flex-col p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-slate-200 transition-colors">
++      <div className="flex items-center justify-between cursor-pointer" onClick={() => setExpanded(!expanded)}>
++        <div className="flex items-center gap-3">
++          {expanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
++          <span className={`font-medium ${!setor.ativo ? 'text-slate-400 line-through' : 'text-slate-700'}`}>{setor.nome}</span>
++        </div>
++        <button 
++          onClick={(e) => { e.stopPropagation(); toggleAtivo(); }}
++          className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${setor.ativo ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'}`}
++        >
++          {setor.ativo ? 'Ativo' : 'Inativo'}
++        </button>
++      </div>
++      
++      {expanded && (
++        <div className="mt-4 pt-4 border-t border-slate-200 pl-7 space-y-3">
++          <p className="text-sm font-semibold text-slate-600 mb-2">Critérios de Avaliação</p>
++          
++          <form onSubmit={handleAddCriterio} className="flex gap-2">
++            <input type="text" placeholder="Novo critério" value={novoCriterio} onChange={(e) => setNovoCriterio(e.target.value)} className="flex-1 px-3 py-1.5 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
++            <button type="submit" className="bg-slate-800 text-white px-3 py-1.5 text-sm rounded-lg hover:bg-slate-900 transition-colors">Adicionar</button>
++          </form>
++          
++          {criterios.length === 0 ? (
++            <p className="text-xs text-slate-400 italic">Nenhum critério. O setor usará nota única.</p>
++          ) : (
++            <div className="space-y-2 mt-3">
++              {criterios.map(c => (
++                <div key={c.id} className="flex items-center justify-between bg-white px-3 py-2 border border-slate-100 rounded-lg">
++                  <span className={`text-sm ${!c.ativo ? 'text-slate-400 line-through' : 'text-slate-600'}`}>{c.nome}</span>
++                  <button onClick={() => toggleCriterioAtivo(c.id, c.ativo)} className={`text-[10px] font-bold px-2 py-1 rounded uppercase ${c.ativo ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-400'}`}>
++                    {c.ativo ? 'Ativo' : 'Inativo'}
++                  </button>
++                </div>
++              ))}
++            </div>
++          )}
++        </div>
++      )}
++    </li>
++  );
++}
++
+   return (
+     <div className="flex flex-col h-full">
+@@ -122,17 +199,7 @@
+       ) : (
+         <ul className="space-y-3">
+           {setores.map((setor: any) => (
+-            <li key={setor.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-slate-200 transition-colors">
+-              <span className={`font-medium ${!setor.ativo ? 'text-slate-400 line-through' : 'text-slate-700'}`}>
+-                {setor.nome}
+-              </span>
+-              <button 
+-                onClick={() => toggleAtivo(setor.id, setor.ativo)}
+-                className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${setor.ativo ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'}`}
+-              >
+-                {setor.ativo ? 'Ativo' : 'Inativo'}
+-              </button>
+-            </li>
++            <SetorItem key={setor.id} setor={setor} onUpdate={onUpdate} supabase={supabase} />
+           ))}
+         </ul>
+       )}
