@@ -45,7 +45,13 @@ export default async function RootLayout({children}: {children: React.ReactNode}
                 <h1 className="text-xl font-bold text-blue-600 tracking-tight">NPS & Indicações</h1>
                 <nav className="flex items-center gap-6">
                   <Link href="/" className="text-slate-600 hover:text-blue-600 font-medium transition-colors">
+                    Dashboard
+                  </Link>
+                  <Link href="/atendimento" className="text-slate-600 hover:text-blue-600 font-medium transition-colors">
                     Atendimento
+                  </Link>
+                  <Link href="/indicacoes" className="text-slate-600 hover:text-blue-600 font-medium transition-colors">
+                    Indicações
                   </Link>
                   {isAdmin && (
                     <Link href="/config" className="text-slate-600 hover:text-blue-600 font-medium transition-colors">

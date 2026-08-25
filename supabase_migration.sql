@@ -89,7 +89,8 @@ CREATE TABLE indicacoes (
   status status_indicacao NOT NULL DEFAULT 'pendente',
   observacoes TEXT,
   data_indicacao TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()),
-  usuario_id UUID NOT NULL REFERENCES auth.users(id)
+  usuario_id UUID NOT NULL REFERENCES auth.users(id),
+  responsavel_id UUID REFERENCES auth.users(id)
 );
 
 -- Criação de Índices para busca rápida

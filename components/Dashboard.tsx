@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Search, Plus, UserPlus, Car, Star, Megaphone, Edit2, Check, X, ChevronDown, ChevronUp, Users, AlertCircle, Save } from 'lucide-react';
+import { Search, Plus, UserPlus, Car, Star, Megaphone, Edit2, Check, X, ChevronDown, ChevronUp, Users, AlertCircle, Save, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const supabase = createClient();
@@ -33,14 +33,9 @@ export default function Dashboard() {
   const [expandedSetores, setExpandedSetores] = useState<Record<string, boolean>>({});
   const [expandedIndicacoes, setExpandedIndicacoes] = useState<Record<string, boolean>>({});
 
-  useEffect(() => {
-    carregarSetores();
-    carregarListaAssociados();
-  }, []);
-
   const carregarListaAssociados = async () => {
     const { data } = await supabase.from('associados')
-      .select('id, nome_completo, cpf, veiculos(id), avaliacoes(id)')
+      .select('id, nome_completo, cpf, veiculos(id), avaliacoes(id), indicacoes(id)')
       .order('nome_completo', { ascending: true });
     if (data) setListaAssociados(data);
   };
@@ -49,6 +44,11 @@ export default function Dashboard() {
     const { data } = await supabase.from('setores').select('*').eq('ativo', true).order('ordem', { ascending: true });
     if (data) setSetores(data);
   };
+
+  useEffect(() => {
+    carregarSetores();
+    carregarListaAssociados();
+  }, []);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,7 +79,7 @@ export default function Dashboard() {
 
     const { data, error } = await supabase
       .from('associados')
-      .select('id, nome_completo, cpf, veiculos(id), avaliacoes(id)')
+      .select('id, nome_completo, cpf, veiculos(id), avaliacoes(id), indicacoes(id)')
       .or(`cpf.ilike.%${busca}%,nome_completo.ilike.%${busca}%`)
       .order('nome_completo', { ascending: true });
 
@@ -100,7 +100,7 @@ export default function Dashboard() {
     
     const [veiculosRes, avaliacoesRes, indicacoesRes] = await Promise.all([
       supabase.from('veiculos').select('*').eq('associado_id', assocData.id).eq('ativo', true),
-      supabase.from('avaliacoes').select('*, setor:setores(nome)').eq('associado_id', assocData.id).order('data_avaliacao', { ascending: false }),
+      supabase.from('avaliacoes').select('*, setor:setores(nome), avaliacao_notas(nota, criterios_avaliacao(nome))').eq('associado_id', assocData.id).order('data_avaliacao', { ascending: false }),
       supabase.from('indicacoes').select('*').eq('associado_id', assocData.id).order('data_indicacao', { ascending: false })
     ]);
     
@@ -216,12 +216,15 @@ export default function Dashboard() {
                     <h3 className="font-bold text-lg text-slate-800 group-hover:text-blue-600 transition-colors">{assoc.nome_completo}</h3>
                     <p className="text-sm text-slate-500 font-medium">CPF: {assoc.cpf}</p>
                   </div>
-                  <div className="flex items-center gap-3 mt-2 border-t border-slate-100 pt-3">
+                  <div className="flex items-center gap-3 mt-2 border-t border-slate-100 pt-3 flex-wrap">
                     <span className="flex items-center gap-1.5 text-xs font-semibold bg-slate-100 text-slate-600 px-2.5 py-1 rounded-lg">
                       <Car className="w-4 h-4 text-slate-400" /> {assoc.veiculos?.length || 0} veículos
                     </span>
                     <span className="flex items-center gap-1.5 text-xs font-semibold bg-blue-50 text-blue-600 px-2.5 py-1 rounded-lg">
                       <Star className="w-4 h-4 text-blue-400" /> {assoc.avaliacoes?.length || 0} avaliações
+                    </span>
+                    <span className="flex items-center gap-1.5 text-xs font-semibold bg-orange-50 text-orange-600 px-2.5 py-1 rounded-lg">
+                      <Megaphone className="w-4 h-4 text-orange-400" /> {assoc.indicacoes?.length || 0} indicações
                     </span>
                   </div>
                 </div>
@@ -234,6 +237,15 @@ export default function Dashboard() {
       {/* Associado Found */}
       {associado && (
         <div className="space-y-6">
+          <div className="flex items-center">
+            <button 
+              onClick={() => { setAssociado(null); setBusca(''); carregarListaAssociados(); }}
+              className="text-slate-500 hover:text-blue-600 flex items-center gap-2 font-medium transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5" />
+              Voltar para a lista
+            </button>
+          </div>
           
           {/* Header Info */}
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex justify-between items-start">
@@ -333,30 +345,56 @@ export default function Dashboard() {
                           )}
                         </div>
                         
-                        {avalDoSetor.length > 1 && (
-                          <div className="border-t border-slate-200/50 bg-white">
-                            <button 
-                              onClick={() => toggleSetorExpand(setor.id)} 
-                              className="w-full px-4 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-50 flex justify-center items-center gap-1"
-                            >
-                              {expandedSetores[setor.id] ? 'Ocultar Histórico' : `Ver histórico (${avalDoSetor.length - 1})`}
-                              {expandedSetores[setor.id] ? <ChevronUp className="w-3 h-3"/> : <ChevronDown className="w-3 h-3"/>}
-                            </button>
-                            
-                            {expandedSetores[setor.id] && (
-                              <div className="px-4 pb-3 space-y-2">
-                                {avalDoSetor.slice(1).map(av => (
-                                  <div key={av.id} className="flex justify-between items-center text-xs py-1 border-b border-slate-100 last:border-0">
-                                    <span className="text-slate-500">{new Date(av.data_avaliacao).toLocaleDateString('pt-BR')}</span>
-                                    <span className={`font-bold px-2 py-0.5 rounded ${av.nota >= 9 ? 'bg-green-100 text-green-700' : av.nota >= 7 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
-                                      Nota: {av.nota}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
+                        {(() => {
+                          const temNotasCriteriosUltima = ultima?.avaliacao_notas && ultima.avaliacao_notas.length > 0;
+                          const temHistorico = avalDoSetor.length > 1;
+                          const podeExpandir = temHistorico || temNotasCriteriosUltima;
+                          
+                          if (!podeExpandir) return null;
+                          
+                          return (
+                            <div className="border-t border-slate-200/50 bg-white">
+                              <button 
+                                onClick={() => toggleSetorExpand(setor.id)} 
+                                className="w-full px-4 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-50 flex justify-center items-center gap-1"
+                              >
+                                {expandedSetores[setor.id] ? 'Ocultar Detalhes' : (temHistorico ? 'Ver Detalhes e Histórico' : 'Ver Detalhes')}
+                                {expandedSetores[setor.id] ? <ChevronUp className="w-3 h-3"/> : <ChevronDown className="w-3 h-3"/>}
+                              </button>
+                              
+                              {expandedSetores[setor.id] && (
+                                <div className="px-4 pb-3 space-y-2">
+                                  {avalDoSetor.map((av, index) => {
+                                    const temNotasCriterios = av.avaliacao_notas && av.avaliacao_notas.length > 0;
+                                    return (
+                                      <div key={av.id} className="flex flex-col text-xs py-2 border-b border-slate-100 last:border-0">
+                                        <div className="flex justify-between items-center mb-1">
+                                          <span className="text-slate-500">
+                                            {new Date(av.data_avaliacao).toLocaleDateString('pt-BR')}
+                                            {index === 0 ? ' (Última)' : ''}
+                                          </span>
+                                          <span className={`font-bold px-2 py-0.5 rounded ${av.nota >= 9 ? 'bg-green-100 text-green-700' : av.nota >= 7 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                                            {temNotasCriterios ? 'Média' : 'Nota'}: {av.nota}
+                                          </span>
+                                        </div>
+                                        {temNotasCriterios && (
+                                          <div className="mt-1 pl-2 border-l-2 border-slate-200 space-y-1">
+                                            {av.avaliacao_notas.map((an: any, idx: number) => (
+                                              <div key={idx} className="flex justify-between text-slate-600">
+                                                <span>{an.criterios_avaliacao?.nome || 'Critério'}:</span>
+                                                <span className="font-medium">{an.nota}</span>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
                     );
                   })}
@@ -821,7 +859,8 @@ function ModalNovaIndicacao({ associadoId, onClose, onSave }: any) {
       nome_indicado: nome, 
       telefone_indicado: telefone,
       observacoes: obs,
-      usuario_id: user?.id
+      usuario_id: user?.id,
+      responsavel_id: user?.id
     });
     
     if (error) { toast.error('Erro ao registrar', { id: tid }); }
