@@ -1,12 +1,11 @@
 import type {Metadata} from 'next';
 import './globals.css';
 import { createClient } from '@/lib/supabase/server';
-import Link from 'next/link';
-import { LogoutButton } from '@/components/LogoutButton';
+import { Navbar } from '@/components/Navbar';
 import { Toaster } from 'react-hot-toast';
 
 export const metadata: Metadata = {
-  title: 'NPS & Indicações',
+  title: 'Girow',
   description: 'Registro de avaliações e acompanhamento de indicações',
 };
 
@@ -38,35 +37,7 @@ export default async function RootLayout({children}: {children: React.ReactNode}
             Atenção: Credenciais do Supabase não configuradas (NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY). O app não funcionará corretamente. Configure na aba Secrets/Settings.
           </div>
         )}
-        {user && (
-          <header className="bg-white border-b border-slate-200 sticky top-0 z-10 shadow-sm">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-              <div className="flex items-center gap-8">
-                <h1 className="text-xl font-bold text-blue-600 tracking-tight">NPS & Indicações</h1>
-                <nav className="flex items-center gap-6">
-                  <Link href="/" className="text-slate-600 hover:text-blue-600 font-medium transition-colors">
-                    Dashboard
-                  </Link>
-                  <Link href="/atendimento" className="text-slate-600 hover:text-blue-600 font-medium transition-colors">
-                    Atendimento
-                  </Link>
-                  <Link href="/indicacoes" className="text-slate-600 hover:text-blue-600 font-medium transition-colors">
-                    Indicações
-                  </Link>
-                  {isAdmin && (
-                    <Link href="/config" className="text-slate-600 hover:text-blue-600 font-medium transition-colors">
-                      Configurações
-                    </Link>
-                  )}
-                </nav>
-              </div>
-              <div className="flex items-center gap-4">
-                <span className="text-sm text-slate-500 hidden sm:inline-block font-medium">Olá, {userName}</span>
-                <LogoutButton />
-              </div>
-            </div>
-          </header>
-        )}
+        {user && <Navbar isAdmin={isAdmin} userName={userName} />}
         <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {children}
         </main>

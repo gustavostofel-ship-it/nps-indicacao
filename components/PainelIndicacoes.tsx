@@ -20,8 +20,8 @@ export default function PainelIndicacoes() {
     status: '',
     search: '',
     responsavel_id: '',
-    data_inicio: '',
-    data_fim: ''
+    data_inicio: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
+    data_fim: format(new Date(), 'yyyy-MM-dd')
   });
 
   const [editId, setEditId] = useState<string | null>(null);
@@ -195,26 +195,26 @@ export default function PainelIndicacoes() {
           </div>
           
           <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">Período</label>
+            <label className="block text-sm font-medium text-slate-600 mb-1">Período de Análise</label>
             <div className="flex flex-col sm:flex-row gap-2">
               <input 
                 type="date"
                 value={filtros.data_inicio}
                 onChange={e => setFiltros({...filtros, data_inicio: e.target.value})}
-                className="w-full px-2 py-2 border border-slate-300 rounded-lg text-sm outline-none"
+                className="w-full min-w-0 px-2 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
               />
               <span className="hidden sm:inline self-center text-slate-400">-</span>
               <input 
                 type="date"
                 value={filtros.data_fim}
                 onChange={e => setFiltros({...filtros, data_fim: e.target.value})}
-                className="w-full px-2 py-2 border border-slate-300 rounded-lg text-sm outline-none"
+                className="w-full min-w-0 px-2 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
-            <div className="flex flex-wrap gap-2 mt-2 text-xs">
-              <button onClick={() => applyDateShortcut('hoje')} className="text-orange-600 font-medium hover:underline">Hoje</button>
-              <button onClick={() => applyDateShortcut('7dias')} className="text-orange-600 font-medium hover:underline">7 Dias</button>
-              <button onClick={() => applyDateShortcut('mes')} className="text-orange-600 font-medium hover:underline">Este Mês</button>
+            <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-xs">
+              <button onClick={() => applyDateShortcut('hoje')} className="text-blue-600 font-medium hover:underline">Hoje</button>
+              <button onClick={() => applyDateShortcut('7dias')} className="text-blue-600 font-medium hover:underline">7 Dias</button>
+              <button onClick={() => applyDateShortcut('mes')} className="text-blue-600 font-medium hover:underline">Este Mês</button>
               <button onClick={() => setFiltros({...filtros, data_inicio: '', data_fim: ''})} className="text-slate-500 hover:underline">Limpar</button>
             </div>
           </div>
