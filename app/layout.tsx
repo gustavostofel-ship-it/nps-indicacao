@@ -37,7 +37,7 @@ export default async function RootLayout({children}: {children: React.ReactNode}
 
   return (
     <html lang="pt-BR" className={inter.variable}>
-      <body className="bg-slate-50 min-h-screen flex flex-col font-sans text-slate-800" suppressHydrationWarning>
+      <body className={`min-h-screen flex flex-col font-sans text-slate-800 ${user ? 'bg-slate-50' : 'bg-[#070f1f]'}`} suppressHydrationWarning>
         <Toaster position="top-right" toastOptions={{ duration: 3000 }} />
         {!isSupabaseConfigured && (
           <div className="bg-red-600 text-white p-3 text-sm text-center font-medium">
@@ -45,9 +45,15 @@ export default async function RootLayout({children}: {children: React.ReactNode}
           </div>
         )}
         {user && <Navbar isAdmin={isAdmin} userName={userName} />}
-        <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {children}
-        </main>
+        {user ? (
+          <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            {children}
+          </main>
+        ) : (
+          <main className="flex-1 w-full">
+            {children}
+          </main>
+        )}
       </body>
     </html>
   );
