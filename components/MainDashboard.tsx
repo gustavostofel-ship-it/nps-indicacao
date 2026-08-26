@@ -6,6 +6,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { startOfMonth, format, subDays, isAfter, isBefore } from 'date-fns';
 import { ArrowRight, Star, Megaphone, Users, Target, CheckCircle2, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
+import toast from 'react-hot-toast';
 
 const supabase = createClient();
 
@@ -29,23 +30,21 @@ export default function MainDashboard() {
 
   const carregarDados = async () => {
     setLoading(true);
-    
+
     // Base Queries
     let queryAval = supabase.from('avaliacoes').select('id, nota, data_avaliacao, usuario_id, setor:setores(nome)').order('data_avaliacao', { ascending: true });
     let queryInd = supabase.from('indicacoes').select('id, status, data_indicacao, usuario_id, nome_indicado, responsavel_id').order('data_indicacao', { ascending: true });
-    
-    // Apply Dates
+
+    // Apply Dates diretamente na consulta (mais rápido e evita bugs de filtro no navegador)
     if (dateFilter.start) {
-      const start = new Date(`${dateFilter.start}T00:00:00`);
-      
-      // removed gte
-      // removed gte
+      const start = new Date(`${dateFilter.start}T00:00:00`).toISOString();
+      queryAval = queryAval.gte('data_avaliacao', start);
+      queryInd = queryInd.gte('data_indicacao', start);
     }
     if (dateFilter.end) {
-      const end = new Date(`${dateFilter.end}T23:59:59.999`);
-      
-      // removed lte
-      // removed lte
+      const end = new Date(`${dateFilter.end}T23:59:59.999`).toISOString();
+      queryAval = queryAval.lte('data_avaliacao', end);
+      queryInd = queryInd.lte('data_indicacao', end);
     }
 
     const [resAval, resInd, resUser] = await Promise.all([
@@ -54,17 +53,22 @@ export default function MainDashboard() {
       supabase.from('perfis_usuarios').select('id, nome')
     ]);
 
-    
-    if (resAval.data) {
-      let filteredAval = resAval.data;
-      if (dateFilter.start) filteredAval = filteredAval.filter((a: any) => new Date(a.data_avaliacao) >= new Date(dateFilter.start + 'T00:00:00'));
-      if (dateFilter.end) filteredAval = filteredAval.filter((a: any) => new Date(a.data_avaliacao) <= new Date(dateFilter.end + 'T23:59:59.999'));
-      setAvaliacoes(filteredAval);
+    if (resAval.error) {
+      console.error('Erro ao carregar avaliações:', resAval.error);
+      toast.error('Erro ao carregar avaliações: ' + resAval.error.message);
+    }
+    if (resInd.error) {
+      console.error('Erro ao carregar indicações:', resInd.error);
+      toast.error('Erro ao carregar indicações: ' + resInd.error.message);
+    }
+    if (resUser.error) {
+      console.error('Erro ao carregar usuários:', resUser.error);
     }
 
-    if (resInd.data) setIndicacoes(resInd.data.map((i: any) => ({...i, data_indicacao: i.data_indicacao})));
-    if (resUser.data) setUsuarios(resUser.data);
-    
+    setAvaliacoes(resAval.data || []);
+    setIndicacoes(resInd.data || []);
+    setUsuarios(resUser.data || []);
+
     setLoading(false);
   };
 

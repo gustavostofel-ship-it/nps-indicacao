@@ -40,27 +40,35 @@ export default function PainelIndicacoes() {
     `).order('data_indicacao', { ascending: false });
 
     if (filtros.status) query = query.eq('status', filtros.status);
-    if (filtros.responsavel_id) query = query.eq('responsavel_id', filtros.responsavel_id);
+    if (filtros.responsavel_id === 'unassigned') {
+      query = query.is('responsavel_id', null);
+    } else if (filtros.responsavel_id) {
+      query = query.eq('responsavel_id', filtros.responsavel_id);
+    }
     if (filtros.data_inicio) {
-      const start = new Date(`${filtros.data_inicio}T00:00:00`);
-      
-      // removed gte
+      const start = new Date(`${filtros.data_inicio}T00:00:00`).toISOString();
+      query = query.gte('data_indicacao', start);
     }
     if (filtros.data_fim) {
-      const end = new Date(`${filtros.data_fim}T23:59:59.999`);
-      
-      // removed lte
+      const end = new Date(`${filtros.data_fim}T23:59:59.999`).toISOString();
+      query = query.lte('data_indicacao', end);
     }
 
     const { data, error } = await query;
-    
+
+    if (error) {
+      console.error('Erro ao carregar indicações:', error);
+      toast.error('Erro ao carregar indicações: ' + error.message);
+      setIndicacoes([]);
+      setLoading(false);
+      return;
+    }
+
     if (data) {
       let filteredData = data;
-      if (filtros.data_inicio) filteredData = filteredData.filter((a: any) => new Date(a.data_indicacao) >= new Date(filtros.data_inicio + 'T00:00:00'));
-      if (filtros.data_fim) filteredData = filteredData.filter((a: any) => new Date(a.data_indicacao) <= new Date(filtros.data_fim + 'T23:59:59.999'));
       if (filtros.search) {
         const term = filtros.search.toLowerCase();
-        filteredData = data.filter((item: any) => 
+        filteredData = filteredData.filter((item: any) =>
           item.nome_indicado?.toLowerCase().includes(term) ||
           item.associados?.nome_completo?.toLowerCase().includes(term)
         );
