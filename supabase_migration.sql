@@ -90,6 +90,9 @@ CREATE TABLE indicacoes (
   observacoes TEXT,
   data_indicacao TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()),
   usuario_id UUID NOT NULL REFERENCES auth.users(id),
+  -- Responsável pelo acompanhamento da indicação (pode ser diferente de quem cadastrou).
+  -- Adicionada em 25/08/2026 via ALTER TABLE porque faltava no banco de produção;
+  -- mantida aqui para que uma nova instalação do zero já saia com a coluna certa.
   responsavel_id UUID REFERENCES auth.users(id)
 );
 

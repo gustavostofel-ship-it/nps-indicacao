@@ -4,38 +4,58 @@ import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, Legend } from 'recharts';
 import { startOfMonth, format, subDays, isAfter, isBefore } from 'date-fns';
-import { ArrowRight, Star, Megaphone, Users, Target, CheckCircle2, AlertCircle } from 'lucide-react';
+import { ArrowRight, Star, Megaphone, Users, Target, CheckCircle2, AlertCircle, ArrowUpRight, ArrowDownRight, Clock, AlertTriangle, Download, Filter } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 
 const supabase = createClient();
 
-type Avaliacao = { id: string, nota: number, data_avaliacao: string, setor: any, usuario_id: string };
-type Indicacao = { id: string, status: string, data_indicacao: string, usuario_id: string, nome_indicado: string, responsavel_id: string | null };
+type Avaliacao = { id: string, nota: number, data_avaliacao: string, setor: any, setor_id: string, usuario_id: string, associado_id: string };
+type Indicacao = { id: string, status: string, data_indicacao: string, updated_at: string, data_fechamento: string | null, usuario_id: string, nome_indicado: string, responsavel_id: string | null, associado_id: string };
 type Usuario = { id: string, nome: string };
+type Setor = { id: string, nome: string };
 
 const COLORS = ['#22c55e', '#eab308', '#ef4444']; // Promotor, Neutro, Detrator
 const STATUS_COLORS = { pendente: '#eab308', em_tratativa: '#3b82f6', fechado: '#22c55e', sem_retorno: '#ef4444' };
+const DIAS_LIMITE_ESQUECIDA = 3; // dias sem atualização para considerar uma indicação "esquecida"
+
+// Badge de variação percentual em relação ao período anterior.
+// invertido=true significa "menor é melhor" (ex: tempo de fechamento).
+function DeltaBadge({ delta, invertido = false }: { delta: number | null, invertido?: boolean }) {
+  if (delta === null || delta === 0) return null;
+  const positivo = invertido ? delta < 0 : delta > 0;
+  const Icon = delta > 0 ? ArrowUpRight : ArrowDownRight;
+  return (
+    <span className={`inline-flex items-center gap-0.5 text-[11px] font-bold px-1.5 py-0.5 rounded-full ${positivo ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+      <Icon className="w-3 h-3" /> {Math.abs(delta)}%
+    </span>
+  );
+}
 
 export default function MainDashboard() {
   const [avaliacoes, setAvaliacoes] = useState<Avaliacao[]>([]);
   const [indicacoes, setIndicacoes] = useState<Indicacao[]>([]);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  const [setoresList, setSetoresList] = useState<Setor[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Dados do período anterior, usados só para calcular a variação percentual (comparação)
+  const [avaliacoesPrev, setAvaliacoesPrev] = useState<{ nota: number }[]>([]);
+  const [indicacoesPrev, setIndicacoesPrev] = useState<{ status: string, data_indicacao: string, data_fechamento: string | null }[]>([]);
 
   const [dateFilter, setDateFilter] = useState({
     start: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
     end: format(new Date(), 'yyyy-MM-dd')
   });
+  const [setorFilter, setSetorFilter] = useState('');
 
   const carregarDados = async () => {
     setLoading(true);
 
-    // Base Queries
-    let queryAval = supabase.from('avaliacoes').select('id, nota, data_avaliacao, usuario_id, setor:setores(nome)').order('data_avaliacao', { ascending: true });
-    let queryInd = supabase.from('indicacoes').select('id, status, data_indicacao, usuario_id, nome_indicado, responsavel_id').order('data_indicacao', { ascending: true });
+    // Base Queries (período atual)
+    let queryAval = supabase.from('avaliacoes').select('id, nota, data_avaliacao, usuario_id, associado_id, setor_id, setor:setores(nome)').order('data_avaliacao', { ascending: true });
+    let queryInd = supabase.from('indicacoes').select('id, status, data_indicacao, updated_at, data_fechamento, usuario_id, nome_indicado, responsavel_id, associado_id').order('data_indicacao', { ascending: true });
 
-    // Apply Dates diretamente na consulta (mais rápido e evita bugs de filtro no navegador)
     if (dateFilter.start) {
       const start = new Date(`${dateFilter.start}T00:00:00`).toISOString();
       queryAval = queryAval.gte('data_avaliacao', start);
@@ -46,11 +66,34 @@ export default function MainDashboard() {
       queryAval = queryAval.lte('data_avaliacao', end);
       queryInd = queryInd.lte('data_indicacao', end);
     }
+    if (setorFilter) {
+      queryAval = queryAval.eq('setor_id', setorFilter);
+    }
 
-    const [resAval, resInd, resUser] = await Promise.all([
+    // Período imediatamente anterior, com a mesma duração, só para comparação (%)
+    let queryAvalPrev: any = Promise.resolve({ data: [], error: null });
+    let queryIndPrev: any = Promise.resolve({ data: [], error: null });
+    if (dateFilter.start && dateFilter.end) {
+      const start = new Date(`${dateFilter.start}T00:00:00`);
+      const end = new Date(`${dateFilter.end}T23:59:59.999`);
+      const duracaoMs = end.getTime() - start.getTime();
+      const prevEnd = new Date(start.getTime() - 1);
+      const prevStart = new Date(prevEnd.getTime() - duracaoMs);
+
+      let qap = supabase.from('avaliacoes').select('nota').gte('data_avaliacao', prevStart.toISOString()).lte('data_avaliacao', prevEnd.toISOString());
+      if (setorFilter) qap = qap.eq('setor_id', setorFilter);
+      queryAvalPrev = qap;
+
+      queryIndPrev = supabase.from('indicacoes').select('status, data_indicacao, data_fechamento').gte('data_indicacao', prevStart.toISOString()).lte('data_indicacao', prevEnd.toISOString());
+    }
+
+    const [resAval, resInd, resUser, resSetores, resAvalPrev, resIndPrev] = await Promise.all([
       queryAval,
       queryInd,
-      supabase.from('perfis_usuarios').select('id, nome')
+      supabase.from('perfis_usuarios').select('id, nome'),
+      supabase.from('setores').select('id, nome').eq('ativo', true).order('ordem', { ascending: true }),
+      queryAvalPrev,
+      queryIndPrev
     ]);
 
     if (resAval.error) {
@@ -61,20 +104,22 @@ export default function MainDashboard() {
       console.error('Erro ao carregar indicações:', resInd.error);
       toast.error('Erro ao carregar indicações: ' + resInd.error.message);
     }
-    if (resUser.error) {
-      console.error('Erro ao carregar usuários:', resUser.error);
-    }
+    if (resUser.error) console.error('Erro ao carregar usuários:', resUser.error);
+    if (resSetores.error) console.error('Erro ao carregar setores:', resSetores.error);
 
     setAvaliacoes(resAval.data || []);
     setIndicacoes(resInd.data || []);
     setUsuarios(resUser.data || []);
+    setSetoresList(resSetores.data || []);
+    setAvaliacoesPrev(resAvalPrev.data || []);
+    setIndicacoesPrev(resIndPrev.data || []);
 
     setLoading(false);
   };
 
   useEffect(() => {
     carregarDados();
-  }, [dateFilter]);
+  }, [dateFilter, setorFilter]);
 
   // Metrics
   const totalAvaliacoes = avaliacoes.length;
@@ -142,6 +187,110 @@ export default function MainDashboard() {
     .sort((a, b) => new Date(b.data_indicacao).getTime() - new Date(a.data_indicacao).getTime())
     .slice(0, 5);
 
+  // ---- Comparação com o período anterior (%) ----
+  const calcDelta = (atual: number, anterior: number | null) => {
+    if (anterior === null || anterior === 0) return null;
+    return Math.round(((atual - anterior) / anterior) * 100);
+  };
+  const totalAvaliacoesPrev = avaliacoesPrev.length;
+  const mediaNPSPrev = totalAvaliacoesPrev > 0 ? avaliacoesPrev.reduce((a, c) => a + c.nota, 0) / totalAvaliacoesPrev : null;
+  const totalIndicacoesPrev = indicacoesPrev.length;
+  const fechadasPrev = indicacoesPrev.filter(i => i.status === 'fechado').length;
+  const conversaoPrev = totalIndicacoesPrev > 0 ? Math.round((fechadasPrev / totalIndicacoesPrev) * 100) : null;
+
+  const deltaAvaliacoes = calcDelta(totalAvaliacoes, totalAvaliacoesPrev || null);
+  const deltaNPS = calcDelta(Number(mediaNPS), mediaNPSPrev);
+  const deltaIndicacoes = calcDelta(totalIndicacoes, totalIndicacoesPrev || null);
+  const deltaConversao = calcDelta(conversao, conversaoPrev);
+
+  // ---- Tempo médio de fechamento ----
+  const fechadasComData = indicacoes.filter(i => i.status === 'fechado' && i.data_fechamento);
+  const tempoMedioFechamentoDias = fechadasComData.length > 0
+    ? fechadasComData.reduce((acc, i) => acc + (new Date(i.data_fechamento!).getTime() - new Date(i.data_indicacao).getTime()), 0) / fechadasComData.length / (1000 * 60 * 60 * 24)
+    : null;
+
+  const fechadasPrevComData = indicacoesPrev.filter(i => i.status === 'fechado' && i.data_fechamento);
+  const tempoMedioFechamentoPrevDias = fechadasPrevComData.length > 0
+    ? fechadasPrevComData.reduce((acc, i) => acc + (new Date(i.data_fechamento!).getTime() - new Date(i.data_indicacao).getTime()), 0) / fechadasPrevComData.length / (1000 * 60 * 60 * 24)
+    : null;
+  const deltaTempoFechamento = tempoMedioFechamentoDias !== null ? calcDelta(tempoMedioFechamentoDias, tempoMedioFechamentoPrevDias) : null;
+
+  // ---- Indicações esquecidas (paradas há mais de X dias, sem estar fechadas) ----
+  const agora = new Date();
+  const indicacoesEsquecidas = indicacoes
+    .filter(i => i.status === 'pendente' || i.status === 'em_tratativa')
+    .map(i => {
+      const referencia = new Date(i.updated_at || i.data_indicacao);
+      const diasParado = (agora.getTime() - referencia.getTime()) / (1000 * 60 * 60 * 24);
+      return { ...i, diasParado };
+    })
+    .filter(i => i.diasParado >= DIAS_LIMITE_ESQUECIDA)
+    .sort((a, b) => b.diasParado - a.diasParado);
+
+  // ---- Correlação NPS -> Indicações: associados com nota alta indicam mais? ----
+  const associadoNotaMap = avaliacoes.reduce((acc: any, curr) => {
+    if (!acc[curr.associado_id]) acc[curr.associado_id] = { soma: 0, count: 0 };
+    acc[curr.associado_id].soma += curr.nota;
+    acc[curr.associado_id].count += 1;
+    return acc;
+  }, {});
+  const classificarAssociado = (associadoId: string) => {
+    const s = associadoNotaMap[associadoId];
+    if (!s) return 'Sem avaliação';
+    const media = s.soma / s.count;
+    if (media >= 9) return 'Promotor';
+    if (media >= 7) return 'Neutro';
+    return 'Detrator';
+  };
+  const correlacaoMap: Record<string, number> = { 'Promotor': 0, 'Neutro': 0, 'Detrator': 0, 'Sem avaliação': 0 };
+  indicacoes.forEach(ind => {
+    const classe = classificarAssociado(ind.associado_id);
+    correlacaoMap[classe] = (correlacaoMap[classe] || 0) + 1;
+  });
+  const correlacaoData = [
+    { name: 'Promotor', value: correlacaoMap['Promotor'], fill: COLORS[0] },
+    { name: 'Neutro', value: correlacaoMap['Neutro'], fill: COLORS[1] },
+    { name: 'Detrator', value: correlacaoMap['Detrator'], fill: COLORS[2] },
+    { name: 'Sem avaliação', value: correlacaoMap['Sem avaliação'], fill: '#94a3b8' },
+  ];
+  const totalComCorrelacao = correlacaoData.reduce((a, c) => a + c.value, 0);
+
+  // ---- Exportar CSV ----
+  const exportarCSV = (tipo: 'indicacoes' | 'avaliacoes') => {
+    const linhas: string[] = [];
+    if (tipo === 'indicacoes') {
+      linhas.push('Data,Indicado,Status,Dias Parado,Data Fechamento');
+      indicacoes.forEach(i => {
+        const dias = ((agora.getTime() - new Date(i.updated_at || i.data_indicacao).getTime()) / (1000 * 60 * 60 * 24)).toFixed(1);
+        linhas.push([
+          new Date(i.data_indicacao).toLocaleDateString('pt-BR'),
+          `"${(i.nome_indicado || '').replace(/"/g, '""')}"`,
+          i.status,
+          dias,
+          i.data_fechamento ? new Date(i.data_fechamento).toLocaleDateString('pt-BR') : ''
+        ].join(','));
+      });
+    } else {
+      linhas.push('Data,Setor,Nota');
+      avaliacoes.forEach(a => {
+        const setorNome = Array.isArray(a.setor) ? a.setor[0]?.nome : a.setor?.nome;
+        linhas.push([
+          new Date(a.data_avaliacao).toLocaleDateString('pt-BR'),
+          `"${(setorNome || '').replace(/"/g, '""')}"`,
+          String(a.nota)
+        ].join(','));
+      });
+    }
+    const csvContent = '\uFEFF' + linhas.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${tipo}_${dateFilter.start}_a_${dateFilter.end}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const applyShortcut = (type: 'hoje'|'7dias'|'mes') => {
     const today = new Date();
     let start = today;
@@ -154,33 +303,59 @@ export default function MainDashboard() {
     <div className="space-y-6 animate-in fade-in duration-500">
       
       {/* Header & Filters */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Dashboard Geral</h1>
           <p className="text-slate-500 text-sm mt-1">Acompanhe a satisfação e indicações da sua unidade.</p>
         </div>
-        
-        <div>
-          <label className="block text-sm font-medium text-slate-600 mb-1">Período de Análise</label>
-          <div className="flex gap-2">
-            <input 
-              type="date"
-              value={dateFilter.start}
-              onChange={e => setDateFilter({...dateFilter, start: e.target.value})}
-              className="px-2 py-1.5 border border-slate-300 rounded-lg text-sm outline-none"
-            />
-            <span className="self-center text-slate-400">-</span>
-            <input 
-              type="date"
-              value={dateFilter.end}
-              onChange={e => setDateFilter({...dateFilter, end: e.target.value})}
-              className="px-2 py-1.5 border border-slate-300 rounded-lg text-sm outline-none"
-            />
+
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
+          <div>
+            <label className="block text-sm font-medium text-slate-600 mb-1">Setor</label>
+            <div className="relative">
+              <Filter className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <select
+                value={setorFilter}
+                onChange={e => setSetorFilter(e.target.value)}
+                className="pl-7 pr-3 py-1.5 border border-slate-300 rounded-lg text-sm outline-none bg-white"
+              >
+                <option value="">Todos os setores</option>
+                {setoresList.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
+              </select>
+            </div>
           </div>
-          <div className="flex gap-3 mt-1.5 text-xs">
-            <button onClick={() => applyShortcut('hoje')} className="text-blue-600 font-medium hover:underline">Hoje</button>
-            <button onClick={() => applyShortcut('7dias')} className="text-blue-600 font-medium hover:underline">7 Dias</button>
-            <button onClick={() => applyShortcut('mes')} className="text-blue-600 font-medium hover:underline">Este Mês</button>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-600 mb-1">Período de Análise</label>
+            <div className="flex gap-2">
+              <input 
+                type="date"
+                value={dateFilter.start}
+                onChange={e => setDateFilter({...dateFilter, start: e.target.value})}
+                className="px-2 py-1.5 border border-slate-300 rounded-lg text-sm outline-none"
+              />
+              <span className="self-center text-slate-400">-</span>
+              <input 
+                type="date"
+                value={dateFilter.end}
+                onChange={e => setDateFilter({...dateFilter, end: e.target.value})}
+                className="px-2 py-1.5 border border-slate-300 rounded-lg text-sm outline-none"
+              />
+            </div>
+            <div className="flex gap-3 mt-1.5 text-xs">
+              <button onClick={() => applyShortcut('hoje')} className="text-blue-600 font-medium hover:underline">Hoje</button>
+              <button onClick={() => applyShortcut('7dias')} className="text-blue-600 font-medium hover:underline">7 Dias</button>
+              <button onClick={() => applyShortcut('mes')} className="text-blue-600 font-medium hover:underline">Este Mês</button>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <button onClick={() => exportarCSV('avaliacoes')} title="Exportar avaliações do período em CSV" className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors">
+              <Download className="w-3.5 h-3.5" /> Avaliações
+            </button>
+            <button onClick={() => exportarCSV('indicacoes')} title="Exportar indicações do período em CSV" className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors">
+              <Download className="w-3.5 h-3.5" /> Indicações
+            </button>
           </div>
         </div>
       </div>
@@ -192,16 +367,20 @@ export default function MainDashboard() {
       ) : (
         <>
           {/* Top Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             
             {/* Avaliações Card */}
             <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-              <div className="flex items-center gap-2 text-slate-500 font-semibold mb-2">
-                <Star className="w-5 h-5 text-blue-500" /> Total Avaliações
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2 text-slate-500 font-semibold">
+                  <Star className="w-5 h-5 text-blue-500" /> Total Avaliações
+                </div>
+                <DeltaBadge delta={deltaAvaliacoes} />
               </div>
               <div className="text-3xl font-bold text-slate-800">{totalAvaliacoes}</div>
-              <div className="mt-2 text-sm text-slate-500 flex items-center gap-2">
+              <div className="mt-2 text-sm text-slate-500 flex items-center gap-2 flex-wrap">
                 <span className="font-bold text-blue-600">NPS Médio: {mediaNPS}</span>
+                <DeltaBadge delta={deltaNPS} />
               </div>
             </div>
 
@@ -228,8 +407,11 @@ export default function MainDashboard() {
 
             {/* Indicações Card */}
             <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-              <div className="flex items-center gap-2 text-slate-500 font-semibold mb-2">
-                <Megaphone className="w-5 h-5 text-orange-500" /> Total Indicações
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2 text-slate-500 font-semibold">
+                  <Megaphone className="w-5 h-5 text-orange-500" /> Total Indicações
+                </div>
+                <DeltaBadge delta={deltaIndicacoes} />
               </div>
               <div className="text-3xl font-bold text-slate-800">{totalIndicacoes}</div>
               <div className="mt-2 text-sm text-slate-500 flex items-center gap-2">
@@ -239,8 +421,11 @@ export default function MainDashboard() {
 
             {/* Conversão Card */}
             <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-              <div className="flex items-center gap-2 text-slate-500 font-semibold mb-2">
-                <Target className="w-5 h-5 text-green-500" /> Conversão
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2 text-slate-500 font-semibold">
+                  <Target className="w-5 h-5 text-green-500" /> Conversão
+                </div>
+                <DeltaBadge delta={deltaConversao} />
               </div>
               <div className="text-3xl font-bold text-slate-800">{conversao}%</div>
               <div className="mt-2 text-[11px] text-slate-500 uppercase font-semibold">
@@ -248,7 +433,45 @@ export default function MainDashboard() {
               </div>
             </div>
 
+            {/* Tempo Médio de Fechamento Card */}
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2 text-slate-500 font-semibold">
+                  <Clock className="w-5 h-5 text-purple-500" /> Tempo de Fechamento
+                </div>
+                <DeltaBadge delta={deltaTempoFechamento} invertido />
+              </div>
+              <div className="text-3xl font-bold text-slate-800">
+                {tempoMedioFechamentoDias !== null ? `${tempoMedioFechamentoDias.toFixed(1)}d` : '—'}
+              </div>
+              <div className="mt-2 text-[11px] text-slate-500 uppercase font-semibold">
+                Média do cadastro até o fechamento
+              </div>
+            </div>
+
           </div>
+
+          {/* Alerta: Indicações Esquecidas */}
+          {indicacoesEsquecidas.length > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-bold text-amber-800 flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5" /> {indicacoesEsquecidas.length} indicação(ões) parada(s) há mais de {DIAS_LIMITE_ESQUECIDA} dias
+                </h3>
+                <Link href="/indicacoes" className="text-xs font-semibold text-amber-700 hover:underline flex items-center gap-1">
+                  Ver Todas <ArrowRight className="w-3 h-3" />
+                </Link>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {indicacoesEsquecidas.slice(0, 6).map(ind => (
+                  <Link href="/indicacoes" key={ind.id} className="bg-white border border-amber-100 rounded-lg px-3 py-2 hover:border-amber-300 transition-colors">
+                    <div className="font-semibold text-sm text-slate-800">{ind.nome_indicado}</div>
+                    <div className="text-xs text-amber-700 font-medium">{Math.floor(ind.diasParado)} dias sem atualização</div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Charts Row */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -328,6 +551,31 @@ export default function MainDashboard() {
                       <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
                       <Bar dataKey="value" name="Quantidade" radius={[4, 4, 0, 0]} barSize={40}>
                         {statusData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.fill} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-slate-400 text-sm">Sem dados suficientes</div>
+                )}
+              </div>
+            </div>
+
+            {/* Correlação NPS -> Indicações */}
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 lg:col-span-2">
+              <h3 className="font-bold text-slate-700 mb-1">Indicações por Perfil do Cliente</h3>
+              <p className="text-xs text-slate-400 mb-4">Associados promotores (nota 9-10) indicam mais do que detratores?</p>
+              <div className="h-[220px] w-full">
+                {totalComCorrelacao > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={correlacaoData} layout="vertical" margin={{ left: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
+                      <XAxis type="number" allowDecimals={false} hide />
+                      <YAxis dataKey="name" type="category" tick={{fontSize: 12, fill: '#64748b'}} tickLine={false} axisLine={false} width={90} />
+                      <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                      <Bar dataKey="value" name="Indicações" radius={[0, 4, 4, 0]} barSize={22}>
+                        {correlacaoData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.fill} />
                         ))}
                       </Bar>
