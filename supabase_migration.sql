@@ -60,23 +60,48 @@ CREATE TABLE veiculos (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now())
 );
 
+-- Tabela: criterios_avaliacao
+-- Adicionada em produção após a criação original do banco (não existia na versão
+-- anterior deste arquivo). Cada setor pode ter vários critérios de avaliação;
+-- as notas por critério ficam em avaliacao_notas.
+CREATE TABLE criterios_avaliacao (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  setor_id UUID NOT NULL REFERENCES setores(id),
+  nome TEXT NOT NULL,
+  ativo BOOLEAN NOT NULL DEFAULT true,
+  ordem INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now())
+);
+
 -- Tabela: avaliacoes
+-- Campos `nota` e `classificacao` mudaram em produção em relação à versão original:
+-- - `nota` passou de INTEGER (0-10) para NUMERIC, pois agora representa a média
+--   calculada a partir das notas por critério (ver avaliacao_notas).
+-- - `classificacao` deixou de ser coluna GENERATED (calculada no próprio banco) e
+--   passou a ser TEXT normal, preenchida pela aplicação — provavelmente porque o
+--   cálculo agora depende de dados de outra tabela (avaliacao_notas), o que uma
+--   coluna GENERATED de uma única linha não consegue fazer sozinha.
 CREATE TABLE avaliacoes (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   veiculo_id UUID NOT NULL REFERENCES veiculos(id) ON DELETE CASCADE,
   associado_id UUID NOT NULL REFERENCES associados(id) ON DELETE CASCADE,
   setor_id UUID NOT NULL REFERENCES setores(id),
-  nota INTEGER NOT NULL CHECK (nota >= 0 AND nota <= 10),
-  classificacao TEXT GENERATED ALWAYS AS (
-    CASE 
-      WHEN nota >= 9 THEN 'promotor'
-      WHEN nota >= 7 THEN 'neutro'
-      ELSE 'detrator'
-    END
-  ) STORED,
+  nota NUMERIC NOT NULL,
+  classificacao TEXT,
   comentario TEXT,
   data_avaliacao TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()),
   usuario_id UUID NOT NULL REFERENCES auth.users(id)
+);
+
+-- Tabela: avaliacao_notas
+-- Adicionada em produção após a criação original do banco. Guarda a nota dada
+-- para cada critério (criterios_avaliacao) dentro de uma avaliação.
+CREATE TABLE avaliacao_notas (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  avaliacao_id UUID NOT NULL REFERENCES avaliacoes(id) ON DELETE CASCADE,
+  criterio_id UUID NOT NULL REFERENCES criterios_avaliacao(id),
+  nota INTEGER NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now())
 );
 
 -- Tabela: indicacoes
@@ -93,7 +118,10 @@ CREATE TABLE indicacoes (
   -- Responsável pelo acompanhamento da indicação (pode ser diferente de quem cadastrou).
   -- Adicionada em 25/08/2026 via ALTER TABLE porque faltava no banco de produção;
   -- mantida aqui para que uma nova instalação do zero já saia com a coluna certa.
-  responsavel_id UUID REFERENCES auth.users(id)
+  responsavel_id UUID REFERENCES auth.users(id),
+  -- updated_at e data_fechamento também foram adicionadas depois via ALTER TABLE.
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc', now()),
+  data_fechamento TIMESTAMP WITH TIME ZONE
 );
 
 -- Criação de Índices para busca rápida
@@ -103,6 +131,9 @@ CREATE INDEX idx_veiculos_placa ON veiculos(placa);
 CREATE INDEX idx_veiculos_associado_id ON veiculos(associado_id);
 CREATE INDEX idx_avaliacoes_associado_id ON avaliacoes(associado_id);
 CREATE INDEX idx_indicacoes_associado_id ON indicacoes(associado_id);
+CREATE INDEX idx_criterios_avaliacao_setor_id ON criterios_avaliacao(setor_id);
+CREATE INDEX idx_avaliacao_notas_avaliacao_id ON avaliacao_notas(avaliacao_id);
+CREATE INDEX idx_avaliacao_notas_criterio_id ON avaliacao_notas(criterio_id);
 
 -- RLS (Row Level Security)
 ALTER TABLE perfis_usuarios ENABLE ROW LEVEL SECURITY;
@@ -112,6 +143,8 @@ ALTER TABLE associados ENABLE ROW LEVEL SECURITY;
 ALTER TABLE veiculos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE avaliacoes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE indicacoes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE criterios_avaliacao ENABLE ROW LEVEL SECURITY;
+ALTER TABLE avaliacao_notas ENABLE ROW LEVEL SECURITY;
 
 -- Helper function to check if user is admin
 CREATE OR REPLACE FUNCTION is_admin() RETURNS BOOLEAN AS $$
@@ -161,15 +194,37 @@ ON avaliacoes FOR ALL TO authenticated USING (true);
 CREATE POLICY "Autenticados podem ler/escrever indicacoes"
 ON indicacoes FOR ALL TO authenticated USING (true);
 
+-- Políticas para criterios_avaliacao (segue o mesmo padrão de setores)
+-- OBS: política inferida por analogia com `setores`, não foi confirmada consultando
+-- pg_policies no banco em produção. Vale conferir/ajustar se divergir.
+CREATE POLICY "Todos autenticados podem ver criterios_avaliacao"
+ON criterios_avaliacao FOR SELECT TO authenticated USING (true);
+
+CREATE POLICY "Apenas admins podem modificar criterios_avaliacao"
+ON criterios_avaliacao FOR ALL TO authenticated USING (is_admin());
+
+-- Políticas para avaliacao_notas (segue o mesmo padrão de avaliacoes)
+-- OBS: política inferida por analogia com `avaliacoes`, não foi confirmada
+-- consultando pg_policies no banco em produção. Vale conferir/ajustar se divergir.
+CREATE POLICY "Autenticados podem ler/escrever avaliacao_notas"
+ON avaliacao_notas FOR ALL TO authenticated USING (true);
+
 -- Trigger para atualizar `updated_at` em `associados`
-CREATE OR REPLACE FUNCTION update_modified_column() 
+CREATE OR REPLACE FUNCTION update_modified_column()
 RETURNS TRIGGER AS $$
 BEGIN
     NEW.updated_at = now();
-    RETURN NEW; 
+    RETURN NEW;
 END;
 $$ language 'plpgsql';
 
 CREATE TRIGGER update_associados_modtime
 BEFORE UPDATE ON associados
 FOR EACH ROW EXECUTE PROCEDURE update_modified_column();
+
+-- OBS: `indicacoes.updated_at` também existe em produção e provavelmente tem um
+-- trigger equivalente a este, mas isso não foi confirmado (não consultamos
+-- triggers do banco ao vivo). Se necessário, replicar o padrão acima:
+-- CREATE TRIGGER update_indicacoes_modtime
+-- BEFORE UPDATE ON indicacoes
+-- FOR EACH ROW EXECUTE PROCEDURE update_modified_column();
