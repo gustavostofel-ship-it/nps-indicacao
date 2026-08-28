@@ -427,21 +427,25 @@ export default function MainDashboard() {
               </div>
               <div className="text-3xl font-bold text-slate-800">{totalAvaliacoes}</div>
               <div className="mt-2 text-sm text-slate-500 flex items-center gap-2 flex-wrap">
-                <span className="font-bold text-blue-600">NPS Médio: {mediaNPS}</span>
+                <span className="font-bold text-blue-600">Nota Média: {mediaNPS}</span>
                 <DeltaBadge delta={deltaNPS} />
               </div>
             </div>
 
             {/* Classificação das Avaliações Card */}
             <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2 text-slate-500 font-semibold">
                   <Users className="w-5 h-5 text-indigo-500" /> Classificação
                 </div>
-                <span className={`text-xs font-bold px-2 py-0.5 rounded-lg ${npsScore >= 50 ? 'bg-green-100 text-green-700' : npsScore >= 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
-                  NPS {npsScore}
+                <span
+                  title="NPS = % de promotores − % de detratores. Vai de -100 a 100."
+                  className={`text-xs font-bold px-2 py-0.5 rounded-lg whitespace-nowrap ${npsScore >= 50 ? 'bg-green-100 text-green-700' : npsScore >= 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}
+                >
+                  NPS: {npsScore}
                 </span>
               </div>
+              <p className="text-[11px] text-slate-400 mb-3">% promotores − % detratores</p>
               {totalAvaliacoes > 0 ? (
                 <div className="flex h-2.5 rounded-full overflow-hidden bg-slate-100 mb-3">
                   <div className="bg-green-500 h-full" style={{ width: `${(promotores / totalAvaliacoes) * 100}%` }} />
@@ -451,30 +455,23 @@ export default function MainDashboard() {
               ) : (
                 <div className="h-2.5 rounded-full bg-slate-100 mb-3" />
               )}
-              {/* Grid de 3 colunas fixas: cada rótulo tem sua própria coluna e quebra
-                  linha dentro dela mesma, em vez de disputar espaço num flex row (o
-                  que fazia "Detratores" vazar pra fora do card em telas menores). */}
-              <div className="grid grid-cols-3 gap-1 text-center">
-                <div className="min-w-0">
-                  <div className="flex items-center justify-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
-                    <span className="text-sm font-bold text-slate-800">{promotores}</span>
-                  </div>
-                  <div className="text-[10px] uppercase text-slate-400 font-semibold mt-0.5 leading-tight">Promotores</div>
+              {/* Lista vertical, uma linha por classificação ocupando a largura toda
+                  do card — evita o problema de antes, onde "Promotores"/"Neutros"/
+                  "Detratores" lado a lado em colunas estreitas literalmente
+                  se sobrepunham (palavra sem espaço pra quebrar, mais larga que a
+                  própria coluna). Cada linha aqui tem o card inteiro pra si. */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="flex items-center gap-1.5 text-slate-500"><span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />Promotores</span>
+                  <span className="font-bold text-slate-800">{promotores}</span>
                 </div>
-                <div className="min-w-0">
-                  <div className="flex items-center justify-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-yellow-400 shrink-0" />
-                    <span className="text-sm font-bold text-slate-800">{neutros}</span>
-                  </div>
-                  <div className="text-[10px] uppercase text-slate-400 font-semibold mt-0.5 leading-tight">Neutros</div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="flex items-center gap-1.5 text-slate-500"><span className="w-2 h-2 rounded-full bg-yellow-400 shrink-0" />Neutros</span>
+                  <span className="font-bold text-slate-800">{neutros}</span>
                 </div>
-                <div className="min-w-0">
-                  <div className="flex items-center justify-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
-                    <span className="text-sm font-bold text-slate-800">{detratores}</span>
-                  </div>
-                  <div className="text-[10px] uppercase text-slate-400 font-semibold mt-0.5 leading-tight">Detratores</div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="flex items-center gap-1.5 text-slate-500"><span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />Detratores</span>
+                  <span className="font-bold text-slate-800">{detratores}</span>
                 </div>
               </div>
             </div>

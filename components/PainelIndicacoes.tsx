@@ -203,10 +203,10 @@ export default function PainelIndicacoes() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">Buscar (Protocolo, Associado ou Indicado)</label>
+            <label className="block text-sm font-medium text-slate-600 mb-1">Buscar</label>
             <input
               type="text"
-              placeholder="Digite um nome ou protocolo..."
+              placeholder="Nome, associado ou protocolo..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               className="h-10 w-full px-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
