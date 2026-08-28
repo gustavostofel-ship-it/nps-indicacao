@@ -441,10 +441,31 @@ export default function MainDashboard() {
               ) : (
                 <div className="h-2.5 rounded-full bg-slate-100 mb-3" />
               )}
-              <div className="flex justify-between text-xs">
-                <span className="flex items-center gap-1.5 text-slate-500"><span className="w-2 h-2 rounded-full bg-green-500" />Promotores <span className="font-bold text-slate-800">{promotores}</span></span>
-                <span className="flex items-center gap-1.5 text-slate-500"><span className="w-2 h-2 rounded-full bg-yellow-400" />Neutros <span className="font-bold text-slate-800">{neutros}</span></span>
-                <span className="flex items-center gap-1.5 text-slate-500"><span className="w-2 h-2 rounded-full bg-red-500" />Detratores <span className="font-bold text-slate-800">{detratores}</span></span>
+              {/* Grid de 3 colunas fixas: cada rótulo tem sua própria coluna e quebra
+                  linha dentro dela mesma, em vez de disputar espaço num flex row (o
+                  que fazia "Detratores" vazar pra fora do card em telas menores). */}
+              <div className="grid grid-cols-3 gap-1 text-center">
+                <div className="min-w-0">
+                  <div className="flex items-center justify-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />
+                    <span className="text-sm font-bold text-slate-800">{promotores}</span>
+                  </div>
+                  <div className="text-[10px] uppercase text-slate-400 font-semibold mt-0.5 leading-tight">Promotores</div>
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center justify-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-yellow-400 shrink-0" />
+                    <span className="text-sm font-bold text-slate-800">{neutros}</span>
+                  </div>
+                  <div className="text-[10px] uppercase text-slate-400 font-semibold mt-0.5 leading-tight">Neutros</div>
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center justify-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+                    <span className="text-sm font-bold text-slate-800">{detratores}</span>
+                  </div>
+                  <div className="text-[10px] uppercase text-slate-400 font-semibold mt-0.5 leading-tight">Detratores</div>
+                </div>
               </div>
             </div>
 
