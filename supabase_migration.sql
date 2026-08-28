@@ -121,7 +121,45 @@ CREATE TABLE indicacoes (
   responsavel_id UUID REFERENCES auth.users(id),
   -- updated_at e data_fechamento também foram adicionadas depois via ALTER TABLE.
   updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc', now()),
-  data_fechamento TIMESTAMP WITH TIME ZONE
+  data_fechamento TIMESTAMP WITH TIME ZONE,
+  -- Número de protocolo legível (ex: IND-2026-000042), gerado automaticamente
+  -- pelo trigger trg_gerar_protocolo_indicacao logo abaixo. Adicionado em
+  -- 28/08/2026 (ver supabase_migration_protocolo_historico.sql).
+  protocolo TEXT UNIQUE
+);
+
+-- Sequência usada para gerar o número de protocolo das indicações
+CREATE SEQUENCE indicacoes_protocolo_seq START 1;
+
+CREATE OR REPLACE FUNCTION gerar_protocolo_indicacao() RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.protocolo IS NULL THEN
+    NEW.protocolo := 'IND-' || to_char(now(), 'YYYY') || '-' || lpad(nextval('indicacoes_protocolo_seq')::text, 6, '0');
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_gerar_protocolo_indicacao
+BEFORE INSERT ON indicacoes
+FOR EACH ROW EXECUTE PROCEDURE gerar_protocolo_indicacao();
+
+-- Tabela: indicacao_eventos
+-- Histórico imutável de auditoria de cada indicação: criação, mudança de
+-- status, reatribuição de responsável e observações adicionadas. Nunca é
+-- atualizada nem apagada, só recebe novas linhas — é a fonte de verdade para
+-- "quem fez o quê e quando" em cada indicação. Adicionada em 28/08/2026.
+CREATE TYPE tipo_evento_indicacao AS ENUM ('criacao', 'status_alterado', 'responsavel_alterado', 'observacao');
+
+CREATE TABLE indicacao_eventos (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  indicacao_id UUID NOT NULL REFERENCES indicacoes(id) ON DELETE CASCADE,
+  tipo tipo_evento_indicacao NOT NULL,
+  autor_id UUID REFERENCES auth.users(id),
+  descricao TEXT,
+  valor_anterior TEXT,
+  valor_novo TEXT,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc', now())
 );
 
 -- Criação de Índices para busca rápida
@@ -134,6 +172,7 @@ CREATE INDEX idx_indicacoes_associado_id ON indicacoes(associado_id);
 CREATE INDEX idx_criterios_avaliacao_setor_id ON criterios_avaliacao(setor_id);
 CREATE INDEX idx_avaliacao_notas_avaliacao_id ON avaliacao_notas(avaliacao_id);
 CREATE INDEX idx_avaliacao_notas_criterio_id ON avaliacao_notas(criterio_id);
+CREATE INDEX idx_indicacao_eventos_indicacao_id ON indicacao_eventos(indicacao_id);
 
 -- RLS (Row Level Security)
 ALTER TABLE perfis_usuarios ENABLE ROW LEVEL SECURITY;
@@ -145,6 +184,7 @@ ALTER TABLE avaliacoes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE indicacoes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE criterios_avaliacao ENABLE ROW LEVEL SECURITY;
 ALTER TABLE avaliacao_notas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE indicacao_eventos ENABLE ROW LEVEL SECURITY;
 
 -- Helper function to check if user is admin
 CREATE OR REPLACE FUNCTION is_admin() RETURNS BOOLEAN AS $$
@@ -209,6 +249,45 @@ ON criterios_avaliacao FOR ALL TO authenticated USING (is_admin());
 CREATE POLICY "Autenticados podem ler/escrever avaliacao_notas"
 ON avaliacao_notas FOR ALL TO authenticated USING (true);
 
+-- Políticas para indicacao_eventos (mesmo padrão de avaliacoes/indicacoes)
+CREATE POLICY "Autenticados podem ler/escrever indicacao_eventos"
+ON indicacao_eventos FOR ALL TO authenticated USING (true);
+
+-- Registro automático de auditoria em indicacoes: grava em indicacao_eventos
+-- em toda criação e em toda mudança de status ou responsável, não importa se
+-- a alteração veio da tela do sistema ou de um UPDATE direto no banco.
+CREATE OR REPLACE FUNCTION registrar_evento_indicacao() RETURNS TRIGGER AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    INSERT INTO indicacao_eventos (indicacao_id, tipo, autor_id, descricao)
+    VALUES (NEW.id, 'criacao', auth.uid(), 'Indicação criada');
+    RETURN NEW;
+  END IF;
+
+  IF TG_OP = 'UPDATE' THEN
+    IF NEW.status IS DISTINCT FROM OLD.status THEN
+      INSERT INTO indicacao_eventos (indicacao_id, tipo, autor_id, valor_anterior, valor_novo)
+      VALUES (NEW.id, 'status_alterado', auth.uid(), OLD.status::text, NEW.status::text);
+    END IF;
+    IF NEW.responsavel_id IS DISTINCT FROM OLD.responsavel_id THEN
+      INSERT INTO indicacao_eventos (indicacao_id, tipo, autor_id, valor_anterior, valor_novo)
+      VALUES (NEW.id, 'responsavel_alterado', auth.uid(), OLD.responsavel_id::text, NEW.responsavel_id::text);
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER trg_registrar_evento_indicacao_insert
+AFTER INSERT ON indicacoes
+FOR EACH ROW EXECUTE PROCEDURE registrar_evento_indicacao();
+
+CREATE TRIGGER trg_registrar_evento_indicacao_update
+AFTER UPDATE ON indicacoes
+FOR EACH ROW EXECUTE PROCEDURE registrar_evento_indicacao();
+
 -- Trigger para atualizar `updated_at` em `associados`
 CREATE OR REPLACE FUNCTION update_modified_column()
 RETURNS TRIGGER AS $$
@@ -222,9 +301,20 @@ CREATE TRIGGER update_associados_modtime
 BEFORE UPDATE ON associados
 FOR EACH ROW EXECUTE PROCEDURE update_modified_column();
 
--- OBS: `indicacoes.updated_at` também existe em produção e provavelmente tem um
--- trigger equivalente a este, mas isso não foi confirmado (não consultamos
--- triggers do banco ao vivo). Se necessário, replicar o padrão acima:
--- CREATE TRIGGER update_indicacoes_modtime
--- BEFORE UPDATE ON indicacoes
--- FOR EACH ROW EXECUTE PROCEDURE update_modified_column();
+-- `indicacoes.updated_at` só deve avançar quando algo que representa
+-- "trabalho feito na indicação" muda (status, responsável ou observações) —
+-- é o valor usado para calcular há quantos dias uma indicação está parada.
+CREATE OR REPLACE FUNCTION update_indicacoes_modtime() RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.status IS DISTINCT FROM OLD.status
+     OR NEW.responsavel_id IS DISTINCT FROM OLD.responsavel_id
+     OR NEW.observacoes IS DISTINCT FROM OLD.observacoes THEN
+    NEW.updated_at = timezone('utc', now());
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_update_indicacoes_modtime
+BEFORE UPDATE ON indicacoes
+FOR EACH ROW EXECUTE PROCEDURE update_indicacoes_modtime();

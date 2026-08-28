@@ -1,17 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, Legend } from 'recharts';
 import { startOfMonth, format, subDays, isAfter, isBefore } from 'date-fns';
-import { ArrowRight, Star, Megaphone, Users, Target, CheckCircle2, AlertCircle, ArrowUpRight, ArrowDownRight, Clock, AlertTriangle, Download, Filter } from 'lucide-react';
+import { ArrowRight, Star, Megaphone, Users, Target, CheckCircle2, AlertCircle, ArrowUpRight, ArrowDownRight, Clock, AlertTriangle, Download, Filter, Wifi } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 
 const supabase = createClient();
 
 type Avaliacao = { id: string, nota: number, data_avaliacao: string, setor: any, setor_id: string, usuario_id: string, associado_id: string };
-type Indicacao = { id: string, status: string, data_indicacao: string, updated_at: string, data_fechamento: string | null, usuario_id: string, nome_indicado: string, responsavel_id: string | null, associado_id: string };
+type Indicacao = { id: string, status: string, data_indicacao: string, updated_at: string, data_fechamento: string | null, usuario_id: string, nome_indicado: string, responsavel_id: string | null, associado_id: string, protocolo: string | null };
 type Usuario = { id: string, nome: string };
 type Setor = { id: string, nome: string };
 
@@ -54,7 +54,7 @@ export default function MainDashboard() {
 
     // Base Queries (período atual)
     let queryAval = supabase.from('avaliacoes').select('id, nota, data_avaliacao, usuario_id, associado_id, setor_id, setor:setores(nome)').order('data_avaliacao', { ascending: true });
-    let queryInd = supabase.from('indicacoes').select('id, status, data_indicacao, updated_at, data_fechamento, usuario_id, nome_indicado, responsavel_id, associado_id').order('data_indicacao', { ascending: true });
+    let queryInd = supabase.from('indicacoes').select('id, status, data_indicacao, updated_at, data_fechamento, usuario_id, nome_indicado, responsavel_id, associado_id, protocolo').order('data_indicacao', { ascending: true });
 
     if (dateFilter.start) {
       const start = new Date(`${dateFilter.start}T00:00:00`).toISOString();
@@ -121,13 +121,28 @@ export default function MainDashboard() {
     carregarDados();
   }, [dateFilter, setorFilter]);
 
-  // Metrics
+  // Tempo real: qualquer criação/alteração em avaliações ou indicações feita
+  // por outra pessoa atualiza este dashboard sozinho.
+  useEffect(() => {
+    const channel = supabase
+      .channel('dashboard-geral')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'indicacoes' }, () => carregarDados())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'avaliacoes' }, () => carregarDados())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateFilter, setorFilter]);
+
+  // Metrics — memoizados para não recalcular tudo a cada re-render (só quando
+  // os dados-fonte realmente mudam), já que os agrupamentos abaixo passam por
+  // toda a lista de avaliações/indicações do período.
   const totalAvaliacoes = avaliacoes.length;
   const mediaNPS = totalAvaliacoes > 0 ? (avaliacoes.reduce((acc, curr) => acc + curr.nota, 0) / totalAvaliacoes).toFixed(1) : '0.0';
-  
-  const promotores = avaliacoes.filter(a => a.nota >= 9).length;
-  const neutros = avaliacoes.filter(a => a.nota >= 7 && a.nota < 9).length;
-  const detratores = avaliacoes.filter(a => a.nota < 7).length;
+
+  const promotores = useMemo(() => avaliacoes.filter(a => a.nota >= 9).length, [avaliacoes]);
+  const neutros = useMemo(() => avaliacoes.filter(a => a.nota >= 7 && a.nota < 9).length, [avaliacoes]);
+  const detratores = useMemo(() => avaliacoes.filter(a => a.nota < 7).length, [avaliacoes]);
+  const npsScore = totalAvaliacoes > 0 ? Math.round(((promotores - detratores) / totalAvaliacoes) * 100) : 0;
   const pData = [
     { name: 'Promotores', value: promotores },
     { name: 'Neutros', value: neutros },
@@ -137,55 +152,59 @@ export default function MainDashboard() {
   const totalIndicacoes = indicacoes.length;
   const fechadas = indicacoes.filter(i => i.status === 'fechado').length;
   const conversao = totalIndicacoes > 0 ? Math.round((fechadas / totalIndicacoes) * 100) : 0;
-  const statusData = [
+  const statusData = useMemo(() => [
     { name: 'Pendente', value: indicacoes.filter(i => i.status === 'pendente').length, fill: STATUS_COLORS.pendente },
     { name: 'Tratativa', value: indicacoes.filter(i => i.status === 'em_tratativa').length, fill: STATUS_COLORS.em_tratativa },
     { name: 'Fechado', value: fechadas, fill: STATUS_COLORS.fechado },
     { name: 'S/ Retorno', value: indicacoes.filter(i => i.status === 'sem_retorno').length, fill: STATUS_COLORS.sem_retorno },
-  ];
+  ], [indicacoes, fechadas]);
 
   // Charts Logic
   // 1. NPS Evolution (Daily)
-  const npsByDate = avaliacoes.reduce((acc: any, curr) => {
-    const d = new Date(curr.data_avaliacao).toLocaleDateString('pt-BR');
-    if (!acc[d]) acc[d] = { date: d, soma: 0, count: 0 };
-    acc[d].soma += curr.nota;
-    acc[d].count += 1;
-    return acc;
-  }, {});
-  const npsEvolutionData = Object.values(npsByDate).map((x: any) => ({
-    date: x.date,
-    media: Number((x.soma / x.count).toFixed(1))
-  }));
+  const npsEvolutionData = useMemo(() => {
+    const npsByDate = avaliacoes.reduce((acc: any, curr) => {
+      const d = new Date(curr.data_avaliacao).toLocaleDateString('pt-BR');
+      if (!acc[d]) acc[d] = { date: d, soma: 0, count: 0 };
+      acc[d].soma += curr.nota;
+      acc[d].count += 1;
+      return acc;
+    }, {});
+    return Object.values(npsByDate).map((x: any) => ({
+      date: x.date,
+      media: Number((x.soma / x.count).toFixed(1))
+    }));
+  }, [avaliacoes]);
 
   // 2. Avaliações por Setor
-  const setorDataMap = avaliacoes.reduce((acc: any, curr) => {
-    const s = (Array.isArray(curr.setor) ? curr.setor[0]?.nome : curr.setor?.nome) || 'Desconhecido';
-    if (!acc[s]) acc[s] = { setor: s, soma: 0, count: 0 };
-    acc[s].soma += curr.nota;
-    acc[s].count += 1;
-    return acc;
-  }, {});
-  const setorData = Object.values(setorDataMap).map((x: any) => ({
-    name: x.setor,
-    media: Number((x.soma / x.count).toFixed(1)),
-    total: x.count
-  }));
+  const setorData = useMemo(() => {
+    const setorDataMap = avaliacoes.reduce((acc: any, curr) => {
+      const s = (Array.isArray(curr.setor) ? curr.setor[0]?.nome : curr.setor?.nome) || 'Desconhecido';
+      if (!acc[s]) acc[s] = { setor: s, soma: 0, count: 0 };
+      acc[s].soma += curr.nota;
+      acc[s].count += 1;
+      return acc;
+    }, {});
+    return Object.values(setorDataMap).map((x: any) => ({
+      name: x.setor,
+      media: Number((x.soma / x.count).toFixed(1)),
+      total: x.count
+    }));
+  }, [avaliacoes]);
 
   // Performance
-  const userPerformance = usuarios.map(u => {
+  const userPerformance = useMemo(() => usuarios.map(u => {
     const avs = avaliacoes.filter(a => a.usuario_id === u.id).length;
     const inds = indicacoes.filter(i => i.usuario_id === u.id);
     const fech = inds.filter(i => i.status === 'fechado').length;
     const success = inds.length > 0 ? Math.round((fech / inds.length) * 100) : 0;
     return { id: u.id, nome: u.nome, avaliacoes: avs, indicacoes: inds.length, sucesso: success };
-  }).sort((a, b) => b.indicacoes - a.indicacoes || b.avaliacoes - a.avaliacoes);
+  }).sort((a, b) => b.indicacoes - a.indicacoes || b.avaliacoes - a.avaliacoes), [usuarios, avaliacoes, indicacoes]);
 
   // Open Indications
-  const openIndicacoes = indicacoes
+  const openIndicacoes = useMemo(() => indicacoes
     .filter(i => i.status === 'pendente' || i.status === 'em_tratativa')
     .sort((a, b) => new Date(b.data_indicacao).getTime() - new Date(a.data_indicacao).getTime())
-    .slice(0, 5);
+    .slice(0, 5), [indicacoes]);
 
   // ---- Comparação com o período anterior (%) ----
   const calcDelta = (atual: number, anterior: number | null) => {
@@ -217,7 +236,7 @@ export default function MainDashboard() {
 
   // ---- Indicações esquecidas (paradas há mais de X dias, sem estar fechadas) ----
   const agora = new Date();
-  const indicacoesEsquecidas = indicacoes
+  const indicacoesEsquecidas = useMemo(() => indicacoes
     .filter(i => i.status === 'pendente' || i.status === 'em_tratativa')
     .map(i => {
       const referencia = new Date(i.updated_at || i.data_indicacao);
@@ -225,44 +244,49 @@ export default function MainDashboard() {
       return { ...i, diasParado };
     })
     .filter(i => i.diasParado >= DIAS_LIMITE_ESQUECIDA)
-    .sort((a, b) => b.diasParado - a.diasParado);
+    .sort((a, b) => b.diasParado - a.diasParado),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [indicacoes]);
 
   // ---- Correlação NPS -> Indicações: associados com nota alta indicam mais? ----
-  const associadoNotaMap = avaliacoes.reduce((acc: any, curr) => {
-    if (!acc[curr.associado_id]) acc[curr.associado_id] = { soma: 0, count: 0 };
-    acc[curr.associado_id].soma += curr.nota;
-    acc[curr.associado_id].count += 1;
-    return acc;
-  }, {});
-  const classificarAssociado = (associadoId: string) => {
-    const s = associadoNotaMap[associadoId];
-    if (!s) return 'Sem avaliação';
-    const media = s.soma / s.count;
-    if (media >= 9) return 'Promotor';
-    if (media >= 7) return 'Neutro';
-    return 'Detrator';
-  };
-  const correlacaoMap: Record<string, number> = { 'Promotor': 0, 'Neutro': 0, 'Detrator': 0, 'Sem avaliação': 0 };
-  indicacoes.forEach(ind => {
-    const classe = classificarAssociado(ind.associado_id);
-    correlacaoMap[classe] = (correlacaoMap[classe] || 0) + 1;
-  });
-  const correlacaoData = [
-    { name: 'Promotor', value: correlacaoMap['Promotor'], fill: COLORS[0] },
-    { name: 'Neutro', value: correlacaoMap['Neutro'], fill: COLORS[1] },
-    { name: 'Detrator', value: correlacaoMap['Detrator'], fill: COLORS[2] },
-    { name: 'Sem avaliação', value: correlacaoMap['Sem avaliação'], fill: '#94a3b8' },
-  ];
+  const correlacaoData = useMemo(() => {
+    const associadoNotaMap = avaliacoes.reduce((acc: any, curr) => {
+      if (!acc[curr.associado_id]) acc[curr.associado_id] = { soma: 0, count: 0 };
+      acc[curr.associado_id].soma += curr.nota;
+      acc[curr.associado_id].count += 1;
+      return acc;
+    }, {});
+    const classificarAssociado = (associadoId: string) => {
+      const s = associadoNotaMap[associadoId];
+      if (!s) return 'Sem avaliação';
+      const media = s.soma / s.count;
+      if (media >= 9) return 'Promotor';
+      if (media >= 7) return 'Neutro';
+      return 'Detrator';
+    };
+    const correlacaoMap: Record<string, number> = { 'Promotor': 0, 'Neutro': 0, 'Detrator': 0, 'Sem avaliação': 0 };
+    indicacoes.forEach(ind => {
+      const classe = classificarAssociado(ind.associado_id);
+      correlacaoMap[classe] = (correlacaoMap[classe] || 0) + 1;
+    });
+    return [
+      { name: 'Promotor', value: correlacaoMap['Promotor'], fill: COLORS[0] },
+      { name: 'Neutro', value: correlacaoMap['Neutro'], fill: COLORS[1] },
+      { name: 'Detrator', value: correlacaoMap['Detrator'], fill: COLORS[2] },
+      { name: 'Sem avaliação', value: correlacaoMap['Sem avaliação'], fill: '#94a3b8' },
+    ];
+  }, [avaliacoes, indicacoes]);
   const totalComCorrelacao = correlacaoData.reduce((a, c) => a + c.value, 0);
 
   // ---- Exportar CSV ----
   const exportarCSV = (tipo: 'indicacoes' | 'avaliacoes') => {
     const linhas: string[] = [];
     if (tipo === 'indicacoes') {
-      linhas.push('Data,Indicado,Status,Dias Parado,Data Fechamento');
+      linhas.push('Protocolo,Data,Indicado,Status,Dias Parado,Data Fechamento');
       indicacoes.forEach(i => {
         const dias = ((agora.getTime() - new Date(i.updated_at || i.data_indicacao).getTime()) / (1000 * 60 * 60 * 24)).toFixed(1);
         linhas.push([
+          i.protocolo || '',
           new Date(i.data_indicacao).toLocaleDateString('pt-BR'),
           `"${(i.nome_indicado || '').replace(/"/g, '""')}"`,
           i.status,
@@ -305,7 +329,12 @@ export default function MainDashboard() {
       {/* Header & Filters */}
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Dashboard Geral</h1>
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Dashboard Geral</h1>
+            <span className="flex items-center gap-1.5 text-xs font-semibold text-green-700 bg-green-50 border border-green-100 px-2.5 py-1 rounded-full">
+              <Wifi className="w-3.5 h-3.5" /> Ao vivo
+            </span>
+          </div>
           <p className="text-slate-500 text-sm mt-1">Acompanhe a satisfação e indicações da sua unidade.</p>
         </div>
 
@@ -361,8 +390,17 @@ export default function MainDashboard() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center p-20">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+        <div className="space-y-6 animate-pulse">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="bg-white p-5 rounded-2xl border border-slate-200 h-28" />
+            ))}
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {[...Array(2)].map((_, i) => (
+              <div key={i} className="bg-white p-5 rounded-2xl border border-slate-200 h-[300px]" />
+            ))}
+          </div>
         </div>
       ) : (
         <>
@@ -384,24 +422,29 @@ export default function MainDashboard() {
               </div>
             </div>
 
-            {/* Distribuição Card */}
+            {/* Classificação das Avaliações Card */}
             <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-              <div className="flex items-center gap-2 text-slate-500 font-semibold mb-2">
-                <Users className="w-5 h-5 text-indigo-500" /> Clientes
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2 text-slate-500 font-semibold">
+                  <Users className="w-5 h-5 text-indigo-500" /> Classificação
+                </div>
+                <span className={`text-xs font-bold px-2 py-0.5 rounded-lg ${npsScore >= 50 ? 'bg-green-100 text-green-700' : npsScore >= 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                  NPS {npsScore}
+                </span>
               </div>
-              <div className="flex justify-between items-end mt-2">
-                <div className="text-center">
-                  <div className="text-lg font-bold text-green-600">{promotores}</div>
-                  <div className="text-[10px] uppercase text-slate-400 font-semibold">Promotores</div>
+              {totalAvaliacoes > 0 ? (
+                <div className="flex h-2.5 rounded-full overflow-hidden bg-slate-100 mb-3">
+                  <div className="bg-green-500 h-full" style={{ width: `${(promotores / totalAvaliacoes) * 100}%` }} />
+                  <div className="bg-yellow-400 h-full" style={{ width: `${(neutros / totalAvaliacoes) * 100}%` }} />
+                  <div className="bg-red-500 h-full" style={{ width: `${(detratores / totalAvaliacoes) * 100}%` }} />
                 </div>
-                <div className="text-center">
-                  <div className="text-lg font-bold text-yellow-500">{neutros}</div>
-                  <div className="text-[10px] uppercase text-slate-400 font-semibold">Neutros</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-lg font-bold text-red-500">{detratores}</div>
-                  <div className="text-[10px] uppercase text-slate-400 font-semibold">Detratores</div>
-                </div>
+              ) : (
+                <div className="h-2.5 rounded-full bg-slate-100 mb-3" />
+              )}
+              <div className="flex justify-between text-xs">
+                <span className="flex items-center gap-1.5 text-slate-500"><span className="w-2 h-2 rounded-full bg-green-500" />Promotores <span className="font-bold text-slate-800">{promotores}</span></span>
+                <span className="flex items-center gap-1.5 text-slate-500"><span className="w-2 h-2 rounded-full bg-yellow-400" />Neutros <span className="font-bold text-slate-800">{neutros}</span></span>
+                <span className="flex items-center gap-1.5 text-slate-500"><span className="w-2 h-2 rounded-full bg-red-500" />Detratores <span className="font-bold text-slate-800">{detratores}</span></span>
               </div>
             </div>
 
@@ -465,7 +508,10 @@ export default function MainDashboard() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 {indicacoesEsquecidas.slice(0, 6).map(ind => (
                   <Link href="/indicacoes" key={ind.id} className="bg-white border border-amber-100 rounded-lg px-3 py-2 hover:border-amber-300 transition-colors">
-                    <div className="font-semibold text-sm text-slate-800">{ind.nome_indicado}</div>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="font-semibold text-sm text-slate-800">{ind.nome_indicado}</div>
+                      {ind.protocolo && <div className="font-mono text-[10px] text-slate-400">{ind.protocolo}</div>}
+                    </div>
                     <div className="text-xs text-amber-700 font-medium">{Math.floor(ind.diasParado)} dias sem atualização</div>
                   </Link>
                 ))}
@@ -647,8 +693,9 @@ export default function MainDashboard() {
                         {ind.status === 'pendente' ? 'Pendente' : 'Em Tratativa'}
                       </span>
                     </div>
-                    <div className="text-xs text-slate-500">
-                      Cadastrado: {new Date(ind.data_indicacao).toLocaleDateString('pt-BR')}
+                    <div className="text-xs text-slate-500 flex items-center gap-1.5 flex-wrap">
+                      {ind.protocolo && <span className="font-mono text-slate-400">{ind.protocolo}</span>}
+                      <span>Cadastrado: {new Date(ind.data_indicacao).toLocaleDateString('pt-BR')}</span>
                     </div>
                   </Link>
                 )) : (

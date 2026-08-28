@@ -1,31 +1,66 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, Fragment } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Search, Megaphone, Edit2, Check, X, Users, Calendar, Filter } from 'lucide-react';
+import { Megaphone, Filter, ChevronDown, ChevronUp, Hash, Clock, Wifi } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { subDays, startOfMonth, format } from 'date-fns';
+import { diasDesde } from '@/lib/utils';
+import { STATUS_LABELS, STATUS_BADGE_CLASSES, DIAS_LIMITE_PARADA } from '@/lib/indicacoes';
+import IndicacaoTimeline from '@/components/IndicacaoTimeline';
 
 const supabase = createClient();
 
 type Indicacao = any;
 type Usuario = { id: string, nome: string };
 
+// Definidos fora do componente para não serem recriados a cada render (o que
+// desmontaria o <select> nativo e derrubaria o foco do usuário no meio de uma
+// interação).
+function DiasParadoBadge({ ind }: { ind: Indicacao }) {
+  const dias = diasDesde(ind.updated_at || ind.data_indicacao);
+  const parada = (ind.status === 'pendente' || ind.status === 'em_tratativa') && dias >= DIAS_LIMITE_PARADA;
+  if (!parada) return null;
+  return (
+    <span className="flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded w-fit">
+      <Clock className="w-3 h-3" />{Math.floor(dias)}d parada
+    </span>
+  );
+}
+
+function StatusSelect({ ind, onChange }: { ind: Indicacao, onChange: (id: string, status: string) => void }) {
+  return (
+    <select
+      value={ind.status}
+      onChange={(e) => onChange(ind.id, e.target.value)}
+      className={`px-2 py-1 rounded-lg text-xs font-bold outline-none cursor-pointer border-0 ring-1 ring-inset focus:ring-2 ${STATUS_BADGE_CLASSES[ind.status] || 'bg-slate-50 text-slate-700 ring-slate-200'}`}
+    >
+      {Object.entries(STATUS_LABELS).map(([value, label]) => (
+        <option key={value} value={value}>{label}</option>
+      ))}
+    </select>
+  );
+}
+
 export default function PainelIndicacoes() {
   const [indicacoes, setIndicacoes] = useState<Indicacao[]>([]);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
 
+  // Filtros que disparam uma nova consulta ao banco.
   const [filtros, setFiltros] = useState({
     status: '',
-    search: '',
     responsavel_id: '',
     data_inicio: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
     data_fim: format(new Date(), 'yyyy-MM-dd')
   });
 
-  const [editId, setEditId] = useState<string | null>(null);
-  const [editObs, setEditObs] = useState('');
+  // Busca por texto: filtra só na memória (não deve gerar uma nova consulta
+  // ao banco a cada letra digitada — ver anotação abaixo).
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
 
   const carregarUsuarios = async () => {
     const { data } = await supabase.from('perfis_usuarios').select('id, nome');
@@ -64,26 +99,43 @@ export default function PainelIndicacoes() {
       return;
     }
 
-    if (data) {
-      let filteredData = data;
-      if (filtros.search) {
-        const term = filtros.search.toLowerCase();
-        filteredData = filteredData.filter((item: any) =>
-          item.nome_indicado?.toLowerCase().includes(term) ||
-          item.associados?.nome_completo?.toLowerCase().includes(term)
-        );
-      }
-      setIndicacoes(filteredData);
-    }
+    setIndicacoes(data || []);
     setLoading(false);
   };
 
+  // Filtro de texto aplicado só sobre os dados já carregados — não refaz a
+  // consulta ao Supabase a cada tecla digitada.
+  const indicacoesFiltradas = useMemo(() => {
+    if (!searchTerm) return indicacoes;
+    const term = searchTerm.toLowerCase();
+    return indicacoes.filter((item: any) =>
+      item.nome_indicado?.toLowerCase().includes(term) ||
+      item.protocolo?.toLowerCase().includes(term) ||
+      item.associados?.nome_completo?.toLowerCase().includes(term)
+    );
+  }, [indicacoes, searchTerm]);
+
   useEffect(() => {
     carregarUsuarios();
+    supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id));
   }, []);
 
   useEffect(() => {
     carregarIndicacoes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtros]);
+
+  // Tempo real: qualquer criação/alteração em indicacoes feita por outra
+  // pessoa (ou outra aba) atualiza esta tela sozinha, sem precisar de F5.
+  useEffect(() => {
+    const channel = supabase
+      .channel('indicacoes-painel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'indicacoes' }, () => {
+        carregarIndicacoes();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtros]);
 
   const updateStatus = async (id: string, novoStatus: string) => {
@@ -109,24 +161,12 @@ export default function PainelIndicacoes() {
     }
   };
 
-  const saveObs = async (id: string) => {
-    const tid = toast.loading('Salvando observações...');
-    const { error } = await supabase.from('indicacoes').update({ observacoes: editObs }).eq('id', id);
-    if (!error) {
-      toast.success('Salvo!', { id: tid });
-      setIndicacoes(indicacoes.map(i => i.id === id ? {...i, observacoes: editObs} : i));
-      setEditId(null);
-    } else {
-      toast.error('Erro ao salvar', { id: tid });
-    }
-  };
-
   const applyDateShortcut = (type: 'hoje' | '7dias' | 'mes') => {
     const today = new Date();
     let start = today;
     if (type === '7dias') start = subDays(today, 7);
     if (type === 'mes') start = startOfMonth(today);
-    
+
     setFiltros({
       ...filtros,
       data_inicio: format(start, 'yyyy-MM-dd'),
@@ -139,11 +179,20 @@ export default function PainelIndicacoes() {
     return u ? u.nome : 'Usuário Desconhecido';
   };
 
+  const toggleExpand = (id: string) => {
+    setExpandedIds(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 animate-in fade-in duration-500">
-      <div className="flex items-center gap-3">
-        <Megaphone className="h-8 w-8 text-orange-500" />
-        <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Painel de Indicações</h1>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <Megaphone className="h-8 w-8 text-orange-500" />
+          <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Painel de Indicações</h1>
+        </div>
+        <span className="flex items-center gap-1.5 text-xs font-semibold text-green-700 bg-green-50 border border-green-100 px-3 py-1.5 rounded-full">
+          <Wifi className="w-3.5 h-3.5" /> Atualização em tempo real
+        </span>
       </div>
 
       {/* Filtros */}
@@ -151,37 +200,36 @@ export default function PainelIndicacoes() {
         <div className="flex items-center gap-2 mb-4 text-slate-700 font-semibold">
           <Filter className="h-5 w-5" /> Filtros
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">Buscar (Associado ou Indicado)</label>
-            <input 
-              type="text" 
-              placeholder="Digite um nome..."
-              value={filtros.search}
-              onChange={e => setFiltros({...filtros, search: e.target.value})}
+            <label className="block text-sm font-medium text-slate-600 mb-1">Buscar (Protocolo, Associado ou Indicado)</label>
+            <input
+              type="text"
+              placeholder="Digite um nome ou protocolo..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
             />
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-slate-600 mb-1">Status</label>
-            <select 
+            <select
               value={filtros.status}
               onChange={e => setFiltros({...filtros, status: e.target.value})}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
             >
               <option value="">Todos</option>
-              <option value="pendente">Pendente</option>
-              <option value="em_tratativa">Em Tratativa</option>
-              <option value="fechado">Fechado</option>
-              <option value="sem_retorno">Sem Retorno</option>
+              {Object.entries(STATUS_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
             </select>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-slate-600 mb-1">Responsável</label>
-            <select 
+            <select
               value={filtros.responsavel_id}
               onChange={e => setFiltros({...filtros, responsavel_id: e.target.value})}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
@@ -193,18 +241,18 @@ export default function PainelIndicacoes() {
               ))}
             </select>
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-slate-600 mb-1">Período de Análise</label>
             <div className="flex flex-col sm:flex-row gap-2">
-              <input 
+              <input
                 type="date"
                 value={filtros.data_inicio}
                 onChange={e => setFiltros({...filtros, data_inicio: e.target.value})}
                 className="w-full min-w-0 px-2 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
               />
               <span className="hidden sm:inline self-center text-slate-400">-</span>
-              <input 
+              <input
                 type="date"
                 value={filtros.data_fim}
                 onChange={e => setFiltros({...filtros, data_fim: e.target.value})}
@@ -224,10 +272,12 @@ export default function PainelIndicacoes() {
       {/* Lista */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         {loading ? (
-          <div className="p-12 flex justify-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+          <div className="p-6 space-y-3 animate-pulse">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="h-14 bg-slate-100 rounded-xl" />
+            ))}
           </div>
-        ) : indicacoes.length === 0 ? (
+        ) : indicacoesFiltradas.length === 0 ? (
           <div className="p-12 text-center text-slate-500">
             Nenhuma indicação encontrada com os filtros atuais.
           </div>
@@ -238,131 +288,113 @@ export default function PainelIndicacoes() {
               <table className="w-full text-left text-sm text-slate-600">
                 <thead className="bg-slate-50 text-slate-500 uppercase font-semibold text-xs border-b border-slate-200">
                   <tr>
-                    <th className="px-4 py-3">Data</th>
+                    <th className="px-4 py-3">Protocolo / Data</th>
                     <th className="px-4 py-3">Indicado / Telefone</th>
                     <th className="px-4 py-3">Associado (Quem indicou)</th>
                     <th className="px-4 py-3">Status</th>
                     <th className="px-4 py-3">Responsável</th>
-                    <th className="px-4 py-3">Observações (Follow-up)</th>
+                    <th className="px-4 py-3">Histórico</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {indicacoes.map(ind => (
-                    <tr key={ind.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        {new Date(ind.data_indicacao).toLocaleDateString('pt-BR')}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="font-bold text-slate-800">{ind.nome_indicado}</div>
-                        <div className="text-slate-500">{ind.telefone_indicado}</div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="font-medium text-slate-700">{ind.associados?.nome_completo}</div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <select 
-                          value={ind.status}
-                          onChange={(e) => updateStatus(ind.id, e.target.value)}
-                          className={`px-2 py-1 rounded-lg text-xs font-bold outline-none cursor-pointer border-0 ring-1 ring-inset focus:ring-2
-                            ${ind.status === 'pendente' ? 'bg-yellow-50 text-yellow-700 ring-yellow-200 focus:ring-yellow-500' : 
-                              ind.status === 'em_tratativa' ? 'bg-blue-50 text-blue-700 ring-blue-200 focus:ring-blue-500' : 
-                              ind.status === 'fechado' ? 'bg-green-50 text-green-700 ring-green-200 focus:ring-green-500' : 
-                              'bg-red-50 text-red-700 ring-red-200 focus:ring-red-500'}
-                          `}
-                        >
-                          <option value="pendente">Pendente</option>
-                          <option value="em_tratativa">Em Tratativa</option>
-                          <option value="fechado">Fechado</option>
-                          <option value="sem_retorno">Sem Retorno</option>
-                        </select>
-                      </td>
-                      <td className="px-4 py-3">
-                        <select
-                          value={ind.responsavel_id || ''}
-                          onChange={(e) => updateResponsavel(ind.id, e.target.value)}
-                          className="px-2 py-1 text-xs border border-slate-300 rounded-md bg-white w-full max-w-[150px] outline-none"
-                        >
-                          <option value="">Sem responsável</option>
-                          {usuarios.map(u => (
-                            <option key={u.id} value={u.id}>{u.nome}</option>
-                          ))}
-                        </select>
-                        {!ind.responsavel_id && ind.usuario_id && (
-                          <div className="text-[10px] text-slate-400 mt-1">
-                            Criador: {getNomeUsuario(ind.usuario_id)}
+                  {indicacoesFiltradas.map(ind => (
+                    <Fragment key={ind.id}>
+                      <tr className="hover:bg-slate-50 transition-colors">
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="flex items-center gap-1 font-mono text-xs font-bold text-slate-500">
+                            <Hash className="w-3 h-3" />{ind.protocolo || '—'}
                           </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 min-w-[250px]">
-                        {editId === ind.id ? (
-                          <div className="flex gap-2">
-                            <textarea
-                              value={editObs}
-                              onChange={(e) => setEditObs(e.target.value)}
-                              className="w-full text-xs p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 resize-none"
-                              rows={3}
-                              placeholder="Adicione um follow-up..."
-                            />
-                            <div className="flex flex-col gap-1">
-                              <button onClick={() => saveObs(ind.id)} className="bg-green-500 text-white p-1 rounded hover:bg-green-600"><Check className="w-4 h-4"/></button>
-                              <button onClick={() => setEditId(null)} className="bg-red-500 text-white p-1 rounded hover:bg-red-600"><X className="w-4 h-4"/></button>
+                          <div className="text-slate-500 mt-0.5">{new Date(ind.data_indicacao).toLocaleDateString('pt-BR')}</div>
+                          <DiasParadoBadge ind={ind} />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="font-bold text-slate-800">{ind.nome_indicado}</div>
+                          <div className="text-slate-500">{ind.telefone_indicado}</div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="font-medium text-slate-700">{ind.associados?.nome_completo}</div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <StatusSelect ind={ind} onChange={updateStatus} />
+                        </td>
+                        <td className="px-4 py-3">
+                          <select
+                            value={ind.responsavel_id || ''}
+                            onChange={(e) => updateResponsavel(ind.id, e.target.value)}
+                            className="px-2 py-1 text-xs border border-slate-300 rounded-md bg-white w-full max-w-[150px] outline-none"
+                          >
+                            <option value="">Sem responsável</option>
+                            {usuarios.map(u => (
+                              <option key={u.id} value={u.id}>{u.nome}</option>
+                            ))}
+                          </select>
+                          {!ind.responsavel_id && ind.usuario_id && (
+                            <div className="text-[10px] text-slate-400 mt-1">
+                              Criador: {getNomeUsuario(ind.usuario_id)}
                             </div>
-                          </div>
-                        ) : (
-                          <div className="group relative pr-8 text-xs text-slate-600 whitespace-pre-wrap">
-                            {ind.observacoes ? ind.observacoes : <span className="text-slate-400 italic">Sem observações.</span>}
-                            <button 
-                              onClick={() => {setEditId(ind.id); setEditObs(ind.observacoes || '');}}
-                              className="absolute right-0 top-0 opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-blue-600 transition-opacity"
-                            >
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() => toggleExpand(ind.id)}
+                            className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800"
+                          >
+                            {expandedIds[ind.id] ? 'Ocultar' : 'Ver histórico'}
+                            {expandedIds[ind.id] ? <ChevronUp className="w-4 h-4"/> : <ChevronDown className="w-4 h-4"/>}
+                          </button>
+                        </td>
+                      </tr>
+                      {expandedIds[ind.id] && (
+                        <tr>
+                          <td colSpan={6} className="px-4 pb-5 bg-slate-50 border-b border-slate-100">
+                            <div className="max-w-2xl">
+                              <IndicacaoTimeline
+                                supabase={supabase}
+                                indicacaoId={ind.id}
+                                usuarios={usuarios}
+                                currentUserId={currentUserId}
+                              />
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   ))}
                 </tbody>
               </table>
             </div>
-            
+
             {/* Mobile Cards View */}
             <div className="block lg:hidden divide-y divide-slate-100">
-              {indicacoes.map(ind => (
+              {indicacoesFiltradas.map(ind => (
                 <div key={ind.id} className="p-4 space-y-4">
                   <div className="flex justify-between items-start">
                     <div>
-                      <div className="font-bold text-slate-800 text-base">{ind.nome_indicado}</div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="font-bold text-slate-800 text-base">{ind.nome_indicado}</div>
+                        {ind.protocolo && (
+                          <span className="flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded font-mono">
+                            <Hash className="w-2.5 h-2.5" />{ind.protocolo}
+                          </span>
+                        )}
+                      </div>
                       <div className="text-slate-500 text-sm">{ind.telefone_indicado}</div>
+                      <DiasParadoBadge ind={ind} />
                     </div>
                     <div className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-1 rounded">
                       {new Date(ind.data_indicacao).toLocaleDateString('pt-BR')}
                     </div>
                   </div>
-                  
+
                   <div>
                     <div className="text-xs text-slate-400 mb-1 uppercase font-semibold">Indicado por</div>
                     <div className="text-sm font-medium text-slate-700">{ind.associados?.nome_completo}</div>
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <div className="text-xs text-slate-400 mb-1 uppercase font-semibold">Status</div>
-                      <select 
-                        value={ind.status}
-                        onChange={(e) => updateStatus(ind.id, e.target.value)}
-                        className={`w-full px-2 py-1.5 rounded-lg text-xs font-bold outline-none cursor-pointer border-0 ring-1 ring-inset focus:ring-2
-                          ${ind.status === 'pendente' ? 'bg-yellow-50 text-yellow-700 ring-yellow-200 focus:ring-yellow-500' : 
-                            ind.status === 'em_tratativa' ? 'bg-blue-50 text-blue-700 ring-blue-200 focus:ring-blue-500' : 
-                            ind.status === 'fechado' ? 'bg-green-50 text-green-700 ring-green-200 focus:ring-green-500' : 
-                            'bg-red-50 text-red-700 ring-red-200 focus:ring-red-500'}
-                        `}
-                      >
-                        <option value="pendente">Pendente</option>
-                        <option value="em_tratativa">Em Tratativa</option>
-                        <option value="fechado">Fechado</option>
-                        <option value="sem_retorno">Sem Retorno</option>
-                      </select>
+                      <StatusSelect ind={ind} />
                     </div>
                     <div>
                       <div className="text-xs text-slate-400 mb-1 uppercase font-semibold">Responsável</div>
@@ -383,35 +415,22 @@ export default function PainelIndicacoes() {
                       )}
                     </div>
                   </div>
-                  
+
                   <div>
-                    <div className="text-xs text-slate-400 mb-1 uppercase font-semibold">Observações</div>
-                    {editId === ind.id ? (
-                      <div className="flex flex-col gap-2">
-                        <textarea
-                          value={editObs}
-                          onChange={(e) => setEditObs(e.target.value)}
-                          className="w-full text-sm p-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 resize-none"
-                          rows={3}
-                          placeholder="Adicione um follow-up..."
-                        />
-                        <div className="flex gap-2 justify-end">
-                          <button onClick={() => setEditId(null)} className="px-3 py-1.5 text-sm font-medium text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200">Cancelar</button>
-                          <button onClick={() => saveObs(ind.id)} className="px-3 py-1.5 text-sm font-medium text-white bg-green-500 rounded-lg hover:bg-green-600">Salvar</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="relative group">
-                        <div className="text-sm text-slate-600 whitespace-pre-wrap bg-slate-50 p-3 rounded-lg border border-slate-100">
-                          {ind.observacoes ? ind.observacoes : <span className="text-slate-400 italic">Sem observações.</span>}
-                        </div>
-                        <button 
-                          onClick={() => {setEditId(ind.id); setEditObs(ind.observacoes || '');}}
-                          className="absolute right-2 top-2 p-1 bg-white rounded-md shadow-sm text-slate-400 hover:text-blue-600 transition-colors"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                    <button
+                      onClick={() => toggleExpand(ind.id)}
+                      className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800 mb-2"
+                    >
+                      {expandedIds[ind.id] ? 'Ocultar histórico' : 'Ver histórico'}
+                      {expandedIds[ind.id] ? <ChevronUp className="w-4 h-4"/> : <ChevronDown className="w-4 h-4"/>}
+                    </button>
+                    {expandedIds[ind.id] && (
+                      <IndicacaoTimeline
+                        supabase={supabase}
+                        indicacaoId={ind.id}
+                        usuarios={usuarios}
+                        currentUserId={currentUserId}
+                      />
                     )}
                   </div>
                 </div>

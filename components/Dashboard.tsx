@@ -2,8 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Search, Plus, UserPlus, Car, Star, Megaphone, Edit2, Check, X, ChevronDown, ChevronUp, Users, AlertCircle, Save, ArrowLeft } from 'lucide-react';
+import { Search, Plus, UserPlus, Car, Star, Megaphone, Edit2, X, ChevronDown, ChevronUp, Users, ArrowLeft, Hash, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { diasDesde } from '@/lib/utils';
+import { STATUS_BADGE_CLASSES, STATUS_LABELS, DIAS_LIMITE_PARADA } from '@/lib/indicacoes';
+import IndicacaoTimeline from '@/components/IndicacaoTimeline';
 
 const supabase = createClient();
 
@@ -17,6 +20,8 @@ export default function Dashboard() {
   const [avaliacoes, setAvaliacoes] = useState<any[]>([]);
   const [indicacoes, setIndicacoes] = useState<any[]>([]);
   const [setores, setSetores] = useState<any[]>([]);
+  const [usuarios, setUsuarios] = useState<{ id: string; nome: string }[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
   
   // Modals
   const [showNovoAssociado, setShowNovoAssociado] = useState(false);
@@ -48,6 +53,10 @@ export default function Dashboard() {
   useEffect(() => {
     carregarSetores();
     carregarListaAssociados();
+    supabase.from('perfis_usuarios').select('id, nome').then(({ data }) => {
+      if (data) setUsuarios(data);
+    });
+    supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id));
   }, []);
 
   const handleSearch = async (e: React.FormEvent) => {
@@ -138,16 +147,6 @@ export default function Dashboard() {
       toast.success('Status atualizado', { id: tid });
     } else {
       toast.error('Erro ao atualizar', { id: tid });
-    }
-  };
-
-  const saveIndicacaoObs = async (id: string, novaObs: string) => {
-    const tid = toast.loading('Salvando nota...');
-    const { error } = await supabase.from('indicacoes').update({ observacoes: novaObs }).eq('id', id);
-    if (!error) {
-      toast.success('Salvo!', { id: tid });
-    } else {
-      toast.error('Erro ao salvar', { id: tid });
     }
   };
 
@@ -424,28 +423,39 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="space-y-3">
-                {indicacoes.map(ind => (
+                {indicacoes.map(ind => {
+                  const dias = diasDesde(ind.updated_at || ind.data_indicacao);
+                  const parada = (ind.status === 'pendente' || ind.status === 'em_tratativa') && dias >= DIAS_LIMITE_PARADA;
+                  return (
                   <div key={ind.id} className="border border-slate-200 rounded-xl overflow-hidden">
                     <div className="p-4 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                       <div>
-                        <p className="font-bold text-slate-800">{ind.nome_indicado}</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-bold text-slate-800">{ind.nome_indicado}</p>
+                          {ind.protocolo && (
+                            <span className="flex items-center gap-1 text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded font-mono">
+                              <Hash className="w-3 h-3" />{ind.protocolo}
+                            </span>
+                          )}
+                          {parada && (
+                            <span className="flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded">
+                              <Clock className="w-3 h-3" />{Math.floor(dias)}d parada
+                            </span>
+                          )}
+                        </div>
                         <p className="text-sm text-slate-500 mt-0.5">{ind.telefone_indicado} • {new Date(ind.data_indicacao).toLocaleDateString('pt-BR')}</p>
                       </div>
                       <div className="flex items-center gap-3">
-                        <select 
-                          value={ind.status} 
+                        <select
+                          value={ind.status}
                           onChange={(e) => updateIndicacaoStatus(ind.id, e.target.value)}
-                          className={`text-xs font-bold px-3 py-1.5 rounded-lg border-0 cursor-pointer focus:ring-2 focus:ring-blue-500 appearance-none
-                            ${ind.status === 'fechado' ? 'bg-green-100 text-green-800' : 
-                              ind.status === 'em_tratativa' ? 'bg-blue-100 text-blue-800' : 
-                              ind.status === 'sem_retorno' ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-700'}`}
+                          className={`text-xs font-bold px-3 py-1.5 rounded-lg border-0 cursor-pointer focus:ring-2 focus:ring-blue-500 appearance-none ${STATUS_BADGE_CLASSES[ind.status] || 'bg-slate-100 text-slate-700'}`}
                         >
-                          <option value="pendente">Pendente</option>
-                          <option value="em_tratativa">Em Tratativa</option>
-                          <option value="fechado">Fechado</option>
-                          <option value="sem_retorno">Sem Retorno</option>
+                          {Object.entries(STATUS_LABELS).map(([value, label]) => (
+                            <option key={value} value={value}>{label}</option>
+                          ))}
                         </select>
-                        <button 
+                        <button
                           onClick={() => toggleIndicacaoExpand(ind.id)}
                           className="text-slate-400 hover:text-blue-600 transition-colors p-2 rounded-lg hover:bg-slate-50"
                         >
@@ -453,33 +463,20 @@ export default function Dashboard() {
                         </button>
                       </div>
                     </div>
-                    
+
                     {expandedIndicacoes[ind.id] && (
                       <div className="p-4 bg-slate-50 border-t border-slate-100">
-                        <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">Observações do Follow-up</label>
-                        <div className="flex gap-2">
-                          <textarea 
-                            defaultValue={ind.observacoes || ''}
-                            id={`obs-${ind.id}`}
-                            className="flex-1 w-full p-3 text-sm bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none"
-                            rows={2}
-                            placeholder="Adicione anotações sobre as ligações..."
-                          />
-                          <button 
-                            onClick={() => {
-                              const val = (document.getElementById(`obs-${ind.id}`) as HTMLTextAreaElement).value;
-                              saveIndicacaoObs(ind.id, val);
-                            }}
-                            className="bg-slate-200 hover:bg-blue-600 hover:text-white text-slate-700 px-3 rounded-lg transition-colors flex items-center justify-center"
-                            title="Salvar Observação"
-                          >
-                            <Save className="w-5 h-5" />
-                          </button>
-                        </div>
+                        <IndicacaoTimeline
+                          supabase={supabase}
+                          indicacaoId={ind.id}
+                          usuarios={usuarios}
+                          currentUserId={currentUserId}
+                        />
                       </div>
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

@@ -51,3 +51,8 @@ export function maskPlaca(value: string) {
     .slice(0, 7)
     .replace(/^([A-Z]{3})([0-9A-Z]{1,4})$/, '$1-$2');
 }
+
+// Quantos dias inteiros se passaram desde uma data ISO até agora.
+export function diasDesde(dataIso: string) {
+  return (Date.now() - new Date(dataIso).getTime()) / (1000 * 60 * 60 * 24);
+}
