@@ -338,7 +338,11 @@ export default function MainDashboard() {
           <p className="text-slate-500 text-sm mt-1">Acompanhe a satisfação e indicações da sua unidade.</p>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
+        {/* items-start (não items-end): a coluna "Período de Análise" é mais alta
+            (tem a linha extra de atalhos Hoje/7 Dias/Este Mês) — com items-end as
+            outras colunas ficavam empurradas pra baixo pra encostar no rodapé dela,
+            desalinhando os rótulos entre si. */}
+        <div className="flex flex-col sm:flex-row gap-4 items-start">
           <div>
             <label className="block text-sm font-medium text-slate-600 mb-1">Setor</label>
             <div className="relative">
@@ -346,7 +350,7 @@ export default function MainDashboard() {
               <select
                 value={setorFilter}
                 onChange={e => setSetorFilter(e.target.value)}
-                className="pl-7 pr-3 py-1.5 border border-slate-300 rounded-lg text-sm outline-none bg-white"
+                className="h-10 pl-7 pr-3 border border-slate-300 rounded-lg text-sm outline-none bg-white"
               >
                 <option value="">Todos os setores</option>
                 {setoresList.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
@@ -357,18 +361,18 @@ export default function MainDashboard() {
           <div>
             <label className="block text-sm font-medium text-slate-600 mb-1">Período de Análise</label>
             <div className="flex gap-2">
-              <input 
+              <input
                 type="date"
                 value={dateFilter.start}
                 onChange={e => setDateFilter({...dateFilter, start: e.target.value})}
-                className="px-2 py-1.5 border border-slate-300 rounded-lg text-sm outline-none"
+                className="h-10 px-2 border border-slate-300 rounded-lg text-sm outline-none"
               />
               <span className="self-center text-slate-400">-</span>
-              <input 
+              <input
                 type="date"
                 value={dateFilter.end}
                 onChange={e => setDateFilter({...dateFilter, end: e.target.value})}
-                className="px-2 py-1.5 border border-slate-300 rounded-lg text-sm outline-none"
+                className="h-10 px-2 border border-slate-300 rounded-lg text-sm outline-none"
               />
             </div>
             <div className="flex gap-3 mt-1.5 text-xs">
@@ -378,13 +382,19 @@ export default function MainDashboard() {
             </div>
           </div>
 
-          <div className="flex gap-2">
-            <button onClick={() => exportarCSV('avaliacoes')} title="Exportar avaliações do período em CSV" className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors">
-              <Download className="w-3.5 h-3.5" /> Avaliações
-            </button>
-            <button onClick={() => exportarCSV('indicacoes')} title="Exportar indicações do período em CSV" className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors">
-              <Download className="w-3.5 h-3.5" /> Indicações
-            </button>
+          <div>
+            {/* Rótulo invisível: só pra reservar a mesma altura dos rótulos reais
+                acima, assim os botões ficam alinhados com os campos de Setor/Data,
+                não com o topo do bloco inteiro. */}
+            <label className="hidden sm:block text-sm font-medium mb-1 invisible" aria-hidden="true">Exportar</label>
+            <div className="flex gap-2">
+              <button onClick={() => exportarCSV('avaliacoes')} title="Exportar avaliações do período em CSV" className="h-10 flex items-center gap-1.5 text-xs font-semibold px-3 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors">
+                <Download className="w-3.5 h-3.5" /> Avaliações
+              </button>
+              <button onClick={() => exportarCSV('indicacoes')} title="Exportar indicações do período em CSV" className="h-10 flex items-center gap-1.5 text-xs font-semibold px-3 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors">
+                <Download className="w-3.5 h-3.5" /> Indicações
+              </button>
+            </div>
           </div>
         </div>
       </div>

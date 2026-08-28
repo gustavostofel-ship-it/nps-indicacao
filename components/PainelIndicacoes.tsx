@@ -209,7 +209,7 @@ export default function PainelIndicacoes() {
               placeholder="Digite um nome ou protocolo..."
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
+              className="h-10 w-full px-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
             />
           </div>
 
@@ -218,7 +218,7 @@ export default function PainelIndicacoes() {
             <select
               value={filtros.status}
               onChange={e => setFiltros({...filtros, status: e.target.value})}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
+              className="h-10 w-full px-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
             >
               <option value="">Todos</option>
               {Object.entries(STATUS_LABELS).map(([value, label]) => (
@@ -232,7 +232,7 @@ export default function PainelIndicacoes() {
             <select
               value={filtros.responsavel_id}
               onChange={e => setFiltros({...filtros, responsavel_id: e.target.value})}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
+              className="h-10 w-full px-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
             >
               <option value="">Todos</option>
               <option value="unassigned">Sem Responsável (Apenas Criador)</option>
@@ -249,14 +249,14 @@ export default function PainelIndicacoes() {
                 type="date"
                 value={filtros.data_inicio}
                 onChange={e => setFiltros({...filtros, data_inicio: e.target.value})}
-                className="w-full min-w-0 px-2 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                className="h-10 w-full min-w-0 px-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
               />
               <span className="hidden sm:inline self-center text-slate-400">-</span>
               <input
                 type="date"
                 value={filtros.data_fim}
                 onChange={e => setFiltros({...filtros, data_fim: e.target.value})}
-                className="w-full min-w-0 px-2 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                className="h-10 w-full min-w-0 px-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-xs">
