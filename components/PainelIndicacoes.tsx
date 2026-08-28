@@ -394,7 +394,7 @@ export default function PainelIndicacoes() {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <div className="text-xs text-slate-400 mb-1 uppercase font-semibold">Status</div>
-                      <StatusSelect ind={ind} />
+                      <StatusSelect ind={ind} onChange={updateStatus} />
                     </div>
                     <div>
                       <div className="text-xs text-slate-400 mb-1 uppercase font-semibold">Responsável</div>
