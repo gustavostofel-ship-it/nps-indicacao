@@ -465,3 +465,38 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER indicacoes_touch
 BEFORE INSERT OR UPDATE ON indicacoes
 FOR EACH ROW EXECUTE PROCEDURE trg_indicacoes_touch();
+
+-- Cria o perfil (perfis_usuarios) e marca o convite como aceito assim que o
+-- usuário convidado se cadastra — via trigger em auth.users, com privilégio
+-- total (não depende de sessão/RLS do navegador). O id do convite chega
+-- pelos metadados do signUp() (ver app/invite/[token]/page.tsx).
+CREATE OR REPLACE FUNCTION public.handle_new_user_convite()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_convite_id UUID;
+BEGIN
+  v_convite_id := (NEW.raw_user_meta_data->>'convite_id')::UUID;
+
+  IF v_convite_id IS NOT NULL THEN
+    INSERT INTO perfis_usuarios (id, nome, funcao, papel, status)
+    SELECT NEW.id, c.nome, c.funcao, c.papel, 'ativo'
+    FROM convites c
+    WHERE c.id = v_convite_id AND c.status = 'pendente'
+    ON CONFLICT (id) DO NOTHING;
+
+    UPDATE convites
+    SET status = 'aceito', aceito_em = timezone('utc', now())
+    WHERE id = v_convite_id AND status = 'pendente';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER on_auth_user_created_convite
+AFTER INSERT ON auth.users
+FOR EACH ROW EXECUTE FUNCTION public.handle_new_user_convite();

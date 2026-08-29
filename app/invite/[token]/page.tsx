@@ -56,13 +56,20 @@ export default function InvitePage() {
 
     setSubmitting(true);
 
-    // 1. Criar o usuário no Auth
+    // Cria o usuário no Auth. O perfil (perfis_usuarios) e a atualização do
+    // convite pra "aceito" NÃO são feitos aqui pelo navegador — ficam por
+    // conta de uma trigger no banco (on_auth_user_created_convite), que
+    // roda com privilégio total e não depende de o navegador já ter uma
+    // sessão válida neste exato instante (ver supabase_migration_trigger_
+    // aceitar_convite.sql). Só precisamos mandar o id do convite nos
+    // metadados pra trigger saber qual convite processar.
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: invite.email,
       password,
       options: {
         data: {
           nome: invite.nome,
+          convite_id: invite.id,
         }
       }
     });
@@ -74,28 +81,6 @@ export default function InvitePage() {
     }
 
     if (authData.user) {
-      // 2. O usuário já é criado, RLS rules diriam que ele não tem perfil.
-      // O trigger ou a inserção manual do perfil:
-      const { error: profileError } = await supabase
-        .from('perfis_usuarios')
-        .insert({
-          id: authData.user.id,
-          nome: invite.nome,
-          funcao: invite.funcao,
-          papel: invite.papel,
-          status: 'ativo'
-        });
-        
-      if (profileError) {
-        console.error('Erro ao criar perfil:', profileError);
-      }
-
-      // 3. Atualizar convite
-      await supabase
-        .from('convites')
-        .update({ status: 'aceito', aceito_em: new Date().toISOString() })
-        .eq('id', invite.id);
-
       router.push('/login');
     }
   };
