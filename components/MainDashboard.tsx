@@ -846,6 +846,7 @@ function AvaliacoesModal({
                   <th className="px-4 py-2.5 text-center">Nota</th>
                   <th className="px-4 py-2.5">Comentário</th>
                   <th className="px-4 py-2.5">Avaliador</th>
+                  <th className="px-4 py-2.5"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -863,6 +864,14 @@ function AvaliacoesModal({
                       </td>
                       <td className="px-4 py-2.5 max-w-xs truncate" title={a.comentario || ''}>{a.comentario || <span className="text-slate-300 italic">—</span>}</td>
                       <td className="px-4 py-2.5 text-slate-500">{getNomeUsuario(a.usuario_id)}</td>
+                      <td className="px-4 py-2.5 whitespace-nowrap">
+                        <Link
+                          href={`/atendimento?associado=${a.associado_id}`}
+                          className="text-xs font-semibold text-blue-600 hover:underline flex items-center gap-1"
+                        >
+                          Ver associado <ArrowRight className="w-3 h-3" />
+                        </Link>
+                      </td>
                     </tr>
                   );
                 })}

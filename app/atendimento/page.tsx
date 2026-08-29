@@ -1,7 +1,10 @@
+import { Suspense } from 'react';
 import Dashboard from '@/components/Dashboard';
 
 export default function Home() {
   return (
-    <Dashboard />
+    <Suspense fallback={null}>
+      <Dashboard />
+    </Suspense>
   );
 }

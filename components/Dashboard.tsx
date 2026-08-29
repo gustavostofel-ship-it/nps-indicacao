@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Search, Plus, UserPlus, Car, Star, Megaphone, Edit2, X, ChevronDown, ChevronUp, Users, ArrowLeft, Hash, Clock, ChevronLeft, ChevronRight, History } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -16,6 +17,11 @@ const supabase = createClient();
 const ASSOC_PAGE_SIZE = 12;
 
 export default function Dashboard() {
+  // Chegando de um link tipo "Ver associado" (no modal de avaliações do
+  // Dashboard Geral, por exemplo), a ficha completa já abre direto em vez de
+  // cair na lista/busca.
+  const searchParams = useSearchParams();
+
   const [busca, setBusca] = useState('');
   const [loading, setLoading] = useState(false);
   const [associado, setAssociado] = useState<any>(null);
@@ -94,6 +100,22 @@ export default function Dashboard() {
     });
     supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id));
   }, []);
+
+  useEffect(() => {
+    const assocId = searchParams.get('associado');
+    if (!assocId) return;
+    (async () => {
+      setLoading(true);
+      const { data } = await supabase.from('associados').select('*').eq('id', assocId).maybeSingle();
+      if (data) {
+        await carregarDadosAssociado(data);
+      } else {
+        toast.error('Associado não encontrado.');
+      }
+      setLoading(false);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
