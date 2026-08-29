@@ -105,6 +105,38 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Trigger antiga (já existia no banco antes de qualquer migração deste
+-- projeto) que grava data_fechamento comparando NEW.status = 'fechado'
+-- (texto). Não estava em nenhum arquivo .sql daqui, por isso passou batido
+-- nas migrações anteriores — só foi descoberta inspecionando pg_trigger
+-- direto no banco de produção. Reescrita para usar status_id + a flag
+-- conta_como_fechado, e agora tolera rodar em INSERT também (a versão
+-- antiga quebraria em INSERT por referenciar OLD.status sem checar TG_OP).
+CREATE OR REPLACE FUNCTION trg_indicacoes_touch() RETURNS TRIGGER AS $$
+DECLARE
+  fechado_novo BOOLEAN;
+  fechado_antigo BOOLEAN;
+BEGIN
+  NEW.updated_at = timezone('utc', now());
+
+  SELECT conta_como_fechado INTO fechado_novo FROM indicacao_status WHERE id = NEW.status_id;
+
+  IF TG_OP = 'UPDATE' THEN
+    SELECT conta_como_fechado INTO fechado_antigo FROM indicacao_status WHERE id = OLD.status_id;
+  ELSE
+    fechado_antigo := false;
+  END IF;
+
+  IF COALESCE(fechado_novo, false) AND NOT COALESCE(fechado_antigo, false) THEN
+    NEW.data_fechamento = timezone('utc', now());
+  ELSIF NOT COALESCE(fechado_novo, false) THEN
+    NEW.data_fechamento = NULL;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 -- 4) Remove a coluna e o tipo antigos -------------------------------------
 ALTER TABLE indicacoes DROP COLUMN IF EXISTS status;
 DROP TYPE IF EXISTS status_indicacao;

@@ -414,3 +414,37 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER trg_update_indicacoes_modtime
 BEFORE UPDATE ON indicacoes
 FOR EACH ROW EXECUTE PROCEDURE update_indicacoes_modtime();
+
+-- Trigger legada (existia no banco antes deste projeto ter migrations
+-- próprias) que também toca updated_at e, além disso, gerencia
+-- data_fechamento sempre que a indicação entra/sai de um status marcado
+-- como conta_como_fechado. Redundante com update_indicacoes_modtime no
+-- updated_at, mas é ela quem cuida de data_fechamento — mantida por isso.
+CREATE OR REPLACE FUNCTION trg_indicacoes_touch() RETURNS TRIGGER AS $$
+DECLARE
+  fechado_novo BOOLEAN;
+  fechado_antigo BOOLEAN;
+BEGIN
+  NEW.updated_at = timezone('utc', now());
+
+  SELECT conta_como_fechado INTO fechado_novo FROM indicacao_status WHERE id = NEW.status_id;
+
+  IF TG_OP = 'UPDATE' THEN
+    SELECT conta_como_fechado INTO fechado_antigo FROM indicacao_status WHERE id = OLD.status_id;
+  ELSE
+    fechado_antigo := false;
+  END IF;
+
+  IF COALESCE(fechado_novo, false) AND NOT COALESCE(fechado_antigo, false) THEN
+    NEW.data_fechamento = timezone('utc', now());
+  ELSIF NOT COALESCE(fechado_novo, false) THEN
+    NEW.data_fechamento = NULL;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER indicacoes_touch
+BEFORE INSERT OR UPDATE ON indicacoes
+FOR EACH ROW EXECUTE PROCEDURE trg_indicacoes_touch();
