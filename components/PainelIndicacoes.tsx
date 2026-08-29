@@ -1,14 +1,14 @@
 'use client';
 
-import { useState, useEffect, Fragment } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Megaphone, Filter, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Hash, Clock, Wifi, List, LayoutGrid, Columns3, AlertTriangle } from 'lucide-react';
+import { Megaphone, Filter, ChevronLeft, ChevronRight, Hash, Clock, Wifi, List, LayoutGrid, Columns3, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { subDays, startOfMonth, format } from 'date-fns';
 import { diasDesde } from '@/lib/utils';
 import { buscarStatusIndicacao, corStatus, normalizarStatusEmbutido, DIAS_LIMITE_PARADA, StatusIndicacao } from '@/lib/indicacoes';
-import IndicacaoTimeline from '@/components/IndicacaoTimeline';
+import IndicacaoDetailModal from '@/components/IndicacaoDetailModal';
 
 const supabase = createClient();
 
@@ -25,34 +25,14 @@ type Indicacao = any;
 type Usuario = { id: string, nome: string };
 type ViewMode = 'lista' | 'card' | 'kanban';
 
-// Definidos fora do componente para não serem recriados a cada render (o que
-// desmontaria o <select> nativo e derrubaria o foco do usuário no meio de uma
-// interação).
 function DiasParadoBadge({ ind }: { ind: Indicacao }) {
   const dias = diasDesde(ind.updated_at || ind.data_indicacao);
-  // "Parada" = ainda não chegou num status marcado como fechamento (sucesso
-  // ou não) — status configuráveis não têm mais uma lista fixa de "abertos".
   const parada = !ind.status?.conta_como_fechado && dias >= DIAS_LIMITE_PARADA;
   if (!parada) return null;
   return (
     <span className="flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded w-fit">
       <Clock className="w-3 h-3" />{Math.floor(dias)}d parada
     </span>
-  );
-}
-
-function StatusSelect({ ind, opcoes, onChange }: { ind: Indicacao, opcoes: StatusIndicacao[], onChange: (id: string, statusId: string) => void }) {
-  const cor = corStatus(ind.status?.cor);
-  return (
-    <select
-      value={ind.status_id}
-      onChange={(e) => onChange(ind.id, e.target.value)}
-      className={`px-2 py-1 rounded-lg text-xs font-bold outline-none cursor-pointer border-0 ring-1 ring-inset focus:ring-2 ${cor.badge} ${cor.ring}`}
-    >
-      {opcoes.map(s => (
-        <option key={s.id} value={s.id}>{s.nome}</option>
-      ))}
-    </select>
   );
 }
 
@@ -91,19 +71,6 @@ export default function PainelIndicacoes() {
     }
   };
 
-  const statusAtivos = statusTodos.filter(s => s.ativo);
-
-  // Opções que um <select> de status pode oferecer pra uma indicação: os
-  // ativos, mais o dela mesma caso já esteja num status desativado (senão o
-  // select ficaria "quebrado", sem a opção atual pra mostrar).
-  const opcoesStatusPara = (ind: Indicacao): StatusIndicacao[] => {
-    if (!ind.status || ind.status.ativo === false && !statusAtivos.some(s => s.id === ind.status_id)) {
-      const atual = statusTodos.find(s => s.id === ind.status_id);
-      return atual ? [...statusAtivos, atual] : statusAtivos;
-    }
-    return statusAtivos;
-  };
-
   // Filtros que disparam uma nova consulta ao banco.
   const [filtros, setFiltros] = useState(() => ({
     status: '',
@@ -127,7 +94,11 @@ export default function PainelIndicacoes() {
     return () => clearTimeout(t);
   }, [searchInput]);
 
-  const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
+  // Item aberto no modal de detalhe — guardamos só o id e derivamos o objeto
+  // atual da lista a cada render, assim o modal reflete status/responsável
+  // atualizados sem precisar de um segundo estado sincronizado à mão.
+  const [detalheAbertoId, setDetalheAbertoId] = useState<string | null>(null);
+  const indicacaoAberta = indicacoes.find(i => i.id === detalheAbertoId) || null;
 
   const carregarUsuarios = async () => {
     const { data } = await supabase.from('perfis_usuarios').select('id, nome');
@@ -233,7 +204,7 @@ export default function PainelIndicacoes() {
     if (!error) {
       toast.success('Status atualizado', { id: tid });
       const novoStatus = statusTodos.find(s => s.id === novoStatusId);
-      setIndicacoes(indicacoes.map(i => i.id === id ? {...i, status_id: novoStatusId, status: novoStatus} : i));
+      setIndicacoes(prev => prev.map(i => i.id === id ? {...i, status_id: novoStatusId, status: novoStatus} : i));
     } else {
       toast.error('Erro ao atualizar', { id: tid });
     }
@@ -245,7 +216,7 @@ export default function PainelIndicacoes() {
     const { error } = await supabase.from('indicacoes').update({ responsavel_id: val }).eq('id', id);
     if (!error) {
       toast.success('Responsável atualizado', { id: tid });
-      setIndicacoes(indicacoes.map(i => i.id === id ? {...i, responsavel_id: val} : i));
+      setIndicacoes(prev => prev.map(i => i.id === id ? {...i, responsavel_id: val} : i));
     } else {
       toast.error('Erro ao atualizar', { id: tid });
     }
@@ -266,10 +237,6 @@ export default function PainelIndicacoes() {
   const getNomeUsuario = (id: string) => {
     const u = usuarios.find(x => x.id === id);
     return u ? u.nome : 'Usuário Desconhecido';
-  };
-
-  const toggleExpand = (id: string) => {
-    setExpandedIds(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
   return (
@@ -382,6 +349,8 @@ export default function PainelIndicacoes() {
         </div>
       )}
 
+      <p className="text-xs text-slate-400 -mb-4">Clique numa indicação pra ver os detalhes completos e o histórico.</p>
+
       {/* Lista */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         {loading ? (
@@ -398,84 +367,31 @@ export default function PainelIndicacoes() {
           <KanbanBoard
             indicacoes={indicacoes}
             statusTodos={statusTodos}
-            usuarios={usuarios}
-            currentUserId={currentUserId}
-            expandedIds={expandedIds}
-            toggleExpand={toggleExpand}
-            updateStatus={updateStatus}
-            updateResponsavel={updateResponsavel}
+            onOpenDetalhe={setDetalheAbertoId}
           />
         ) : viewMode === 'card' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 p-4">
             {indicacoes.map(ind => (
-              <div key={ind.id} className="border border-slate-200 rounded-xl p-4 space-y-3 hover:border-blue-200 transition-colors">
+              <button
+                key={ind.id}
+                onClick={() => setDetalheAbertoId(ind.id)}
+                className="text-left border border-slate-200 rounded-xl p-4 space-y-3 hover:border-blue-300 hover:shadow-md transition-all"
+              >
                 <div className="flex justify-between items-start gap-2">
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <div className="font-bold text-slate-800">{ind.nome_indicado}</div>
-                      {ind.protocolo && (
-                        <span className="flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded font-mono">
-                          <Hash className="w-2.5 h-2.5" />{ind.protocolo}
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-slate-500 text-sm">{ind.telefone_indicado}</div>
-                  </div>
-                  <div className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-1 rounded whitespace-nowrap">
-                    {new Date(ind.data_indicacao).toLocaleDateString('pt-BR')}
-                  </div>
-                </div>
-
-                <DiasParadoBadge ind={ind} />
-
-                <div>
-                  <div className="text-xs text-slate-400 mb-1 uppercase font-semibold">Indicado por</div>
-                  <div className="text-sm font-medium text-slate-700">{ind.associados?.nome_completo}</div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <div className="text-xs text-slate-400 mb-1 uppercase font-semibold">Status</div>
-                    <StatusSelect ind={ind} opcoes={opcoesStatusPara(ind)} onChange={updateStatus} />
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-400 mb-1 uppercase font-semibold">Responsável</div>
-                    <select
-                      value={ind.responsavel_id || ''}
-                      onChange={(e) => updateResponsavel(ind.id, e.target.value)}
-                      className="px-2 py-1.5 text-xs border border-slate-300 rounded-md bg-white w-full outline-none"
-                    >
-                      <option value="">Sem responsável</option>
-                      {usuarios.map(u => (
-                        <option key={u.id} value={u.id}>{u.nome}</option>
-                      ))}
-                    </select>
-                    {!ind.responsavel_id && ind.usuario_id && (
-                      <div className="text-[10px] text-slate-400 mt-1">
-                        Criador: {getNomeUsuario(ind.usuario_id)}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <button
-                    onClick={() => toggleExpand(ind.id)}
-                    className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800 mb-2"
-                  >
-                    {expandedIds[ind.id] ? 'Ocultar histórico' : 'Ver histórico'}
-                    {expandedIds[ind.id] ? <ChevronUp className="w-4 h-4"/> : <ChevronDown className="w-4 h-4"/>}
-                  </button>
-                  {expandedIds[ind.id] && (
-                    <IndicacaoTimeline
-                      supabase={supabase}
-                      indicacaoId={ind.id}
-                      usuarios={usuarios}
-                      currentUserId={currentUserId}
-                    />
+                  <div className="font-bold text-slate-800">{ind.nome_indicado}</div>
+                  {ind.protocolo && (
+                    <span className="flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded font-mono shrink-0">
+                      <Hash className="w-2.5 h-2.5" />{ind.protocolo}
+                    </span>
                   )}
                 </div>
-              </div>
+                <div className="text-sm text-slate-500">{ind.associados?.nome_completo}</div>
+                <DiasParadoBadge ind={ind} />
+                <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
+                  <span className={`text-xs font-bold px-2 py-1 rounded ${corStatus(ind.status?.cor).badge}`}>{ind.status?.nome || '—'}</span>
+                  <span className="text-xs text-slate-400 truncate">{ind.responsavel_id ? getNomeUsuario(ind.responsavel_id) : 'Sem responsável'}</span>
+                </div>
+              </button>
             ))}
           </div>
         ) : (
@@ -488,72 +404,36 @@ export default function PainelIndicacoes() {
                   <th className="px-4 py-3">Associado (Quem indicou)</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Responsável</th>
-                  <th className="px-4 py-3">Histórico</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {indicacoes.map(ind => (
-                  <Fragment key={ind.id}>
-                    <tr className="hover:bg-slate-50 transition-colors">
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="flex items-center gap-1 font-mono text-xs font-bold text-slate-500">
-                          <Hash className="w-3 h-3" />{ind.protocolo || '—'}
-                        </div>
-                        <div className="text-slate-500 mt-0.5">{new Date(ind.data_indicacao).toLocaleDateString('pt-BR')}</div>
-                        <DiasParadoBadge ind={ind} />
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="font-bold text-slate-800">{ind.nome_indicado}</div>
-                        <div className="text-slate-500">{ind.telefone_indicado}</div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="font-medium text-slate-700">{ind.associados?.nome_completo}</div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <StatusSelect ind={ind} opcoes={opcoesStatusPara(ind)} onChange={updateStatus} />
-                      </td>
-                      <td className="px-4 py-3">
-                        <select
-                          value={ind.responsavel_id || ''}
-                          onChange={(e) => updateResponsavel(ind.id, e.target.value)}
-                          className="px-2 py-1 text-xs border border-slate-300 rounded-md bg-white w-full max-w-[150px] outline-none"
-                        >
-                          <option value="">Sem responsável</option>
-                          {usuarios.map(u => (
-                            <option key={u.id} value={u.id}>{u.nome}</option>
-                          ))}
-                        </select>
-                        {!ind.responsavel_id && ind.usuario_id && (
-                          <div className="text-[10px] text-slate-400 mt-1">
-                            Criador: {getNomeUsuario(ind.usuario_id)}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() => toggleExpand(ind.id)}
-                          className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800"
-                        >
-                          {expandedIds[ind.id] ? 'Ocultar' : 'Ver histórico'}
-                          {expandedIds[ind.id] ? <ChevronUp className="w-4 h-4"/> : <ChevronDown className="w-4 h-4"/>}
-                        </button>
-                      </td>
-                    </tr>
-                    {expandedIds[ind.id] && (
-                      <tr>
-                        <td colSpan={6} className="px-4 pb-5 bg-slate-50 border-b border-slate-100">
-                          <div className="max-w-2xl">
-                            <IndicacaoTimeline
-                              supabase={supabase}
-                              indicacaoId={ind.id}
-                              usuarios={usuarios}
-                              currentUserId={currentUserId}
-                            />
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
+                  <tr
+                    key={ind.id}
+                    onClick={() => setDetalheAbertoId(ind.id)}
+                    className="hover:bg-slate-50 transition-colors cursor-pointer"
+                  >
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="flex items-center gap-1 font-mono text-xs font-bold text-slate-500">
+                        <Hash className="w-3 h-3" />{ind.protocolo || '—'}
+                      </div>
+                      <div className="text-slate-500 mt-0.5">{new Date(ind.data_indicacao).toLocaleDateString('pt-BR')}</div>
+                      <DiasParadoBadge ind={ind} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="font-bold text-slate-800">{ind.nome_indicado}</div>
+                      <div className="text-slate-500">{ind.telefone_indicado}</div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-slate-700">{ind.associados?.nome_completo}</div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs font-bold px-2 py-1 rounded ${corStatus(ind.status?.cor).badge}`}>{ind.status?.nome || '—'}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {ind.responsavel_id ? getNomeUsuario(ind.responsavel_id) : <span className="text-slate-400">Sem responsável</span>}
+                    </td>
+                  </tr>
                 ))}
               </tbody>
             </table>
@@ -587,6 +467,20 @@ export default function PainelIndicacoes() {
           </div>
         </div>
       )}
+
+      {indicacaoAberta && (
+        <IndicacaoDetailModal
+          ind={indicacaoAberta}
+          statusTodos={statusTodos}
+          usuarios={usuarios}
+          currentUserId={currentUserId}
+          supabase={supabase}
+          onClose={() => setDetalheAbertoId(null)}
+          onStatusChange={updateStatus}
+          onResponsavelChange={updateResponsavel}
+          getNomeUsuario={getNomeUsuario}
+        />
+      )}
     </div>
   );
 }
@@ -594,56 +488,23 @@ export default function PainelIndicacoes() {
 // ================= KANBAN =================
 
 function KanbanBoard({
-  indicacoes,
-  statusTodos,
-  usuarios,
-  currentUserId,
-  expandedIds,
-  toggleExpand,
-  updateStatus,
-  updateResponsavel,
+  indicacoes, statusTodos, onOpenDetalhe,
 }: {
   indicacoes: Indicacao[];
   statusTodos: StatusIndicacao[];
-  usuarios: Usuario[];
-  currentUserId: string | undefined;
-  expandedIds: Record<string, boolean>;
-  toggleExpand: (id: string) => void;
-  updateStatus: (id: string, statusId: string) => void;
-  updateResponsavel: (id: string, respId: string) => void;
+  onOpenDetalhe: (id: string) => void;
 }) {
-  const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [dragOverStatus, setDragOverStatus] = useState<string | null>(null);
-
-  // Mostra toda coluna ativa, mais qualquer coluna desativada que ainda
-  // tenha indicações nela (senão essas indicações some do quadro).
   const colunas = statusTodos.filter(s => s.ativo || indicacoes.some(i => i.status_id === s.id));
-
-  const handleDrop = (statusId: string) => {
-    const ind = indicacoes.find(i => i.id === draggingId);
-    // Só atualiza se realmente mudou de coluna — evita um PATCH e um toast
-    // "Status atualizado" desnecessários quando o card é solto na coluna
-    // onde ele já estava.
-    if (draggingId && ind && ind.status_id !== statusId) updateStatus(draggingId, statusId);
-    setDraggingId(null);
-    setDragOverStatus(null);
-  };
 
   return (
     <div className="p-4">
-      <p className="text-xs text-slate-400 mb-3">Arraste um card entre as colunas pra mudar o status.</p>
+      <p className="text-xs text-slate-400 mb-3">Clique num card pra ver os detalhes e mudar o status/responsável.</p>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         {colunas.map(col => {
           const items = indicacoes.filter(i => i.status_id === col.id);
           const cor = corStatus(col.cor);
           return (
-            <div
-              key={col.id}
-              onDragOver={(e) => { e.preventDefault(); setDragOverStatus(col.id); }}
-              onDragLeave={() => setDragOverStatus(prev => (prev === col.id ? null : prev))}
-              onDrop={(e) => { e.preventDefault(); handleDrop(col.id); }}
-              className={`rounded-xl p-3 flex flex-col gap-2 min-h-[160px] border-2 border-dashed transition-colors ${dragOverStatus === col.id ? 'border-blue-300 bg-blue-50' : 'border-transparent bg-slate-50'}`}
-            >
+            <div key={col.id} className="rounded-xl p-3 flex flex-col gap-2 min-h-[160px] bg-slate-50">
               <div className="flex items-center justify-between px-1">
                 <span className="flex items-center gap-1.5 text-xs font-bold uppercase text-slate-500">
                   <span className={`w-2 h-2 rounded-full ${cor.dot}`} />
@@ -653,12 +514,10 @@ function KanbanBoard({
               </div>
 
               {items.map(ind => (
-                <div
+                <button
                   key={ind.id}
-                  draggable
-                  onDragStart={() => setDraggingId(ind.id)}
-                  onDragEnd={() => { setDraggingId(null); setDragOverStatus(null); }}
-                  className={`bg-white border border-slate-200 rounded-lg p-3 shadow-sm cursor-grab active:cursor-grabbing hover:border-blue-300 transition-colors ${draggingId === ind.id ? 'opacity-40' : ''}`}
+                  onClick={() => onOpenDetalhe(ind.id)}
+                  className="text-left bg-white border border-slate-200 rounded-lg p-3 shadow-sm hover:border-blue-300 transition-colors"
                 >
                   <div className="flex items-center justify-between gap-1 mb-1">
                     <span className="font-mono text-[10px] text-slate-400">{ind.protocolo || '—'}</span>
@@ -666,35 +525,7 @@ function KanbanBoard({
                   </div>
                   <div className="font-bold text-sm text-slate-800">{ind.nome_indicado}</div>
                   <div className="text-xs text-slate-500">{ind.associados?.nome_completo}</div>
-
-                  <select
-                    value={ind.responsavel_id || ''}
-                    onChange={(e) => updateResponsavel(ind.id, e.target.value)}
-                    className="mt-2 w-full text-[11px] px-1.5 py-1 border border-slate-200 rounded-md bg-white outline-none"
-                  >
-                    <option value="">Sem responsável</option>
-                    {usuarios.map(u => (
-                      <option key={u.id} value={u.id}>{u.nome}</option>
-                    ))}
-                  </select>
-
-                  <button
-                    onClick={() => toggleExpand(ind.id)}
-                    className="text-[11px] text-blue-600 font-semibold mt-2 hover:underline"
-                  >
-                    {expandedIds[ind.id] ? 'Ocultar histórico' : 'Ver histórico'}
-                  </button>
-                  {expandedIds[ind.id] && (
-                    <div className="mt-2 pt-2 border-t border-slate-100">
-                      <IndicacaoTimeline
-                        supabase={supabase}
-                        indicacaoId={ind.id}
-                        usuarios={usuarios}
-                        currentUserId={currentUserId}
-                      />
-                    </div>
-                  )}
-                </div>
+                </button>
               ))}
 
               {items.length === 0 && (

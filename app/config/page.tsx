@@ -12,6 +12,7 @@ export default function ConfigPage() {
   const [convites, setConvites] = useState<any[]>([]);
   const [statusIndicacao, setStatusIndicacao] = useState<any[]>([]);
   const [statusReclamacao, setStatusReclamacao] = useState<any[]>([]);
+  const [motivosReclamacao, setMotivosReclamacao] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
 
@@ -19,12 +20,13 @@ export default function ConfigPage() {
 
   const fetchData = async () => {
     setLoading(true);
-    const [setoresRes, usuariosRes, convitesRes, statusRes, statusReclRes, userRes] = await Promise.all([
+    const [setoresRes, usuariosRes, convitesRes, statusRes, statusReclRes, motivosRes, userRes] = await Promise.all([
       supabase.from('setores').select('*').order('ordem', { ascending: true }),
       supabase.from('perfis_usuarios').select('*').order('created_at', { ascending: false }),
       supabase.from('convites').select('*').order('created_at', { ascending: false }),
       supabase.from('indicacao_status').select('*').order('ordem', { ascending: true }),
       supabase.from('reclamacao_status').select('*').order('ordem', { ascending: true }),
+      supabase.from('reclamacao_motivo').select('*').order('ordem', { ascending: true }),
       supabase.auth.getUser(),
     ]);
 
@@ -33,6 +35,7 @@ export default function ConfigPage() {
     if (convitesRes.data) setConvites(convitesRes.data);
     if (statusRes.data) setStatusIndicacao(statusRes.data);
     if (statusReclRes.data) setStatusReclamacao(statusReclRes.data);
+    if (motivosRes.data) setMotivosReclamacao(motivosRes.data);
     setCurrentUserId(userRes.data.user?.id);
     setLoading(false);
   };
@@ -95,6 +98,10 @@ export default function ConfigPage() {
           titulo="Status de Reclamação"
           descricao={'Essas são as colunas do Kanban e as opções de status em cada reclamação/tratativa. "Conta como resolvido" define o que entra nas métricas de reclamações resolvidas do Dashboard.'}
         />
+      </div>
+
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+        <MotivosReclamacaoManager motivos={motivosReclamacao} onUpdate={fetchData} supabase={supabase} />
       </div>
     </div>
   );
@@ -241,6 +248,113 @@ function StatusManager({ statusList, onUpdate, supabase, tabela, campoFlag, rotu
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Lista de motivos que a pessoa escolhe ao abrir uma reclamação (ex: "Demora
+// no atendimento") — mantida pelo admin aqui, sem cor/flag como os status,
+// só nome + ativo/inativo. Alimenta o cruzamento "maiores motivos de
+// reclamação" no Dashboard.
+function MotivosReclamacaoManager({ motivos, onUpdate, supabase }: any) {
+  const [nome, setNome] = useState('');
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nome.trim()) return;
+    const toastId = toast.loading('Adicionando motivo...');
+    const { error } = await supabase.from('reclamacao_motivo').insert({ nome: nome.trim(), ordem: motivos.length });
+    if (error) {
+      toast.error('Erro ao adicionar motivo', { id: toastId });
+    } else {
+      toast.success('Motivo adicionado!', { id: toastId });
+      setNome('');
+      onUpdate();
+    }
+  };
+
+  const handleRename = async (id: string, novoNome: string, nomeAtual: string) => {
+    if (!novoNome.trim() || novoNome === nomeAtual) return;
+    const { error } = await supabase.from('reclamacao_motivo').update({ nome: novoNome.trim() }).eq('id', id);
+    if (error) toast.error('Erro ao renomear');
+    else onUpdate();
+  };
+
+  const toggleAtivo = async (id: string, ativo: boolean) => {
+    const toastId = toast.loading('Atualizando...');
+    const { error } = await supabase.from('reclamacao_motivo').update({ ativo: !ativo }).eq('id', id);
+    if (error) toast.error('Erro', { id: toastId });
+    else { toast.success('Atualizado', { id: toastId }); onUpdate(); }
+  };
+
+  const handleReorder = async (index: number, direcao: -1 | 1) => {
+    const outro = motivos[index + direcao];
+    const atual = motivos[index];
+    if (!outro) return;
+    const toastId = toast.loading('Reordenando...');
+    const [r1, r2] = await Promise.all([
+      supabase.from('reclamacao_motivo').update({ ordem: outro.ordem }).eq('id', atual.id),
+      supabase.from('reclamacao_motivo').update({ ordem: atual.ordem }).eq('id', outro.id),
+    ]);
+    if (r1.error || r2.error) toast.error('Erro ao reordenar', { id: toastId });
+    else { toast.success('Reordenado', { id: toastId }); onUpdate(); }
+  };
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-1">
+        <Columns3 className="w-5 h-5 text-slate-400" />
+        <h3 className="text-lg font-bold text-slate-800">Motivos de Reclamação</h3>
+      </div>
+      <p className="text-sm text-slate-500 mb-6">
+        Opções que aparecem ao abrir uma reclamação (ex: "Demora no atendimento", "Atraso de peças"). Quem abre escolhe entre eles, não digita um texto livre — assim dá pra ver no Dashboard quais são os motivos mais recorrentes.
+      </p>
+
+      <form onSubmit={handleAdd} className="flex gap-3 mb-6 max-w-lg">
+        <input
+          type="text"
+          placeholder="Nome do novo motivo"
+          value={nome}
+          onChange={(e) => setNome(e.target.value)}
+          className="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
+        />
+        <button type="submit" className="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2 shadow-sm shadow-blue-200">
+          <Plus className="w-4 h-4" /> Adicionar
+        </button>
+      </form>
+
+      {motivos.length === 0 ? (
+        <div className="text-center p-8 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+          <Columns3 className="w-10 h-10 text-slate-300 mb-3 mx-auto" />
+          <p className="text-slate-600 font-medium">Nenhum motivo cadastrado</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {motivos.map((m: any, index: number) => (
+            <div key={m.id} className={`flex items-center gap-2 p-2 bg-slate-50 border border-slate-100 rounded-lg ${!m.ativo ? 'opacity-50' : ''}`}>
+              <div className="flex gap-0.5">
+                <button onClick={() => handleReorder(index, -1)} disabled={index === 0} className="p-1 text-slate-400 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed">
+                  <ArrowUp className="w-3.5 h-3.5" />
+                </button>
+                <button onClick={() => handleReorder(index, 1)} disabled={index === motivos.length - 1} className="p-1 text-slate-400 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed">
+                  <ArrowDown className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <input
+                defaultValue={m.nome}
+                onBlur={(e) => handleRename(m.id, e.target.value, m.nome)}
+                className="flex-1 px-2 py-1 border border-transparent hover:border-slate-200 focus:border-slate-300 rounded-lg outline-none font-medium text-slate-700"
+              />
+              <button
+                onClick={() => toggleAtivo(m.id, m.ativo)}
+                className={`text-xs font-semibold px-3 py-1 rounded-full transition-colors shrink-0 ${m.ativo ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'}`}
+              >
+                {m.ativo ? 'Ativo' : 'Inativo'}
+              </button>
+            </div>
+          ))}
         </div>
       )}
     </div>

@@ -1,15 +1,15 @@
 'use client';
 
-import { useState, useEffect, Fragment } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { AlertOctagon, Filter, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Hash, Clock, Wifi, List, LayoutGrid, Columns3, AlertTriangle, Star } from 'lucide-react';
+import { AlertOctagon, Filter, ChevronLeft, ChevronRight, Hash, Clock, Wifi, List, LayoutGrid, Columns3, AlertTriangle, Star } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { subDays, startOfMonth, format } from 'date-fns';
 import { diasDesde } from '@/lib/utils';
 import { buscarStatusReclamacao, corStatus, normalizarStatusEmbutido, registrarObservacaoReclamacao, DIAS_LIMITE_PARADA, StatusReclamacao } from '@/lib/reclamacoes';
-import ReclamacaoTimeline from '@/components/ReclamacaoTimeline';
 import ModalFinalizarReclamacao from '@/components/ModalFinalizarReclamacao';
+import ReclamacaoDetailModal from '@/components/ReclamacaoDetailModal';
 
 const supabase = createClient();
 
@@ -29,21 +29,6 @@ function DiasParadaBadge({ rec }: { rec: Reclamacao }) {
     <span className="flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded w-fit">
       <Clock className="w-3 h-3" />{Math.floor(dias)}d parada
     </span>
-  );
-}
-
-function StatusSelect({ rec, opcoes, onChange }: { rec: Reclamacao, opcoes: StatusReclamacao[], onChange: (id: string, statusId: string) => void }) {
-  const cor = corStatus(rec.status?.cor);
-  return (
-    <select
-      value={rec.status_id}
-      onChange={(e) => onChange(rec.id, e.target.value)}
-      className={`px-2 py-1 rounded-lg text-xs font-bold outline-none cursor-pointer border-0 ring-1 ring-inset focus:ring-2 ${cor.badge} ${cor.ring}`}
-    >
-      {opcoes.map(s => (
-        <option key={s.id} value={s.id}>{s.nome}</option>
-      ))}
-    </select>
   );
 }
 
@@ -69,16 +54,6 @@ export default function PainelReclamacoes() {
     try { window.localStorage.setItem(VIEW_MODE_KEY, modo); } catch {}
   };
 
-  const statusAtivos = statusTodos.filter(s => s.ativo);
-
-  const opcoesStatusPara = (rec: Reclamacao): StatusReclamacao[] => {
-    if (!rec.status || rec.status.ativo === false && !statusAtivos.some(s => s.id === rec.status_id)) {
-      const atual = statusTodos.find(s => s.id === rec.status_id);
-      return atual ? [...statusAtivos, atual] : statusAtivos;
-    }
-    return statusAtivos;
-  };
-
   const [filtros, setFiltros] = useState(() => ({
     status: '',
     responsavel_atual_id: '',
@@ -94,9 +69,12 @@ export default function PainelReclamacoes() {
     return () => clearTimeout(t);
   }, [searchInput]);
 
-  const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
-  // Guarda a troca de status pendente enquanto o modal de finalização está
-  // aberto (precisa da nota antes de aplicar de verdade).
+  // Item aberto no modal de detalhe — guardamos só o id e derivamos o objeto
+  // atual da lista a cada render, assim o modal reflete status/responsável
+  // atualizados sem precisar de um segundo estado sincronizado à mão.
+  const [detalheAbertoId, setDetalheAbertoId] = useState<string | null>(null);
+  const reclamacaoAberta = reclamacoes.find(r => r.id === detalheAbertoId) || null;
+
   const [finalizando, setFinalizando] = useState<{ id: string, statusId: string, statusNome: string } | null>(null);
 
   const carregarUsuarios = async () => {
@@ -111,7 +89,8 @@ export default function PainelReclamacoes() {
       *,
       associados(nome_completo),
       avaliacao:avaliacoes(nota, setor:setores(nome)),
-      status:reclamacao_status(id, nome, cor, ativo, conta_como_resolvido)
+      status:reclamacao_status(id, nome, cor, ativo, conta_como_resolvido),
+      motivo:reclamacao_motivo(id, nome)
     `, { count: 'exact' }).order('data_abertura', { ascending: false });
 
     if (filtros.status) query = query.eq('status_id', filtros.status);
@@ -254,10 +233,6 @@ export default function PainelReclamacoes() {
     return u ? u.nome : 'Usuário Desconhecido';
   };
 
-  const toggleExpand = (id: string) => {
-    setExpandedIds(prev => ({ ...prev, [id]: !prev[id] }));
-  };
-
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 animate-in fade-in duration-500">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -358,6 +333,8 @@ export default function PainelReclamacoes() {
         </div>
       )}
 
+      <p className="text-xs text-slate-400 -mb-4">Clique numa reclamação pra ver os detalhes completos e o histórico.</p>
+
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         {loading ? (
           <div className="p-6 space-y-3 animate-pulse">
@@ -368,75 +345,30 @@ export default function PainelReclamacoes() {
             Nenhuma reclamação encontrada com os filtros atuais.
           </div>
         ) : viewMode === 'kanban' ? (
-          <KanbanBoard
-            reclamacoes={reclamacoes}
-            statusTodos={statusTodos}
-            usuarios={usuarios}
-            currentUserId={currentUserId}
-            expandedIds={expandedIds}
-            toggleExpand={toggleExpand}
-            updateStatus={updateStatus}
-            updateResponsavel={updateResponsavel}
-            getNomeUsuario={getNomeUsuario}
-          />
+          <KanbanBoard reclamacoes={reclamacoes} statusTodos={statusTodos} onOpenDetalhe={setDetalheAbertoId} />
         ) : viewMode === 'card' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 p-4">
             {reclamacoes.map(rec => (
-              <div key={rec.id} className="border border-slate-200 rounded-xl p-4 space-y-3 hover:border-blue-200 transition-colors">
+              <button
+                key={rec.id}
+                onClick={() => setDetalheAbertoId(rec.id)}
+                className="text-left border border-slate-200 rounded-xl p-4 space-y-3 hover:border-blue-300 hover:shadow-md transition-all"
+              >
                 <div className="flex justify-between items-start gap-2">
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <div className="font-bold text-slate-800">{rec.associados?.nome_completo}</div>
-                      {rec.protocolo && (
-                        <span className="flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded font-mono">
-                          <Hash className="w-2.5 h-2.5" />{rec.protocolo}
-                        </span>
-                      )}
-                    </div>
-                    {rec.avaliacao && (
-                      <div className="flex items-center gap-1 text-xs text-slate-500 mt-0.5">
-                        <Star className="w-3 h-3 text-yellow-500" /> Nota {rec.avaliacao.nota} · {rec.avaliacao.setor?.nome}
-                      </div>
-                    )}
-                  </div>
-                  <div className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-1 rounded whitespace-nowrap">
-                    {new Date(rec.data_abertura).toLocaleDateString('pt-BR')}
-                  </div>
-                </div>
-
-                <DiasParadaBadge rec={rec} />
-
-                <p className="text-sm text-slate-600 line-clamp-2">{rec.descricao}</p>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <div className="text-xs text-slate-400 mb-1 uppercase font-semibold">Status</div>
-                    <StatusSelect rec={rec} opcoes={opcoesStatusPara(rec)} onChange={updateStatus} />
-                  </div>
-                  <div>
-                    <div className="text-xs text-slate-400 mb-1 uppercase font-semibold">Responsável</div>
-                    <select
-                      value={rec.responsavel_atual_id || ''}
-                      onChange={(e) => updateResponsavel(rec.id, e.target.value)}
-                      className="px-2 py-1.5 text-xs border border-slate-300 rounded-md bg-white w-full outline-none"
-                    >
-                      <option value="">Sem responsável</option>
-                      {usuarios.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
-                    </select>
-                    <div className="text-[10px] text-slate-400 mt-1">Aberto por: {getNomeUsuario(rec.aberto_por)}</div>
-                  </div>
-                </div>
-
-                <div>
-                  <button onClick={() => toggleExpand(rec.id)} className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800 mb-2">
-                    {expandedIds[rec.id] ? 'Ocultar histórico' : 'Ver histórico'}
-                    {expandedIds[rec.id] ? <ChevronUp className="w-4 h-4"/> : <ChevronDown className="w-4 h-4"/>}
-                  </button>
-                  {expandedIds[rec.id] && (
-                    <ReclamacaoTimeline supabase={supabase} reclamacaoId={rec.id} usuarios={usuarios} currentUserId={currentUserId} />
+                  <div className="font-bold text-slate-800">{rec.associados?.nome_completo}</div>
+                  {rec.protocolo && (
+                    <span className="flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded font-mono shrink-0">
+                      <Hash className="w-2.5 h-2.5" />{rec.protocolo}
+                    </span>
                   )}
                 </div>
-              </div>
+                <div className="text-sm font-medium text-slate-600">{rec.motivo?.nome || 'Sem motivo definido'}</div>
+                <DiasParadaBadge rec={rec} />
+                <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
+                  <span className={`text-xs font-bold px-2 py-1 rounded ${corStatus(rec.status?.cor).badge}`}>{rec.status?.nome || '—'}</span>
+                  <span className="text-xs text-slate-400 truncate">{rec.responsavel_atual_id ? getNomeUsuario(rec.responsavel_atual_id) : 'Sem responsável'}</span>
+                </div>
+              </button>
             ))}
           </div>
         ) : (
@@ -446,66 +378,41 @@ export default function PainelReclamacoes() {
                 <tr>
                   <th className="px-4 py-3">Protocolo / Data</th>
                   <th className="px-4 py-3">Associado</th>
-                  <th className="px-4 py-3">Descrição</th>
+                  <th className="px-4 py-3">Motivo</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Responsável</th>
-                  <th className="px-4 py-3">Histórico</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {reclamacoes.map(rec => (
-                  <Fragment key={rec.id}>
-                    <tr className="hover:bg-slate-50 transition-colors">
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="flex items-center gap-1 font-mono text-xs font-bold text-slate-500">
-                          <Hash className="w-3 h-3" />{rec.protocolo || '—'}
+                  <tr
+                    key={rec.id}
+                    onClick={() => setDetalheAbertoId(rec.id)}
+                    className="hover:bg-slate-50 transition-colors cursor-pointer"
+                  >
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="flex items-center gap-1 font-mono text-xs font-bold text-slate-500">
+                        <Hash className="w-3 h-3" />{rec.protocolo || '—'}
+                      </div>
+                      <div className="text-slate-500 mt-0.5">{new Date(rec.data_abertura).toLocaleDateString('pt-BR')}</div>
+                      <DiasParadaBadge rec={rec} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-slate-700">{rec.associados?.nome_completo}</div>
+                      {rec.avaliacao && (
+                        <div className="flex items-center gap-1 text-xs text-slate-500 mt-0.5">
+                          <Star className="w-3 h-3 text-yellow-500" /> Nota {rec.avaliacao.nota}
                         </div>
-                        <div className="text-slate-500 mt-0.5">{new Date(rec.data_abertura).toLocaleDateString('pt-BR')}</div>
-                        <DiasParadaBadge rec={rec} />
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="font-medium text-slate-700">{rec.associados?.nome_completo}</div>
-                        {rec.avaliacao && (
-                          <div className="flex items-center gap-1 text-xs text-slate-500 mt-0.5">
-                            <Star className="w-3 h-3 text-yellow-500" /> Nota {rec.avaliacao.nota} · {rec.avaliacao.setor?.nome}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 max-w-xs">
-                        <p className="line-clamp-2">{rec.descricao}</p>
-                      </td>
-                      <td className="px-4 py-3">
-                        <StatusSelect rec={rec} opcoes={opcoesStatusPara(rec)} onChange={updateStatus} />
-                      </td>
-                      <td className="px-4 py-3">
-                        <select
-                          value={rec.responsavel_atual_id || ''}
-                          onChange={(e) => updateResponsavel(rec.id, e.target.value)}
-                          className="px-2 py-1 text-xs border border-slate-300 rounded-md bg-white w-full max-w-[150px] outline-none"
-                        >
-                          <option value="">Sem responsável</option>
-                          {usuarios.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
-                        </select>
-                        <div className="text-[10px] text-slate-400 mt-1">Aberto por: {getNomeUsuario(rec.aberto_por)}</div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <button onClick={() => toggleExpand(rec.id)} className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800">
-                          {expandedIds[rec.id] ? 'Ocultar' : 'Ver histórico'}
-                          {expandedIds[rec.id] ? <ChevronUp className="w-4 h-4"/> : <ChevronDown className="w-4 h-4"/>}
-                        </button>
-                      </td>
-                    </tr>
-                    {expandedIds[rec.id] && (
-                      <tr>
-                        <td colSpan={6} className="px-4 pb-5 bg-slate-50 border-b border-slate-100">
-                          <div className="max-w-2xl">
-                            <p className="text-sm text-slate-600 mb-3 bg-white border border-slate-200 rounded-lg p-3">{rec.descricao}</p>
-                            <ReclamacaoTimeline supabase={supabase} reclamacaoId={rec.id} usuarios={usuarios} currentUserId={currentUserId} />
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">{rec.motivo?.nome || 'Sem motivo definido'}</td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs font-bold px-2 py-1 rounded ${corStatus(rec.status?.cor).badge}`}>{rec.status?.nome || '—'}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {rec.responsavel_atual_id ? getNomeUsuario(rec.responsavel_atual_id) : <span className="text-slate-400">Sem responsável</span>}
+                    </td>
+                  </tr>
                 ))}
               </tbody>
             </table>
@@ -530,6 +437,20 @@ export default function PainelReclamacoes() {
         </div>
       )}
 
+      {reclamacaoAberta && (
+        <ReclamacaoDetailModal
+          rec={reclamacaoAberta}
+          statusTodos={statusTodos}
+          usuarios={usuarios}
+          currentUserId={currentUserId}
+          supabase={supabase}
+          onClose={() => setDetalheAbertoId(null)}
+          onStatusChange={updateStatus}
+          onResponsavelChange={updateResponsavel}
+          getNomeUsuario={getNomeUsuario}
+        />
+      )}
+
       {finalizando && (
         <ModalFinalizarReclamacao
           statusNome={finalizando.statusNome}
@@ -544,45 +465,23 @@ export default function PainelReclamacoes() {
 // ================= KANBAN =================
 
 function KanbanBoard({
-  reclamacoes, statusTodos, usuarios, currentUserId, expandedIds, toggleExpand, updateStatus, updateResponsavel, getNomeUsuario,
+  reclamacoes, statusTodos, onOpenDetalhe,
 }: {
   reclamacoes: Reclamacao[];
   statusTodos: StatusReclamacao[];
-  usuarios: Usuario[];
-  currentUserId: string | undefined;
-  expandedIds: Record<string, boolean>;
-  toggleExpand: (id: string) => void;
-  updateStatus: (id: string, statusId: string) => void;
-  updateResponsavel: (id: string, respId: string) => void;
-  getNomeUsuario: (id: string) => string;
+  onOpenDetalhe: (id: string) => void;
 }) {
-  const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [dragOverStatus, setDragOverStatus] = useState<string | null>(null);
-
   const colunas = statusTodos.filter(s => s.ativo || reclamacoes.some(r => r.status_id === s.id));
-
-  const handleDrop = (statusId: string) => {
-    const rec = reclamacoes.find(r => r.id === draggingId);
-    if (draggingId && rec && rec.status_id !== statusId) updateStatus(draggingId, statusId);
-    setDraggingId(null);
-    setDragOverStatus(null);
-  };
 
   return (
     <div className="p-4">
-      <p className="text-xs text-slate-400 mb-3">Arraste um card entre as colunas pra mudar o status. Mover pra uma coluna "conta como resolvido" pede uma nota de finalização.</p>
+      <p className="text-xs text-slate-400 mb-3">Clique num card pra ver os detalhes e mudar o status/responsável.</p>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         {colunas.map(col => {
           const items = reclamacoes.filter(r => r.status_id === col.id);
           const cor = corStatus(col.cor);
           return (
-            <div
-              key={col.id}
-              onDragOver={(e) => { e.preventDefault(); setDragOverStatus(col.id); }}
-              onDragLeave={() => setDragOverStatus(prev => (prev === col.id ? null : prev))}
-              onDrop={(e) => { e.preventDefault(); handleDrop(col.id); }}
-              className={`rounded-xl p-3 flex flex-col gap-2 min-h-[160px] border-2 border-dashed transition-colors ${dragOverStatus === col.id ? 'border-blue-300 bg-blue-50' : 'border-transparent bg-slate-50'}`}
-            >
+            <div key={col.id} className="rounded-xl p-3 flex flex-col gap-2 min-h-[160px] bg-slate-50">
               <div className="flex items-center justify-between px-1">
                 <span className="flex items-center gap-1.5 text-xs font-bold uppercase text-slate-500">
                   <span className={`w-2 h-2 rounded-full ${cor.dot}`} />
@@ -592,42 +491,18 @@ function KanbanBoard({
               </div>
 
               {items.map(rec => (
-                <div
+                <button
                   key={rec.id}
-                  draggable
-                  onDragStart={() => setDraggingId(rec.id)}
-                  onDragEnd={() => { setDraggingId(null); setDragOverStatus(null); }}
-                  className={`bg-white border border-slate-200 rounded-lg p-3 shadow-sm cursor-grab active:cursor-grabbing hover:border-blue-300 transition-colors ${draggingId === rec.id ? 'opacity-40' : ''}`}
+                  onClick={() => onOpenDetalhe(rec.id)}
+                  className="text-left bg-white border border-slate-200 rounded-lg p-3 shadow-sm hover:border-blue-300 transition-colors"
                 >
                   <div className="flex items-center justify-between gap-1 mb-1">
                     <span className="font-mono text-[10px] text-slate-400">{rec.protocolo || '—'}</span>
                     <DiasParadaBadge rec={rec} />
                   </div>
                   <div className="font-bold text-sm text-slate-800">{rec.associados?.nome_completo}</div>
-                  {rec.avaliacao && (
-                    <div className="flex items-center gap-1 text-xs text-slate-500">
-                      <Star className="w-3 h-3 text-yellow-500" /> Nota {rec.avaliacao.nota}
-                    </div>
-                  )}
-
-                  <select
-                    value={rec.responsavel_atual_id || ''}
-                    onChange={(e) => updateResponsavel(rec.id, e.target.value)}
-                    className="mt-2 w-full text-[11px] px-1.5 py-1 border border-slate-200 rounded-md bg-white outline-none"
-                  >
-                    <option value="">Sem responsável</option>
-                    {usuarios.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
-                  </select>
-
-                  <button onClick={() => toggleExpand(rec.id)} className="text-[11px] text-blue-600 font-semibold mt-2 hover:underline">
-                    {expandedIds[rec.id] ? 'Ocultar histórico' : 'Ver histórico'}
-                  </button>
-                  {expandedIds[rec.id] && (
-                    <div className="mt-2 pt-2 border-t border-slate-100">
-                      <ReclamacaoTimeline supabase={supabase} reclamacaoId={rec.id} usuarios={usuarios} currentUserId={currentUserId} />
-                    </div>
-                  )}
-                </div>
+                  <div className="text-xs text-slate-500">{rec.motivo?.nome || 'Sem motivo definido'}</div>
+                </button>
               ))}
 
               {items.length === 0 && <p className="text-xs text-slate-400 italic text-center py-6">Nenhuma reclamação</p>}

@@ -124,7 +124,7 @@ export default function IndicacaoTimeline({
                     </div>
                     {!isLast && <div className="w-px flex-1 bg-slate-200 my-1" />}
                   </div>
-                  <div className={`flex-1 ${isLast ? 'pb-0' : 'pb-4'}`}>
+                  <div className={`flex-1 ${isLast ? 'pb-0' : 'pb-4 mb-4 border-b border-slate-100'}`}>
                     <div className="flex justify-between items-start gap-2 flex-wrap">
                       <span className="text-sm font-semibold text-slate-700">
                         {ev.tipo === 'responsavel_alterado'

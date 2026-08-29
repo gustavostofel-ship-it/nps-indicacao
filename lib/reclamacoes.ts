@@ -37,6 +37,24 @@ export async function buscarStatusReclamacao(supabase: any, incluirInativos = fa
   return data || [];
 }
 
+export type MotivoReclamacao = {
+  id: string;
+  nome: string;
+  ordem: number;
+  ativo: boolean;
+};
+
+export async function buscarMotivosReclamacao(supabase: any, incluirInativos = false): Promise<MotivoReclamacao[]> {
+  let query = supabase.from('reclamacao_motivo').select('*').order('ordem', { ascending: true });
+  if (!incluirInativos) query = query.eq('ativo', true);
+  const { data, error } = await query;
+  if (error) {
+    console.error('Erro ao carregar motivos de reclamação:', error);
+    return [];
+  }
+  return data || [];
+}
+
 export type TipoEventoReclamacao = 'criacao' | 'status_alterado' | 'responsavel_alterado' | 'observacao';
 
 export type ReclamacaoEvento = {
@@ -72,11 +90,13 @@ export async function registrarObservacaoReclamacao(
 }
 
 export async function buscarEventosReclamacao(supabase: any, reclamacaoId: string): Promise<ReclamacaoEvento[]> {
+  // Mais recente primeiro — o topo da linha do tempo deve ser sempre a
+  // última atualização, não a criação original.
   const { data, error } = await supabase
     .from('reclamacao_eventos')
     .select('*')
     .eq('reclamacao_id', reclamacaoId)
-    .order('created_at', { ascending: true });
+    .order('created_at', { ascending: false });
   if (error) {
     console.error('Erro ao carregar histórico da reclamação:', error);
     return [];

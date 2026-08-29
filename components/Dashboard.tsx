@@ -7,7 +7,7 @@ import { Search, Plus, UserPlus, Car, Star, Megaphone, Edit2, X, ChevronDown, Ch
 import toast from 'react-hot-toast';
 import { diasDesde, maskCPF, validarCPF, maskPlaca, validarPlaca, maskPhone } from '@/lib/utils';
 import { buscarStatusIndicacao, corStatus, normalizarStatusEmbutido, DIAS_LIMITE_PARADA, StatusIndicacao } from '@/lib/indicacoes';
-import { buscarStatusReclamacao, StatusReclamacao } from '@/lib/reclamacoes';
+import { buscarStatusReclamacao, buscarMotivosReclamacao, StatusReclamacao, MotivoReclamacao } from '@/lib/reclamacoes';
 import IndicacaoTimeline from '@/components/IndicacaoTimeline';
 import ReclamacaoTimeline from '@/components/ReclamacaoTimeline';
 import ModalFinalizarReclamacao from '@/components/ModalFinalizarReclamacao';
@@ -62,6 +62,7 @@ export default function Dashboard() {
   const [setores, setSetores] = useState<any[]>([]);
   const [statusList, setStatusList] = useState<StatusIndicacao[]>([]);
   const [statusReclamacaoList, setStatusReclamacaoList] = useState<StatusReclamacao[]>([]);
+  const [motivosReclamacaoList, setMotivosReclamacaoList] = useState<MotivoReclamacao[]>([]);
   const [expandedReclamacoes, setExpandedReclamacoes] = useState<Record<string, boolean>>({});
   const [usuarios, setUsuarios] = useState<{ id: string; nome: string }[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
@@ -151,6 +152,7 @@ export default function Dashboard() {
     carregarListaAssociados('', 1);
     buscarStatusIndicacao(supabase).then(setStatusList);
     buscarStatusReclamacao(supabase).then(setStatusReclamacaoList);
+    buscarMotivosReclamacao(supabase).then(setMotivosReclamacaoList);
     supabase.from('perfis_usuarios').select('id, nome').then(({ data }) => {
       if (data) setUsuarios(data);
     });
@@ -225,7 +227,7 @@ export default function Dashboard() {
       supabase.from('veiculos').select('*').eq('associado_id', assocData.id).eq('ativo', true),
       supabase.from('avaliacoes').select('*, setor:setores(nome), avaliacao_notas(id, nota, criterio_id, criterios_avaliacao(id, nome))').eq('associado_id', assocData.id).order('data_avaliacao', { ascending: false }),
       supabase.from('indicacoes').select('*, status:indicacao_status(id, nome, cor, ativo, conta_como_fechado)').eq('associado_id', assocData.id).order('data_indicacao', { ascending: false }),
-      supabase.from('reclamacoes').select('*, avaliacao:avaliacoes(nota, setor:setores(nome)), status:reclamacao_status(id, nome, cor, ativo, conta_como_resolvido)').eq('associado_id', assocData.id).order('data_abertura', { ascending: false })
+      supabase.from('reclamacoes').select('*, avaliacao:avaliacoes(nota, setor:setores(nome)), status:reclamacao_status(id, nome, cor, ativo, conta_como_resolvido), motivo:reclamacao_motivo(id, nome)').eq('associado_id', assocData.id).order('data_abertura', { ascending: false })
     ]);
 
     setVeiculos(veiculosRes.data || []);
@@ -757,7 +759,7 @@ export default function Dashboard() {
                                         </div>
                                         <div className="flex items-center justify-between gap-2 mb-1">
                                           <p className="text-slate-400 text-[11px]">Avaliado por {getNomeUsuario(av.usuario_id)}</p>
-                                          {av.nota <= 6 && (
+                                          {(
                                             reclamacoes.some(r => r.avaliacao_id === av.id) ? (
                                               <span className="flex items-center gap-1 text-[10px] font-bold text-red-700 bg-red-100 px-1.5 py-0.5 rounded">
                                                 <AlertOctagon className="w-2.5 h-2.5" /> Em tratativa
@@ -927,7 +929,8 @@ export default function Dashboard() {
                             </span>
                           )}
                         </div>
-                        <p className="text-sm text-slate-600 mt-1">{rec.descricao}</p>
+                        <p className="text-sm font-semibold text-slate-700 mt-1">{rec.motivo?.nome || 'Sem motivo definido'}</p>
+                        {rec.descricao && <p className="text-sm text-slate-500 mt-0.5">{rec.descricao}</p>}
                         <p className="text-xs text-slate-400 mt-0.5">Aberta em {new Date(rec.data_abertura).toLocaleDateString('pt-BR')} por {getNomeUsuario(rec.aberto_por)}</p>
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
@@ -980,6 +983,7 @@ export default function Dashboard() {
           associadoId={associado?.id}
           avaliacao={novaReclamacao.avaliacao}
           statusList={statusReclamacaoList}
+          motivosList={motivosReclamacaoList}
           onClose={() => setNovaReclamacao({ aberto: false, avaliacao: null })}
           onSave={() => handleSearch({preventDefault:()=>null} as any)}
         />
@@ -1648,18 +1652,21 @@ function ModalNovaIndicacao({ associadoId, statusList, onClose, onSave }: any) {
   );
 }
 
-// Abre uma reclamação/tratativa — a partir de uma avaliação ruim (nota 0-6,
-// `avaliacao` preenchida com contexto de nota/setor) ou avulsa (associado
-// ligou direto reclamando, sem avaliação por trás). Quem abre já entra como
-// responsável atual — só muda quando alguém encaminha pra outra pessoa.
-function ModalNovaReclamacao({ associadoId, avaliacao, statusList, onClose, onSave }: any) {
-  const [descricao, setDescricao] = useState('');
+// Abre uma reclamação/tratativa — a partir de qualquer avaliação (`avaliacao`
+// preenchida com contexto de nota/setor) ou avulsa (associado ligou direto
+// reclamando, sem avaliação por trás). Quem abre já entra como responsável
+// atual — só muda quando alguém encaminha pra outra pessoa. O motivo vem de
+// uma lista fixa (mantida pelo admin em Configurações), não texto livre —
+// assim dá pra cruzar "maiores motivos de reclamação" no Dashboard depois.
+function ModalNovaReclamacao({ associadoId, avaliacao, statusList, motivosList, onClose, onSave }: any) {
+  const [motivoId, setMotivoId] = useState('');
+  const [detalhes, setDetalhes] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const statusInicial = statusList?.[0]?.id;
     if (!statusInicial) return toast.error('Nenhum status configurado. Configure os status de reclamação primeiro.');
-    if (!descricao.trim()) return toast.error('Descreva o que foi entendido do problema.');
+    if (!motivoId) return toast.error('Selecione o motivo da reclamação.');
 
     const tid = toast.loading('Abrindo reclamação...');
     const { data: { user } } = await supabase.auth.getUser();
@@ -1667,7 +1674,8 @@ function ModalNovaReclamacao({ associadoId, avaliacao, statusList, onClose, onSa
     const { error } = await supabase.from('reclamacoes').insert({
       associado_id: associadoId,
       avaliacao_id: avaliacao?.id || null,
-      descricao: descricao.trim(),
+      motivo_id: motivoId,
+      descricao: detalhes.trim() || null,
       status_id: statusInicial,
       aberto_por: user?.id,
       responsavel_atual_id: user?.id,
@@ -1689,18 +1697,27 @@ function ModalNovaReclamacao({ associadoId, avaliacao, statusList, onClose, onSa
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {avaliacao && (
             <div className="flex items-center gap-2 text-xs font-semibold text-yellow-700 bg-yellow-50 border border-yellow-100 px-3 py-2 rounded-lg">
-              <Star className="w-4 h-4" /> A partir da avaliação nota {avaliacao.nota} ({avaliacao.setor?.nome})
+              <Star className="w-4 h-4" /> Esta reclamação vai ficar vinculada à avaliação nota {avaliacao.nota} do setor {avaliacao.setor?.nome}.
             </div>
           )}
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">O que foi entendido do problema? *</label>
+            <label className="block text-sm font-semibold text-slate-700 mb-1">Motivo *</label>
+            {motivosList?.length > 0 ? (
+              <select required autoFocus value={motivoId} onChange={e => setMotivoId(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                <option value="">Selecione...</option>
+                {motivosList.map((m: any) => <option key={m.id} value={m.id}>{m.nome}</option>)}
+              </select>
+            ) : (
+              <p className="text-sm text-red-600">Nenhum motivo configurado. Cadastre em Configurações → Motivos de Reclamação.</p>
+            )}
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1">Detalhes (opcional)</label>
             <textarea
-              required
-              autoFocus
-              value={descricao}
-              onChange={e => setDescricao(e.target.value)}
-              rows={4}
-              placeholder="Descreva o relato do associado e o que precisa ser apurado..."
+              value={detalhes}
+              onChange={e => setDetalhes(e.target.value)}
+              rows={3}
+              placeholder="Algum detalhe adicional do relato do associado..."
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none"
             />
           </div>

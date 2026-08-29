@@ -98,11 +98,13 @@ export async function registrarObservacao(
 }
 
 export async function buscarEventosIndicacao(supabase: any, indicacaoId: string): Promise<IndicacaoEvento[]> {
+  // Mais recente primeiro — o topo da linha do tempo deve ser sempre a
+  // última atualização, não a criação original.
   const { data, error } = await supabase
     .from('indicacao_eventos')
     .select('*')
     .eq('indicacao_id', indicacaoId)
-    .order('created_at', { ascending: true });
+    .order('created_at', { ascending: false });
   if (error) {
     console.error('Erro ao carregar histórico da indicação:', error);
     return [];
