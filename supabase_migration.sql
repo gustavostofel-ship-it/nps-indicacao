@@ -47,7 +47,10 @@ CREATE TABLE associados (
   nome_completo TEXT NOT NULL,
   cpf TEXT UNIQUE NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now())
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()),
+  -- Telefone de contato do associado (diferente de indicacoes.telefone_indicado,
+  -- que é do indicado, não do dono da conta). Adicionado em 29/08/2026.
+  telefone TEXT
 );
 
 -- Tabela: associado_eventos
@@ -58,7 +61,7 @@ CREATE TABLE associado_eventos (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   associado_id UUID NOT NULL REFERENCES associados(id) ON DELETE CASCADE,
   autor_id UUID REFERENCES auth.users(id),
-  campo TEXT NOT NULL, -- 'criacao' | 'nome_completo' | 'cpf'
+  campo TEXT NOT NULL, -- 'criacao' | 'nome_completo' | 'cpf' | 'telefone'
   valor_anterior TEXT,
   valor_novo TEXT,
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc', now())
@@ -325,6 +328,10 @@ BEGIN
     IF NEW.cpf IS DISTINCT FROM OLD.cpf THEN
       INSERT INTO associado_eventos (associado_id, autor_id, campo, valor_anterior, valor_novo)
       VALUES (NEW.id, auth.uid(), 'cpf', OLD.cpf, NEW.cpf);
+    END IF;
+    IF NEW.telefone IS DISTINCT FROM OLD.telefone THEN
+      INSERT INTO associado_eventos (associado_id, autor_id, campo, valor_anterior, valor_novo)
+      VALUES (NEW.id, auth.uid(), 'telefone', OLD.telefone, NEW.telefone);
     END IF;
     RETURN NEW;
   END IF;

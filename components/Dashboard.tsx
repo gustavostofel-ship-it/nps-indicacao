@@ -3,9 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Search, Plus, UserPlus, Car, Star, Megaphone, Edit2, X, ChevronDown, ChevronUp, Users, ArrowLeft, Hash, Clock, ChevronLeft, ChevronRight, History } from 'lucide-react';
+import { Search, Plus, UserPlus, Car, Star, Megaphone, Edit2, X, ChevronDown, ChevronUp, Users, ArrowLeft, Hash, Clock, ChevronLeft, ChevronRight, History, Phone, Power, MessageCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { diasDesde } from '@/lib/utils';
+import { diasDesde, maskCPF, validarCPF, maskPlaca, validarPlaca, maskPhone } from '@/lib/utils';
 import { STATUS_BADGE_CLASSES, STATUS_LABELS, DIAS_LIMITE_PARADA } from '@/lib/indicacoes';
 import IndicacaoTimeline from '@/components/IndicacaoTimeline';
 import AssociadoHistorico from '@/components/AssociadoHistorico';
@@ -15,6 +15,22 @@ const supabase = createClient();
 // Quantos associados mostrar por página na lista — evita carregar a base
 // inteira de uma vez conforme o cadastro cresce.
 const ASSOC_PAGE_SIZE = 12;
+
+// Classificação (promotor/neutro/detrator) com base na avaliação mais
+// recente do associado, pro selo colorido no card da lista.
+function classificarUltimaAvaliacao(avaliacoes: { nota: number, data_avaliacao: string }[] | undefined) {
+  if (!avaliacoes || avaliacoes.length === 0) return null;
+  const ultima = [...avaliacoes].sort((a, b) => new Date(b.data_avaliacao).getTime() - new Date(a.data_avaliacao).getTime())[0];
+  if (ultima.nota >= 9) return 'promotor';
+  if (ultima.nota >= 7) return 'neutro';
+  return 'detrator';
+}
+
+const CLASSIFICACAO_COR: Record<string, string> = {
+  promotor: 'bg-green-500',
+  neutro: 'bg-yellow-400',
+  detrator: 'bg-red-500',
+};
 
 export default function Dashboard() {
   // Chegando de um link tipo "Ver associado" (no modal de avaliações do
@@ -48,6 +64,10 @@ export default function Dashboard() {
   const [editAssociado, setEditAssociado] = useState(false);
   const [editNome, setEditNome] = useState('');
   const [editCpf, setEditCpf] = useState('');
+  const [editTelefone, setEditTelefone] = useState('');
+
+  // Modal de edição/desativação de veículo
+  const [veiculoEditando, setVeiculoEditando] = useState<any>(null);
 
   // Expandable sections
   const [expandedSetores, setExpandedSetores] = useState<Record<string, boolean>>({});
@@ -57,7 +77,7 @@ export default function Dashboard() {
   // página passam sempre por aqui, evitando carregar a base inteira de uma vez.
   const carregarListaAssociados = async (termo = '', pagina = 1) => {
     let query = supabase.from('associados')
-      .select('id, nome_completo, cpf, veiculos(id), avaliacoes(id), indicacoes(id)', { count: 'exact' })
+      .select('id, nome_completo, cpf, telefone, veiculos(id), avaliacoes(nota, data_avaliacao), indicacoes(id)', { count: 'exact' })
       .order('nome_completo', { ascending: true });
 
     if (termo) query = query.or(`cpf.ilike.%${termo}%,nome_completo.ilike.%${termo}%`);
@@ -162,6 +182,7 @@ export default function Dashboard() {
     setAssociado(assocData);
     setEditNome(assocData.nome_completo);
     setEditCpf(assocData.cpf);
+    setEditTelefone(assocData.telefone || '');
     setShowHistoricoAssociado(false);
     
     const [veiculosRes, avaliacoesRes, indicacoesRes] = await Promise.all([
@@ -177,14 +198,35 @@ export default function Dashboard() {
 
   const handleSaveAssociado = async () => {
     if (!editNome || !editCpf) return;
+    if (!validarCPF(editCpf)) return toast.error('CPF inválido. Confira os números digitados.');
+
     const tid = toast.loading('Salvando...');
-    const { error } = await supabase.from('associados').update({ nome_completo: editNome, cpf: editCpf }).eq('id', associado.id);
+    const { error } = await supabase.from('associados')
+      .update({ nome_completo: editNome, cpf: editCpf, telefone: editTelefone || null })
+      .eq('id', associado.id);
+
     if (error) {
-      toast.error('Erro ao salvar: ' + error.message, { id: tid });
+      if (error.code === '23505') {
+        toast.error('Já existe um associado cadastrado com esse CPF.', { id: tid });
+      } else {
+        toast.error('Erro ao salvar: ' + error.message, { id: tid });
+      }
     } else {
       toast.success('Salvo!', { id: tid });
-      setAssociado({...associado, nome_completo: editNome, cpf: editCpf});
+      setAssociado({...associado, nome_completo: editNome, cpf: editCpf, telefone: editTelefone || null});
       setEditAssociado(false);
+    }
+  };
+
+  const handleDesativarVeiculo = async (veiculoId: string) => {
+    if (!window.confirm('Desativar este veículo? Ele deixará de aparecer na ficha do associado.')) return;
+    const tid = toast.loading('Desativando...');
+    const { error } = await supabase.from('veiculos').update({ ativo: false }).eq('id', veiculoId);
+    if (error) {
+      toast.error('Erro ao desativar', { id: tid });
+    } else {
+      toast.success('Veículo desativado', { id: tid });
+      setVeiculos(veiculos.filter(v => v.id !== veiculoId));
     }
   };
 
@@ -262,15 +304,30 @@ export default function Dashboard() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {listaAssociados.map((assoc) => (
-                <div 
-                  key={assoc.id} 
+              {listaAssociados.map((assoc) => {
+                const classe = classificarUltimaAvaliacao(assoc.avaliacoes);
+                return (
+                <div
+                  key={assoc.id}
                   onClick={() => { setBusca(assoc.cpf); handleSearch({preventDefault: () => null} as any); }}
                   className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer flex flex-col gap-3 group"
                 >
                   <div>
-                    <h3 className="font-bold text-lg text-slate-800 group-hover:text-blue-600 transition-colors">{assoc.nome_completo}</h3>
+                    <div className="flex items-center gap-2">
+                      {classe && (
+                        <span
+                          className={`w-2.5 h-2.5 rounded-full shrink-0 ${CLASSIFICACAO_COR[classe]}`}
+                          title={`Última avaliação: ${classe}`}
+                        />
+                      )}
+                      <h3 className="font-bold text-lg text-slate-800 group-hover:text-blue-600 transition-colors">{assoc.nome_completo}</h3>
+                    </div>
                     <p className="text-sm text-slate-500 font-medium">CPF: {assoc.cpf}</p>
+                    {assoc.telefone && (
+                      <p className="text-sm text-slate-500 font-medium flex items-center gap-1.5 mt-0.5">
+                        <Phone className="w-3.5 h-3.5 text-slate-400" /> {assoc.telefone}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-3 mt-2 border-t border-slate-100 pt-3 flex-wrap">
                     <span className="flex items-center gap-1.5 text-xs font-semibold bg-slate-100 text-slate-600 px-2.5 py-1 rounded-lg">
@@ -284,7 +341,8 @@ export default function Dashboard() {
                     </span>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
@@ -335,10 +393,11 @@ export default function Dashboard() {
             {editAssociado ? (
               <div className="flex-1 max-w-lg space-y-3">
                 <input value={editNome} onChange={e=>setEditNome(e.target.value)} className="w-full text-xl font-bold px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Nome Completo" />
-                <input value={editCpf} onChange={e=>setEditCpf(e.target.value)} className="w-full text-slate-600 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="CPF" />
+                <input value={editCpf} onChange={e=>setEditCpf(maskCPF(e.target.value))} maxLength={14} className="w-full text-slate-600 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="CPF" />
+                <input value={editTelefone} onChange={e=>setEditTelefone(maskPhone(e.target.value))} maxLength={15} className="w-full text-slate-600 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Telefone (opcional)" />
                 <div className="flex gap-2">
                   <button onClick={handleSaveAssociado} className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700">Salvar</button>
-                  <button onClick={() => {setEditAssociado(false); setEditNome(associado.nome_completo); setEditCpf(associado.cpf);}} className="px-4 py-2 bg-slate-100 text-slate-700 text-sm font-semibold rounded-lg hover:bg-slate-200">Cancelar</button>
+                  <button onClick={() => {setEditAssociado(false); setEditNome(associado.nome_completo); setEditCpf(associado.cpf); setEditTelefone(associado.telefone || '');}} className="px-4 py-2 bg-slate-100 text-slate-700 text-sm font-semibold rounded-lg hover:bg-slate-200">Cancelar</button>
                 </div>
               </div>
             ) : (
@@ -350,6 +409,18 @@ export default function Dashboard() {
                   </button>
                 </h2>
                 <p className="text-slate-500 mt-1 font-medium">CPF: {associado.cpf}</p>
+                {associado.telefone ? (
+                  <div className="flex items-center gap-3 mt-1.5">
+                    <a href={`tel:${associado.telefone.replace(/\D/g, '')}`} className="flex items-center gap-1.5 text-sm font-semibold text-blue-600 hover:underline">
+                      <Phone className="w-4 h-4" /> {associado.telefone}
+                    </a>
+                    <a href={`https://wa.me/55${associado.telefone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-sm font-semibold text-green-600 hover:underline">
+                      <MessageCircle className="w-4 h-4" /> WhatsApp
+                    </a>
+                  </div>
+                ) : (
+                  <p className="text-slate-400 mt-1.5 text-sm italic">Sem telefone cadastrado</p>
+                )}
               </div>
             )}
             {!editAssociado && (
@@ -388,9 +459,19 @@ export default function Dashboard() {
               ) : (
                 <div className="flex flex-wrap gap-2">
                   {veiculos.map(v => (
-                    <div key={v.id} className="bg-slate-100 border border-slate-200 px-3 py-2 rounded-lg text-sm flex flex-col">
-                      <span className="font-bold text-slate-800">{v.placa}</span>
-                      <span className="text-slate-500 text-xs">{v.modelo}</span>
+                    <div key={v.id} className="bg-slate-100 border border-slate-200 px-3 py-2 rounded-lg text-sm flex items-start gap-2 group">
+                      <div className="flex flex-col">
+                        <span className="font-bold text-slate-800">{v.placa}</span>
+                        <span className="text-slate-500 text-xs">{v.modelo}</span>
+                      </div>
+                      <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => setVeiculoEditando(v)} title="Editar veículo" className="text-slate-400 hover:text-blue-600">
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={() => handleDesativarVeiculo(v.id)} title="Desativar veículo" className="text-slate-400 hover:text-red-600">
+                          <Power className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -465,11 +546,13 @@ export default function Dashboard() {
                                 <div className="px-4 pb-3 space-y-2">
                                   {avalDoSetor.map((av, index) => {
                                     const temNotasCriterios = av.avaliacao_notas && av.avaliacao_notas.length > 0;
+                                    const veiculoAvaliado = veiculos.find(v => v.id === av.veiculo_id);
                                     return (
                                       <div key={av.id} className="flex flex-col text-xs py-2 border-b border-slate-100 last:border-0">
                                         <div className="flex justify-between items-center mb-1">
                                           <span className="text-slate-500">
                                             {new Date(av.data_avaliacao).toLocaleDateString('pt-BR')}
+                                            {veiculoAvaliado ? ` · ${veiculoAvaliado.placa}` : ''}
                                             {index === 0 ? ' (Última)' : ''}
                                           </span>
                                           <span className={`font-bold px-2 py-0.5 rounded ${av.nota >= 9 ? 'bg-green-100 text-green-700' : av.nota >= 7 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
@@ -485,6 +568,9 @@ export default function Dashboard() {
                                               </div>
                                             ))}
                                           </div>
+                                        )}
+                                        {av.comentario && (
+                                          <p className="mt-1.5 text-slate-600 bg-slate-50 rounded px-2 py-1.5 whitespace-pre-wrap">{av.comentario}</p>
                                         )}
                                       </div>
                                     );
@@ -586,6 +672,7 @@ export default function Dashboard() {
       {/* Modals go here */}
       {showNovoAssociado && <ModalNovoAssociado setores={setores} onClose={() => setShowNovoAssociado(false)} onSave={(assoc: any) => { setBusca(assoc.cpf); handleSearch({preventDefault:()=>null} as any); }} />}
       {showNovaPlaca && <ModalNovaPlaca associadoId={associado?.id} onClose={() => setShowNovaPlaca(false)} onSave={() => handleSearch({preventDefault:()=>null} as any)} />}
+      {veiculoEditando && <ModalEditarVeiculo veiculo={veiculoEditando} onClose={() => setVeiculoEditando(null)} onSave={(atualizado: any) => { setVeiculos(veiculos.map(v => v.id === atualizado.id ? atualizado : v)); setVeiculoEditando(null); }} />}
       {showNovaAvaliacao.aberto && <ModalNovaAvaliacao associadoId={associado?.id} veiculos={veiculos} setorPreSelecionado={showNovaAvaliacao.setorId} setores={setores} onClose={() => setShowNovaAvaliacao({aberto: false, setorId: null})} onSave={() => handleSearch({preventDefault:()=>null} as any)} />}
       {showNovaIndicacao && <ModalNovaIndicacao associadoId={associado?.id} onClose={() => setShowNovaIndicacao(false)} onSave={() => handleSearch({preventDefault:()=>null} as any)} />}
     </div>
@@ -621,36 +708,71 @@ function ModalNovoAssociado({ setores, onClose, onSave }: any) {
   const [step, setStep] = useState(1);
   const [nome, setNome] = useState('');
   const [cpf, setCpf] = useState('');
+  const [telefone, setTelefone] = useState('');
   const [placa, setPlaca] = useState('');
   const [modelo, setModelo] = useState('');
-  
+
   const [setorId, setSetorId] = useState(setores[0]?.id || '');
-  const [nota, setNota] = useState<number | null>(null);
+  const [notaGeral, setNotaGeral] = useState<number | null>(null);
   const [comentario, setComentario] = useState('');
-  
+
+  // Critérios do setor selecionado — mesmo comportamento de ModalNovaAvaliacao:
+  // se o setor tiver critérios cadastrados (ex: atendimento/reparação/qualidade),
+  // avalia por critério; senão, usa uma nota geral única.
+  const [criterios, setCriterios] = useState<any[]>([]);
+  const [notasCriterios, setNotasCriterios] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    if (!setorId || step !== 3) return;
+    supabase.from('criterios_avaliacao').select('*').eq('setor_id', setorId).eq('ativo', true).order('ordem', { ascending: true }).then(({ data }) => {
+      setCriterios(data || []);
+      setNotasCriterios({});
+      setNotaGeral(null);
+    });
+  }, [setorId, step]);
+
+  const temCriterios = criterios.length > 0;
+  const mediaCriterios = (() => {
+    const preenchidas = Object.values(notasCriterios);
+    if (preenchidas.length === 0) return null;
+    return Math.round((preenchidas.reduce((a, b) => a + b, 0) / preenchidas.length) * 10) / 10;
+  })();
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (step === 1) {
       if (!nome || !cpf) return toast.error('Preencha nome e CPF');
+      if (!validarCPF(cpf)) return toast.error('CPF inválido. Confira os números digitados.');
       setStep(2);
       return;
     }
     if (step === 2) {
+      if (placa && !validarPlaca(placa)) return toast.error('Placa inválida. Use o formato ABC1234 ou ABC1D23.');
       setStep(3);
       return;
     }
 
+    // Passo 3: se tem critérios e alguns já foram preenchidos, exige todos —
+    // evita salvar uma avaliação pela metade.
+    if (temCriterios && Object.keys(notasCriterios).length > 0 && Object.keys(notasCriterios).length < criterios.length) {
+      return toast.error('Preencha as notas de todos os critérios, ou deixe todas em branco.');
+    }
+
     const tid = toast.loading('Cadastrando...');
     const { data: { user } } = await supabase.auth.getUser();
-    
+
     const { data: assocData, error: assocError } = await supabase
       .from('associados')
-      .insert({ nome_completo: nome, cpf })
+      .insert({ nome_completo: nome, cpf, telefone: telefone || null })
       .select()
       .single();
 
     if (assocError) {
-      toast.error('Erro ao cadastrar: ' + assocError.message, { id: tid });
+      if (assocError.code === '23505') {
+        toast.error('Já existe um associado cadastrado com esse CPF.', { id: tid });
+      } else {
+        toast.error('Erro ao cadastrar: ' + assocError.message, { id: tid });
+      }
       return;
     }
 
@@ -658,23 +780,34 @@ function ModalNovoAssociado({ setores, onClose, onSave }: any) {
     if (placa && modelo) {
       const { data: veiculoData } = await supabase.from('veiculos').insert({
         associado_id: assocData.id,
-        placa,
+        placa: placa.replace(/[^A-Z0-9]/g, ''),
         modelo
       }).select().single();
       if (veiculoData) veiculoId = veiculoData.id;
     }
-    
-    if (nota !== null && veiculoId && setorId) {
-      await supabase.from('avaliacoes').insert({
+
+    const notaFinal = temCriterios ? mediaCriterios : notaGeral;
+
+    if (notaFinal !== null && veiculoId && setorId) {
+      const { data: avaliacaoData } = await supabase.from('avaliacoes').insert({
         associado_id: assocData.id,
         veiculo_id: veiculoId,
         setor_id: setorId,
-        nota,
+        nota: notaFinal,
         comentario,
         usuario_id: user?.id
-      });
+      }).select().single();
+
+      if (temCriterios && avaliacaoData) {
+        const notasParaSalvar = Object.entries(notasCriterios).map(([criterio_id, nota_valor]) => ({
+          avaliacao_id: avaliacaoData.id,
+          criterio_id,
+          nota: nota_valor
+        }));
+        await supabase.from('avaliacao_notas').insert(notasParaSalvar);
+      }
     }
-    
+
     toast.success('Cadastrado com sucesso!', { id: tid });
     onSave(assocData);
     onClose();
@@ -696,18 +829,22 @@ function ModalNovoAssociado({ setores, onClose, onSave }: any) {
               </div>
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1">CPF *</label>
-                <input required value={cpf} onChange={e=>setCpf(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Apenas números" />
+                <input required value={cpf} onChange={e=>setCpf(maskCPF(e.target.value))} maxLength={14} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="000.000.000-00" />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Telefone (Opcional)</label>
+                <input value={telefone} onChange={e=>setTelefone(maskPhone(e.target.value))} maxLength={15} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="(00) 00000-0000" />
               </div>
             </div>
           )}
-          
+
           {step === 2 && (
             <div className="space-y-4 animate-in slide-in-from-right-4">
               <h4 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2"><Car className="w-4 h-4 text-slate-400"/> Primeiro Veículo (Opcional)</h4>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 mb-1">Placa</label>
-                  <input value={placa} onChange={e=>setPlaca(e.target.value.toUpperCase())} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none uppercase" placeholder="ABC1D23" maxLength={7} />
+                  <input value={placa} onChange={e=>setPlaca(maskPlaca(e.target.value))} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none uppercase" placeholder="ABC1D23" maxLength={8} />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 mb-1">Modelo</label>
@@ -720,7 +857,7 @@ function ModalNovoAssociado({ setores, onClose, onSave }: any) {
           {step === 3 && (
             <div className="space-y-4 animate-in slide-in-from-right-4">
               <h4 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2"><Star className="w-4 h-4 text-slate-400"/> Primeira Avaliação (Opcional)</h4>
-              
+
               {(!placa || !modelo) ? (
                  <p className="text-sm text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-100">Adicione um veículo no passo anterior para poder avaliar.</p>
               ) : (
@@ -731,10 +868,34 @@ function ModalNovoAssociado({ setores, onClose, onSave }: any) {
                       {setores.map((s:any) => <option key={s.id} value={s.id}>{s.nome}</option>)}
                     </select>
                   </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">Nota (0 a 10)</label>
-                    <NotaSelector value={nota} onChange={setNota} />
-                  </div>
+
+                  {temCriterios ? (
+                    <div className="space-y-4 pt-1">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                        <h5 className="font-semibold text-slate-700 text-sm">Critérios de Avaliação</h5>
+                        {mediaCriterios !== null && (
+                          <span className={`px-2 py-1 rounded font-bold text-sm ${mediaCriterios >= 9 ? 'bg-green-100 text-green-700' : mediaCriterios >= 7 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                            Média: {mediaCriterios.toFixed(1)}
+                          </span>
+                        )}
+                      </div>
+                      {criterios.map(c => (
+                        <div key={c.id}>
+                          <label className="block text-sm font-medium text-slate-600 mb-2">{c.nome}</label>
+                          <NotaSelector
+                            value={notasCriterios[c.id] ?? null}
+                            onChange={(n) => setNotasCriterios(prev => ({...prev, [c.id]: n}))}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">Nota (0 a 10)</label>
+                      <NotaSelector value={notaGeral} onChange={setNotaGeral} />
+                    </div>
+                  )}
+
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1">Comentário (Opcional)</label>
                     <textarea value={comentario} onChange={e=>setComentario(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" rows={2}></textarea>
@@ -743,7 +904,7 @@ function ModalNovoAssociado({ setores, onClose, onSave }: any) {
               )}
             </div>
           )}
-          
+
           <div className="flex justify-end gap-3 pt-4">
             <button type="button" onClick={onClose} className="px-4 py-2 font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">Cancelar</button>
             {step > 1 && (
@@ -762,11 +923,12 @@ function ModalNovoAssociado({ setores, onClose, onSave }: any) {
 function ModalNovaPlaca({ associadoId, onClose, onSave }: any) {
   const [placa, setPlaca] = useState('');
   const [modelo, setModelo] = useState('');
-  
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!validarPlaca(placa)) return toast.error('Placa inválida. Use o formato ABC1234 ou ABC1D23.');
     const tid = toast.loading('Adicionando...');
-    const { error } = await supabase.from('veiculos').insert({ associado_id: associadoId, placa, modelo });
+    const { error } = await supabase.from('veiculos').insert({ associado_id: associadoId, placa: placa.replace(/[^A-Z0-9]/g, ''), modelo });
     if (error) { toast.error('Erro ao adicionar', { id: tid }); }
     else { toast.success('Adicionado!', { id: tid }); onSave(); onClose(); }
   };
@@ -781,7 +943,7 @@ function ModalNovaPlaca({ associadoId, onClose, onSave }: any) {
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1">Placa *</label>
-            <input required value={placa} onChange={e=>setPlaca(e.target.value.toUpperCase())} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none uppercase" placeholder="ABC1D23" maxLength={7} />
+            <input required value={placa} onChange={e=>setPlaca(maskPlaca(e.target.value))} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none uppercase" placeholder="ABC1D23" maxLength={8} />
           </div>
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1">Modelo *</label>
@@ -790,6 +952,45 @@ function ModalNovaPlaca({ associadoId, onClose, onSave }: any) {
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onClose} className="px-4 py-2 font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">Cancelar</button>
             <button type="submit" className="px-5 py-2 bg-blue-600 font-medium text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm">Adicionar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function ModalEditarVeiculo({ veiculo, onClose, onSave }: any) {
+  const [placa, setPlaca] = useState(veiculo.placa);
+  const [modelo, setModelo] = useState(veiculo.modelo);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validarPlaca(placa)) return toast.error('Placa inválida. Use o formato ABC1234 ou ABC1D23.');
+    const tid = toast.loading('Salvando...');
+    const { data, error } = await supabase.from('veiculos').update({ placa: placa.replace(/[^A-Z0-9]/g, ''), modelo }).eq('id', veiculo.id).select().single();
+    if (error) { toast.error('Erro ao salvar', { id: tid }); }
+    else { toast.success('Salvo!', { id: tid }); onSave(data); }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+          <h3 className="font-bold text-lg text-slate-800">Editar Veículo</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700"><X className="w-5 h-5"/></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1">Placa *</label>
+            <input required value={placa} onChange={e=>setPlaca(maskPlaca(e.target.value))} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none uppercase" placeholder="ABC1D23" maxLength={8} />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1">Modelo *</label>
+            <input required value={modelo} onChange={e=>setModelo(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={onClose} className="px-4 py-2 font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">Cancelar</button>
+            <button type="submit" className="px-5 py-2 bg-blue-600 font-medium text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm">Salvar</button>
           </div>
         </form>
       </div>
@@ -978,7 +1179,7 @@ function ModalNovaIndicacao({ associadoId, onClose, onSave }: any) {
           </div>
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1">Telefone / WhatsApp *</label>
-            <input required value={telefone} onChange={e=>setTelefone(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="(00) 00000-0000" />
+            <input required value={telefone} onChange={e=>setTelefone(maskPhone(e.target.value))} maxLength={15} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="(00) 00000-0000" />
           </div>
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1">Observações iniciais</label>

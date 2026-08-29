@@ -5,7 +5,7 @@ export type AssociadoEvento = {
   id: string;
   associado_id: string;
   autor_id: string | null;
-  campo: 'criacao' | 'nome_completo' | 'cpf';
+  campo: 'criacao' | 'nome_completo' | 'cpf' | 'telefone';
   valor_anterior: string | null;
   valor_novo: string | null;
   created_at: string;
@@ -32,6 +32,10 @@ export function descreverEventoAssociado(evento: AssociadoEvento) {
       return `Nome alterado: "${evento.valor_anterior}" → "${evento.valor_novo}"`;
     case 'cpf':
       return `CPF alterado: ${evento.valor_anterior} → ${evento.valor_novo}`;
+    case 'telefone':
+      return evento.valor_anterior
+        ? `Telefone alterado: ${evento.valor_anterior} → ${evento.valor_novo || '—'}`
+        : `Telefone cadastrado: ${evento.valor_novo}`;
     default:
       return 'Dado alterado';
   }
