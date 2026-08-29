@@ -7,7 +7,7 @@ import { Megaphone, Filter, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, H
 import toast from 'react-hot-toast';
 import { subDays, startOfMonth, format } from 'date-fns';
 import { diasDesde } from '@/lib/utils';
-import { STATUS_LABELS, STATUS_BADGE_CLASSES, DIAS_LIMITE_PARADA } from '@/lib/indicacoes';
+import { buscarStatusIndicacao, corStatus, DIAS_LIMITE_PARADA, StatusIndicacao } from '@/lib/indicacoes';
 import IndicacaoTimeline from '@/components/IndicacaoTimeline';
 
 const supabase = createClient();
@@ -30,7 +30,9 @@ type ViewMode = 'lista' | 'card' | 'kanban';
 // interação).
 function DiasParadoBadge({ ind }: { ind: Indicacao }) {
   const dias = diasDesde(ind.updated_at || ind.data_indicacao);
-  const parada = (ind.status === 'pendente' || ind.status === 'em_tratativa') && dias >= DIAS_LIMITE_PARADA;
+  // "Parada" = ainda não chegou num status marcado como fechamento (sucesso
+  // ou não) — status configuráveis não têm mais uma lista fixa de "abertos".
+  const parada = !ind.status?.conta_como_fechado && dias >= DIAS_LIMITE_PARADA;
   if (!parada) return null;
   return (
     <span className="flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded w-fit">
@@ -39,15 +41,16 @@ function DiasParadoBadge({ ind }: { ind: Indicacao }) {
   );
 }
 
-function StatusSelect({ ind, onChange }: { ind: Indicacao, onChange: (id: string, status: string) => void }) {
+function StatusSelect({ ind, opcoes, onChange }: { ind: Indicacao, opcoes: StatusIndicacao[], onChange: (id: string, statusId: string) => void }) {
+  const cor = corStatus(ind.status?.cor);
   return (
     <select
-      value={ind.status}
+      value={ind.status_id}
       onChange={(e) => onChange(ind.id, e.target.value)}
-      className={`px-2 py-1 rounded-lg text-xs font-bold outline-none cursor-pointer border-0 ring-1 ring-inset focus:ring-2 ${STATUS_BADGE_CLASSES[ind.status] || 'bg-slate-50 text-slate-700 ring-slate-200'}`}
+      className={`px-2 py-1 rounded-lg text-xs font-bold outline-none cursor-pointer border-0 ring-1 ring-inset focus:ring-2 ${cor.badge} ${cor.ring}`}
     >
-      {Object.entries(STATUS_LABELS).map(([value, label]) => (
-        <option key={value} value={value}>{label}</option>
+      {opcoes.map(s => (
+        <option key={s.id} value={s.id}>{s.nome}</option>
       ))}
     </select>
   );
@@ -62,10 +65,27 @@ export default function PainelIndicacoes() {
   const [indicacoes, setIndicacoes] = useState<Indicacao[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  // Todos os status (inclusive inativos — uma indicação antiga pode estar
+  // presa a um status que já foi desativado, e precisa continuar mostrando
+  // o nome dele em vez de sumir/quebrar).
+  const [statusTodos, setStatusTodos] = useState<StatusIndicacao[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
   const [page, setPage] = useState(1);
   const [viewMode, setViewMode] = useState<ViewMode>('lista');
+
+  const statusAtivos = statusTodos.filter(s => s.ativo);
+
+  // Opções que um <select> de status pode oferecer pra uma indicação: os
+  // ativos, mais o dela mesma caso já esteja num status desativado (senão o
+  // select ficaria "quebrado", sem a opção atual pra mostrar).
+  const opcoesStatusPara = (ind: Indicacao): StatusIndicacao[] => {
+    if (!ind.status || ind.status.ativo === false && !statusAtivos.some(s => s.id === ind.status_id)) {
+      const atual = statusTodos.find(s => s.id === ind.status_id);
+      return atual ? [...statusAtivos, atual] : statusAtivos;
+    }
+    return statusAtivos;
+  };
 
   // Filtros que disparam uma nova consulta ao banco.
   const [filtros, setFiltros] = useState(() => ({
@@ -102,10 +122,11 @@ export default function PainelIndicacoes() {
 
     let query = supabase.from('indicacoes').select(`
       *,
-      associados(nome_completo)
+      associados(nome_completo),
+      status:indicacao_status(id, nome, cor, ativo, conta_como_fechado)
     `, { count: 'exact' }).order('data_indicacao', { ascending: false });
 
-    if (filtros.status) query = query.eq('status', filtros.status);
+    if (filtros.status) query = query.eq('status_id', filtros.status);
     if (filtros.responsavel_id === 'unassigned') {
       query = query.is('responsavel_id', null);
     } else if (filtros.responsavel_id) {
@@ -162,6 +183,7 @@ export default function PainelIndicacoes() {
 
   useEffect(() => {
     carregarUsuarios();
+    buscarStatusIndicacao(supabase, true).then(setStatusTodos);
     supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id));
   }, []);
 
@@ -188,12 +210,13 @@ export default function PainelIndicacoes() {
     setPage(1);
   };
 
-  const updateStatus = async (id: string, novoStatus: string) => {
+  const updateStatus = async (id: string, novoStatusId: string) => {
     const tid = toast.loading('Atualizando status...');
-    const { error } = await supabase.from('indicacoes').update({ status: novoStatus }).eq('id', id);
+    const { error } = await supabase.from('indicacoes').update({ status_id: novoStatusId }).eq('id', id);
     if (!error) {
       toast.success('Status atualizado', { id: tid });
-      setIndicacoes(indicacoes.map(i => i.id === id ? {...i, status: novoStatus} : i));
+      const novoStatus = statusTodos.find(s => s.id === novoStatusId);
+      setIndicacoes(indicacoes.map(i => i.id === id ? {...i, status_id: novoStatusId, status: novoStatus} : i));
     } else {
       toast.error('Erro ao atualizar', { id: tid });
     }
@@ -287,8 +310,8 @@ export default function PainelIndicacoes() {
               className="h-10 w-full px-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
             >
               <option value="">Todos</option>
-              {Object.entries(STATUS_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
+              {statusTodos.map(s => (
+                <option key={s.id} value={s.id}>{s.nome}{!s.ativo ? ' (inativo)' : ''}</option>
               ))}
             </select>
           </div>
@@ -357,6 +380,7 @@ export default function PainelIndicacoes() {
         ) : viewMode === 'kanban' ? (
           <KanbanBoard
             indicacoes={indicacoes}
+            statusTodos={statusTodos}
             usuarios={usuarios}
             currentUserId={currentUserId}
             expandedIds={expandedIds}
@@ -395,7 +419,7 @@ export default function PainelIndicacoes() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <div className="text-xs text-slate-400 mb-1 uppercase font-semibold">Status</div>
-                    <StatusSelect ind={ind} onChange={updateStatus} />
+                    <StatusSelect ind={ind} opcoes={opcoesStatusPara(ind)} onChange={updateStatus} />
                   </div>
                   <div>
                     <div className="text-xs text-slate-400 mb-1 uppercase font-semibold">Responsável</div>
@@ -469,7 +493,7 @@ export default function PainelIndicacoes() {
                         <div className="font-medium text-slate-700">{ind.associados?.nome_completo}</div>
                       </td>
                       <td className="px-4 py-3">
-                        <StatusSelect ind={ind} onChange={updateStatus} />
+                        <StatusSelect ind={ind} opcoes={opcoesStatusPara(ind)} onChange={updateStatus} />
                       </td>
                       <td className="px-4 py-3">
                         <select
@@ -554,6 +578,7 @@ export default function PainelIndicacoes() {
 
 function KanbanBoard({
   indicacoes,
+  statusTodos,
   usuarios,
   currentUserId,
   expandedIds,
@@ -562,22 +587,27 @@ function KanbanBoard({
   updateResponsavel,
 }: {
   indicacoes: Indicacao[];
+  statusTodos: StatusIndicacao[];
   usuarios: Usuario[];
   currentUserId: string | undefined;
   expandedIds: Record<string, boolean>;
   toggleExpand: (id: string) => void;
-  updateStatus: (id: string, status: string) => void;
+  updateStatus: (id: string, statusId: string) => void;
   updateResponsavel: (id: string, respId: string) => void;
 }) {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverStatus, setDragOverStatus] = useState<string | null>(null);
 
-  const handleDrop = (statusKey: string) => {
+  // Mostra toda coluna ativa, mais qualquer coluna desativada que ainda
+  // tenha indicações nela (senão essas indicações some do quadro).
+  const colunas = statusTodos.filter(s => s.ativo || indicacoes.some(i => i.status_id === s.id));
+
+  const handleDrop = (statusId: string) => {
     const ind = indicacoes.find(i => i.id === draggingId);
     // Só atualiza se realmente mudou de coluna — evita um PATCH e um toast
     // "Status atualizado" desnecessários quando o card é solto na coluna
     // onde ele já estava.
-    if (draggingId && ind && ind.status !== statusKey) updateStatus(draggingId, statusKey);
+    if (draggingId && ind && ind.status_id !== statusId) updateStatus(draggingId, statusId);
     setDraggingId(null);
     setDragOverStatus(null);
   };
@@ -586,18 +616,22 @@ function KanbanBoard({
     <div className="p-4">
       <p className="text-xs text-slate-400 mb-3">Arraste um card entre as colunas pra mudar o status.</p>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        {Object.entries(STATUS_LABELS).map(([statusKey, label]) => {
-          const items = indicacoes.filter(i => i.status === statusKey);
+        {colunas.map(col => {
+          const items = indicacoes.filter(i => i.status_id === col.id);
+          const cor = corStatus(col.cor);
           return (
             <div
-              key={statusKey}
-              onDragOver={(e) => { e.preventDefault(); setDragOverStatus(statusKey); }}
-              onDragLeave={() => setDragOverStatus(prev => (prev === statusKey ? null : prev))}
-              onDrop={(e) => { e.preventDefault(); handleDrop(statusKey); }}
-              className={`rounded-xl p-3 flex flex-col gap-2 min-h-[160px] border-2 border-dashed transition-colors ${dragOverStatus === statusKey ? 'border-blue-300 bg-blue-50' : 'border-transparent bg-slate-50'}`}
+              key={col.id}
+              onDragOver={(e) => { e.preventDefault(); setDragOverStatus(col.id); }}
+              onDragLeave={() => setDragOverStatus(prev => (prev === col.id ? null : prev))}
+              onDrop={(e) => { e.preventDefault(); handleDrop(col.id); }}
+              className={`rounded-xl p-3 flex flex-col gap-2 min-h-[160px] border-2 border-dashed transition-colors ${dragOverStatus === col.id ? 'border-blue-300 bg-blue-50' : 'border-transparent bg-slate-50'}`}
             >
               <div className="flex items-center justify-between px-1">
-                <span className="text-xs font-bold uppercase text-slate-500">{label}</span>
+                <span className="flex items-center gap-1.5 text-xs font-bold uppercase text-slate-500">
+                  <span className={`w-2 h-2 rounded-full ${cor.dot}`} />
+                  {col.nome}{!col.ativo && ' (inativo)'}
+                </span>
                 <span className="text-xs font-bold text-slate-400 bg-white px-2 py-0.5 rounded-full">{items.length}</span>
               </div>
 

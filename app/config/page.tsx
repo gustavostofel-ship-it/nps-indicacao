@@ -1,28 +1,32 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Plus, Copy, Check, Trash2, Edit2, Settings, Users, LayoutDashboard, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Copy, Check, Trash2, Edit2, Settings, Users, LayoutDashboard, ChevronDown, ChevronUp, Columns3, ArrowUp, ArrowDown } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { CHAVES_CORES_STATUS, corStatus } from '@/lib/indicacoes';
 
 export default function ConfigPage() {
   const [setores, setSetores] = useState<any[]>([]);
   const [usuarios, setUsuarios] = useState<any[]>([]);
   const [convites, setConvites] = useState<any[]>([]);
+  const [statusIndicacao, setStatusIndicacao] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   const supabase = createClient();
 
   const fetchData = async () => {
     setLoading(true);
-    const [setoresRes, usuariosRes, convitesRes] = await Promise.all([
+    const [setoresRes, usuariosRes, convitesRes, statusRes] = await Promise.all([
       supabase.from('setores').select('*').order('ordem', { ascending: true }),
       supabase.from('perfis_usuarios').select('*').order('created_at', { ascending: false }),
-      supabase.from('convites').select('*').order('created_at', { ascending: false })
+      supabase.from('convites').select('*').order('created_at', { ascending: false }),
+      supabase.from('indicacao_status').select('*').order('ordem', { ascending: true })
     ]);
-    
+
     if (setoresRes.data) setSetores(setoresRes.data);
     if (usuariosRes.data) setUsuarios(usuariosRes.data);
     if (convitesRes.data) setConvites(convitesRes.data);
+    if (statusRes.data) setStatusIndicacao(statusRes.data);
     setLoading(false);
   };
 
@@ -46,19 +50,169 @@ export default function ConfigPage() {
         </div>
         <div>
           <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Configurações</h2>
-          <p className="text-slate-500 text-sm">Gerencie setores e acessos da equipe</p>
+          <p className="text-slate-500 text-sm">Gerencie setores, status de indicação e acessos da equipe</p>
         </div>
       </div>
-      
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col h-full">
           <SetoresManager setores={setores} onUpdate={fetchData} supabase={supabase} />
         </div>
-        
+
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col h-full">
            <UsuariosManager usuarios={usuarios} convites={convites} onUpdate={fetchData} supabase={supabase} />
         </div>
       </div>
+
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+        <StatusIndicacaoManager statusList={statusIndicacao} onUpdate={fetchData} supabase={supabase} />
+      </div>
+    </div>
+  );
+}
+
+function StatusIndicacaoManager({ statusList, onUpdate, supabase }: any) {
+  const [nome, setNome] = useState('');
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nome.trim()) return;
+    const toastId = toast.loading('Adicionando status...');
+    const { error } = await supabase.from('indicacao_status').insert({ nome, ordem: statusList.length });
+    if (error) {
+      toast.error('Erro ao adicionar status', { id: toastId });
+    } else {
+      toast.success('Status adicionado!', { id: toastId });
+      setNome('');
+      onUpdate();
+    }
+  };
+
+  const handleRename = async (id: string, novoNome: string, nomeAtual: string) => {
+    if (!novoNome.trim() || novoNome === nomeAtual) return;
+    const { error } = await supabase.from('indicacao_status').update({ nome: novoNome.trim() }).eq('id', id);
+    if (error) toast.error('Erro ao renomear');
+    else onUpdate();
+  };
+
+  const handleCorChange = async (id: string, cor: string) => {
+    const { error } = await supabase.from('indicacao_status').update({ cor }).eq('id', id);
+    if (error) toast.error('Erro ao atualizar cor');
+    else onUpdate();
+  };
+
+  const handleToggle = async (id: string, campo: 'ativo' | 'conta_como_fechado', valorAtual: boolean) => {
+    const { error } = await supabase.from('indicacao_status').update({ [campo]: !valorAtual }).eq('id', id);
+    if (error) toast.error('Erro ao atualizar');
+    else onUpdate();
+  };
+
+  const handleReorder = async (index: number, direcao: -1 | 1) => {
+    const outro = statusList[index + direcao];
+    const atual = statusList[index];
+    if (!outro) return;
+    const toastId = toast.loading('Reordenando...');
+    const [r1, r2] = await Promise.all([
+      supabase.from('indicacao_status').update({ ordem: outro.ordem }).eq('id', atual.id),
+      supabase.from('indicacao_status').update({ ordem: atual.ordem }).eq('id', outro.id),
+    ]);
+    if (r1.error || r2.error) toast.error('Erro ao reordenar', { id: toastId });
+    else { toast.success('Reordenado', { id: toastId }); onUpdate(); }
+  };
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-1">
+        <Columns3 className="w-5 h-5 text-slate-400" />
+        <h3 className="text-lg font-bold text-slate-800">Status de Indicação</h3>
+      </div>
+      <p className="text-sm text-slate-500 mb-6">
+        Essas são as colunas do Kanban e as opções de status em cada indicação. "Conta como fechado" define o que entra nas métricas de Conversão e Tempo de Fechamento do Dashboard.
+      </p>
+
+      <form onSubmit={handleAdd} className="flex gap-3 mb-6 max-w-lg">
+        <input
+          type="text"
+          placeholder="Nome do novo status"
+          value={nome}
+          onChange={(e) => setNome(e.target.value)}
+          className="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
+        />
+        <button type="submit" className="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2 shadow-sm shadow-blue-200">
+          <Plus className="w-4 h-4" /> Adicionar
+        </button>
+      </form>
+
+      {statusList.length === 0 ? (
+        <div className="text-center p-8 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+          <Columns3 className="w-10 h-10 text-slate-300 mb-3 mx-auto" />
+          <p className="text-slate-600 font-medium">Nenhum status cadastrado</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="text-slate-500 uppercase font-semibold text-xs border-b border-slate-200">
+              <tr>
+                <th className="py-2 pr-3 w-16">Ordem</th>
+                <th className="py-2 pr-3">Cor</th>
+                <th className="py-2 pr-3">Nome</th>
+                <th className="py-2 pr-3 text-center">Conta como fechado</th>
+                <th className="py-2 pr-3 text-center">Ativo</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {statusList.map((s: any, index: number) => (
+                <tr key={s.id} className={!s.ativo ? 'opacity-50' : ''}>
+                  <td className="py-2 pr-3">
+                    <div className="flex gap-1">
+                      <button onClick={() => handleReorder(index, -1)} disabled={index === 0} className="p-1 text-slate-400 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed">
+                        <ArrowUp className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => handleReorder(index, 1)} disabled={index === statusList.length - 1} className="p-1 text-slate-400 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed">
+                        <ArrowDown className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                  <td className="py-2 pr-3">
+                    <select
+                      value={s.cor}
+                      onChange={(e) => handleCorChange(s.id, e.target.value)}
+                      className={`text-xs font-semibold px-2 py-1 rounded-lg border-0 outline-none cursor-pointer ${corStatus(s.cor).badge}`}
+                    >
+                      {CHAVES_CORES_STATUS.map(chave => (
+                        <option key={chave} value={chave}>{chave}</option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="py-2 pr-3">
+                    <input
+                      defaultValue={s.nome}
+                      onBlur={(e) => handleRename(s.id, e.target.value, s.nome)}
+                      className="px-2 py-1 border border-transparent hover:border-slate-200 focus:border-slate-300 rounded-lg outline-none font-medium text-slate-700 w-full"
+                    />
+                  </td>
+                  <td className="py-2 pr-3 text-center">
+                    <input
+                      type="checkbox"
+                      checked={s.conta_como_fechado}
+                      onChange={() => handleToggle(s.id, 'conta_como_fechado', s.conta_como_fechado)}
+                      className="w-4 h-4 accent-blue-600 cursor-pointer"
+                    />
+                  </td>
+                  <td className="py-2 pr-3 text-center">
+                    <button
+                      onClick={() => handleToggle(s.id, 'ativo', s.ativo)}
+                      className={`text-xs font-semibold px-3 py-1 rounded-full transition-colors ${s.ativo ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'}`}
+                    >
+                      {s.ativo ? 'Ativo' : 'Inativo'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

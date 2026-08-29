@@ -4,8 +4,9 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- Tipos ENUM
 CREATE TYPE papel_usuario AS ENUM ('admin', 'atendente');
 CREATE TYPE status_usuario AS ENUM ('convidado', 'ativo', 'inativo');
-CREATE TYPE status_indicacao AS ENUM ('pendente', 'em_tratativa', 'fechado', 'sem_retorno');
 CREATE TYPE status_convite AS ENUM ('pendente', 'aceito', 'expirado');
+-- status_indicacao era um ENUM fixo aqui; virou a tabela `indicacao_status`
+-- (configurável pelas Configurações) em 29/08/2026 — ver mais abaixo.
 
 -- Tabela: perfis_usuarios
 CREATE TABLE perfis_usuarios (
@@ -121,6 +122,28 @@ CREATE TABLE avaliacao_notas (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now())
 );
 
+-- Tabela: indicacao_status
+-- Configurável pelas Configurações do sistema (nome, cor, ordem, quantidade)
+-- — antes era o ENUM status_indicacao. Cada status pode ser marcado como
+-- "conta como fechado" (usado nas métricas de Conversão e Tempo de
+-- Fechamento do Dashboard). Adicionada em 29/08/2026.
+CREATE TABLE indicacao_status (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  nome TEXT NOT NULL,
+  cor TEXT NOT NULL DEFAULT 'cinza', -- chave de uma paleta fixa, ver CORES_STATUS no front-end
+  ordem INTEGER NOT NULL DEFAULT 0,
+  conta_como_fechado BOOLEAN NOT NULL DEFAULT false,
+  ativo BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now())
+);
+
+-- Status padrão numa instalação nova (o mesmo conjunto que existia como ENUM)
+INSERT INTO indicacao_status (nome, cor, ordem, conta_como_fechado) VALUES
+  ('Pendente', 'amarelo', 0, false),
+  ('Em Tratativa', 'azul', 1, false),
+  ('Fechado', 'verde', 2, true),
+  ('Sem Retorno', 'vermelho', 3, false);
+
 -- Tabela: indicacoes
 CREATE TABLE indicacoes (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -128,7 +151,7 @@ CREATE TABLE indicacoes (
   avaliacao_id UUID REFERENCES avaliacoes(id) ON DELETE SET NULL,
   nome_indicado TEXT NOT NULL,
   telefone_indicado TEXT NOT NULL,
-  status status_indicacao NOT NULL DEFAULT 'pendente',
+  status_id UUID NOT NULL REFERENCES indicacao_status(id),
   observacoes TEXT,
   data_indicacao TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()),
   usuario_id UUID NOT NULL REFERENCES auth.users(id),
@@ -204,6 +227,7 @@ ALTER TABLE criterios_avaliacao ENABLE ROW LEVEL SECURITY;
 ALTER TABLE avaliacao_notas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE indicacao_eventos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE associado_eventos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE indicacao_status ENABLE ROW LEVEL SECURITY;
 
 -- Helper function to check if user is admin
 CREATE OR REPLACE FUNCTION is_admin() RETURNS BOOLEAN AS $$
@@ -253,6 +277,14 @@ ON avaliacoes FOR ALL TO authenticated USING (true);
 CREATE POLICY "Autenticados podem ler/escrever indicacoes"
 ON indicacoes FOR ALL TO authenticated USING (true);
 
+-- Políticas para indicacao_status (mesmo padrão de setores: todos veem,
+-- só admin configura)
+CREATE POLICY "Todos autenticados podem ver indicacao_status"
+ON indicacao_status FOR SELECT TO authenticated USING (true);
+
+CREATE POLICY "Apenas admins podem modificar indicacao_status"
+ON indicacao_status FOR ALL TO authenticated USING (is_admin());
+
 -- Políticas para criterios_avaliacao (segue o mesmo padrão de setores)
 -- OBS: política inferida por analogia com `setores`, não foi confirmada consultando
 -- pg_policies no banco em produção. Vale conferir/ajustar se divergir.
@@ -284,9 +316,13 @@ BEGIN
   END IF;
 
   IF TG_OP = 'UPDATE' THEN
-    IF NEW.status IS DISTINCT FROM OLD.status THEN
+    IF NEW.status_id IS DISTINCT FROM OLD.status_id THEN
       INSERT INTO indicacao_eventos (indicacao_id, tipo, autor_id, valor_anterior, valor_novo)
-      VALUES (NEW.id, 'status_alterado', auth.uid(), OLD.status::text, NEW.status::text);
+      VALUES (
+        NEW.id, 'status_alterado', auth.uid(),
+        (SELECT nome FROM indicacao_status WHERE id = OLD.status_id),
+        (SELECT nome FROM indicacao_status WHERE id = NEW.status_id)
+      );
     END IF;
     IF NEW.responsavel_id IS DISTINCT FROM OLD.responsavel_id THEN
       INSERT INTO indicacao_eventos (indicacao_id, tipo, autor_id, valor_anterior, valor_novo)
@@ -366,7 +402,7 @@ FOR EACH ROW EXECUTE PROCEDURE update_modified_column();
 -- é o valor usado para calcular há quantos dias uma indicação está parada.
 CREATE OR REPLACE FUNCTION update_indicacoes_modtime() RETURNS TRIGGER AS $$
 BEGIN
-  IF NEW.status IS DISTINCT FROM OLD.status
+  IF NEW.status_id IS DISTINCT FROM OLD.status_id
      OR NEW.responsavel_id IS DISTINCT FROM OLD.responsavel_id
      OR NEW.observacoes IS DISTINCT FROM OLD.observacoes THEN
     NEW.updated_at = timezone('utc', now());

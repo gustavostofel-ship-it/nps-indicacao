@@ -7,17 +7,17 @@ import { startOfMonth, format, subDays, isAfter, isBefore } from 'date-fns';
 import { ArrowRight, Star, Megaphone, Users, Target, CheckCircle2, AlertCircle, ArrowUpRight, ArrowDownRight, Clock, AlertTriangle, Download, Filter, Wifi, X } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
-import { DIAS_LIMITE_PARADA } from '@/lib/indicacoes';
+import { buscarStatusIndicacao, corStatus, DIAS_LIMITE_PARADA, StatusIndicacao } from '@/lib/indicacoes';
 
 const supabase = createClient();
 
+type StatusEmbutido = { id: string, nome: string, cor: string, conta_como_fechado: boolean } | null;
 type Avaliacao = { id: string, nota: number, data_avaliacao: string, setor: any, setor_id: string, usuario_id: string, associado_id: string, comentario: string | null, classificacao: string | null, associado: any };
-type Indicacao = { id: string, status: string, data_indicacao: string, updated_at: string, data_fechamento: string | null, usuario_id: string, nome_indicado: string, responsavel_id: string | null, associado_id: string, protocolo: string | null };
+type Indicacao = { id: string, status_id: string, status: StatusEmbutido, data_indicacao: string, updated_at: string, data_fechamento: string | null, usuario_id: string, nome_indicado: string, responsavel_id: string | null, associado_id: string, protocolo: string | null };
 type Usuario = { id: string, nome: string };
 type Setor = { id: string, nome: string };
 
 const COLORS = ['#22c55e', '#eab308', '#ef4444']; // Promotor, Neutro, Detrator
-const STATUS_COLORS = { pendente: '#eab308', em_tratativa: '#3b82f6', fechado: '#22c55e', sem_retorno: '#ef4444' };
 // Mesmo limite usado no selo "dias parado" do Painel de Indicações
 // (lib/indicacoes.ts) — um só lugar de verdade pra esse número.
 const DIAS_LIMITE_ESQUECIDA = DIAS_LIMITE_PARADA;
@@ -42,9 +42,11 @@ export default function MainDashboard() {
   const [setoresList, setSetoresList] = useState<Setor[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [statusList, setStatusList] = useState<StatusIndicacao[]>([]);
+
   // Dados do período anterior, usados só para calcular a variação percentual (comparação)
   const [avaliacoesPrev, setAvaliacoesPrev] = useState<{ nota: number }[]>([]);
-  const [indicacoesPrev, setIndicacoesPrev] = useState<{ status: string, data_indicacao: string, data_fechamento: string | null }[]>([]);
+  const [indicacoesPrev, setIndicacoesPrev] = useState<{ status: StatusEmbutido, data_indicacao: string, data_fechamento: string | null }[]>([]);
 
   const [dateFilter, setDateFilter] = useState({
     start: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
@@ -61,7 +63,7 @@ export default function MainDashboard() {
 
     // Base Queries (período atual)
     let queryAval = supabase.from('avaliacoes').select('id, nota, data_avaliacao, usuario_id, associado_id, setor_id, comentario, classificacao, setor:setores(nome), associado:associados(nome_completo)').order('data_avaliacao', { ascending: true });
-    let queryInd = supabase.from('indicacoes').select('id, status, data_indicacao, updated_at, data_fechamento, usuario_id, nome_indicado, responsavel_id, associado_id, protocolo').order('data_indicacao', { ascending: true });
+    let queryInd = supabase.from('indicacoes').select('id, status_id, status:indicacao_status(id, nome, cor, conta_como_fechado), data_indicacao, updated_at, data_fechamento, usuario_id, nome_indicado, responsavel_id, associado_id, protocolo').order('data_indicacao', { ascending: true });
 
     if (dateFilter.start) {
       const start = new Date(`${dateFilter.start}T00:00:00`).toISOString();
@@ -91,7 +93,7 @@ export default function MainDashboard() {
       if (setorFilter) qap = qap.eq('setor_id', setorFilter);
       queryAvalPrev = qap;
 
-      queryIndPrev = supabase.from('indicacoes').select('status, data_indicacao, data_fechamento').gte('data_indicacao', prevStart.toISOString()).lte('data_indicacao', prevEnd.toISOString());
+      queryIndPrev = supabase.from('indicacoes').select('status:indicacao_status(conta_como_fechado), data_indicacao, data_fechamento').gte('data_indicacao', prevStart.toISOString()).lte('data_indicacao', prevEnd.toISOString());
     }
 
     const [resAval, resInd, resUser, resSetores, resAvalPrev, resIndPrev] = await Promise.all([
@@ -128,6 +130,10 @@ export default function MainDashboard() {
     carregarDados();
   }, [dateFilter, setorFilter]);
 
+  useEffect(() => {
+    buscarStatusIndicacao(supabase).then(setStatusList);
+  }, []);
+
   // Tempo real: qualquer criação/alteração em avaliações ou indicações feita
   // por outra pessoa atualiza este dashboard sozinho.
   useEffect(() => {
@@ -157,14 +163,15 @@ export default function MainDashboard() {
   ];
 
   const totalIndicacoes = indicacoes.length;
-  const fechadas = indicacoes.filter(i => i.status === 'fechado').length;
+  const fechadas = indicacoes.filter(i => i.status?.conta_como_fechado).length;
   const conversao = totalIndicacoes > 0 ? Math.round((fechadas / totalIndicacoes) * 100) : 0;
-  const statusData = useMemo(() => [
-    { name: 'Pendente', value: indicacoes.filter(i => i.status === 'pendente').length, fill: STATUS_COLORS.pendente },
-    { name: 'Tratativa', value: indicacoes.filter(i => i.status === 'em_tratativa').length, fill: STATUS_COLORS.em_tratativa },
-    { name: 'Fechado', value: fechadas, fill: STATUS_COLORS.fechado },
-    { name: 'S/ Retorno', value: indicacoes.filter(i => i.status === 'sem_retorno').length, fill: STATUS_COLORS.sem_retorno },
-  ], [indicacoes, fechadas]);
+  // Uma coluna por status configurado (não são mais 4 fixos) — conta quantas
+  // indicações do período estão em cada um.
+  const statusData = useMemo(() => statusList.map(s => ({
+    name: s.nome,
+    value: indicacoes.filter(i => i.status_id === s.id).length,
+    fill: corStatus(s.cor).hex,
+  })), [indicacoes, statusList]);
 
   // Charts Logic
   // 1. NPS Evolution (Daily)
@@ -202,14 +209,14 @@ export default function MainDashboard() {
   const userPerformance = useMemo(() => usuarios.map(u => {
     const avs = avaliacoes.filter(a => a.usuario_id === u.id).length;
     const inds = indicacoes.filter(i => i.usuario_id === u.id);
-    const fech = inds.filter(i => i.status === 'fechado').length;
+    const fech = inds.filter(i => i.status?.conta_como_fechado).length;
     const success = inds.length > 0 ? Math.round((fech / inds.length) * 100) : 0;
     return { id: u.id, nome: u.nome, avaliacoes: avs, indicacoes: inds.length, sucesso: success };
   }).sort((a, b) => b.indicacoes - a.indicacoes || b.avaliacoes - a.avaliacoes), [usuarios, avaliacoes, indicacoes]);
 
   // Open Indications
   const openIndicacoes = useMemo(() => indicacoes
-    .filter(i => i.status === 'pendente' || i.status === 'em_tratativa')
+    .filter(i => !i.status?.conta_como_fechado)
     .sort((a, b) => new Date(b.data_indicacao).getTime() - new Date(a.data_indicacao).getTime())
     .slice(0, 5), [indicacoes]);
 
@@ -221,7 +228,7 @@ export default function MainDashboard() {
   const totalAvaliacoesPrev = avaliacoesPrev.length;
   const mediaNPSPrev = totalAvaliacoesPrev > 0 ? avaliacoesPrev.reduce((a, c) => a + c.nota, 0) / totalAvaliacoesPrev : null;
   const totalIndicacoesPrev = indicacoesPrev.length;
-  const fechadasPrev = indicacoesPrev.filter(i => i.status === 'fechado').length;
+  const fechadasPrev = indicacoesPrev.filter(i => i.status?.conta_como_fechado).length;
   const conversaoPrev = totalIndicacoesPrev > 0 ? Math.round((fechadasPrev / totalIndicacoesPrev) * 100) : null;
 
   const deltaAvaliacoes = calcDelta(totalAvaliacoes, totalAvaliacoesPrev || null);
@@ -230,12 +237,12 @@ export default function MainDashboard() {
   const deltaConversao = calcDelta(conversao, conversaoPrev);
 
   // ---- Tempo médio de fechamento ----
-  const fechadasComData = indicacoes.filter(i => i.status === 'fechado' && i.data_fechamento);
+  const fechadasComData = indicacoes.filter(i => i.status?.conta_como_fechado && i.data_fechamento);
   const tempoMedioFechamentoDias = fechadasComData.length > 0
     ? fechadasComData.reduce((acc, i) => acc + (new Date(i.data_fechamento!).getTime() - new Date(i.data_indicacao).getTime()), 0) / fechadasComData.length / (1000 * 60 * 60 * 24)
     : null;
 
-  const fechadasPrevComData = indicacoesPrev.filter(i => i.status === 'fechado' && i.data_fechamento);
+  const fechadasPrevComData = indicacoesPrev.filter(i => i.status?.conta_como_fechado && i.data_fechamento);
   const tempoMedioFechamentoPrevDias = fechadasPrevComData.length > 0
     ? fechadasPrevComData.reduce((acc, i) => acc + (new Date(i.data_fechamento!).getTime() - new Date(i.data_indicacao).getTime()), 0) / fechadasPrevComData.length / (1000 * 60 * 60 * 24)
     : null;
@@ -244,7 +251,7 @@ export default function MainDashboard() {
   // ---- Indicações esquecidas (paradas há mais de X dias, sem estar fechadas) ----
   const agora = new Date();
   const indicacoesEsquecidas = useMemo(() => indicacoes
-    .filter(i => i.status === 'pendente' || i.status === 'em_tratativa')
+    .filter(i => !i.status?.conta_como_fechado)
     .map(i => {
       const referencia = new Date(i.updated_at || i.data_indicacao);
       const diasParado = (agora.getTime() - referencia.getTime()) / (1000 * 60 * 60 * 24);
@@ -296,7 +303,7 @@ export default function MainDashboard() {
           i.protocolo || '',
           new Date(i.data_indicacao).toLocaleDateString('pt-BR'),
           `"${(i.nome_indicado || '').replace(/"/g, '""')}"`,
-          i.status,
+          i.status?.nome || '',
           dias,
           i.data_fechamento ? new Date(i.data_fechamento).toLocaleDateString('pt-BR') : ''
         ].join(','));
@@ -737,8 +744,8 @@ export default function MainDashboard() {
                   <Link href="/indicacoes" key={ind.id} className="block p-3 rounded-lg hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100">
                     <div className="flex justify-between items-start mb-1">
                       <span className="font-bold text-sm text-slate-800">{ind.nome_indicado}</span>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${ind.status === 'pendente' ? 'bg-yellow-100 text-yellow-700' : 'bg-blue-100 text-blue-700'}`}>
-                        {ind.status === 'pendente' ? 'Pendente' : 'Em Tratativa'}
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${corStatus(ind.status?.cor).badge}`}>
+                        {ind.status?.nome || '—'}
                       </span>
                     </div>
                     <div className="text-xs text-slate-500 flex items-center gap-1.5 flex-wrap">

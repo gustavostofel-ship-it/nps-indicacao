@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Search, Plus, UserPlus, Car, Star, Megaphone, Edit2, X, ChevronDown, ChevronUp, Users, ArrowLeft, Hash, Clock, ChevronLeft, ChevronRight, History, Phone, Power, MessageCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { diasDesde, maskCPF, validarCPF, maskPlaca, validarPlaca, maskPhone } from '@/lib/utils';
-import { STATUS_BADGE_CLASSES, STATUS_LABELS, DIAS_LIMITE_PARADA } from '@/lib/indicacoes';
+import { buscarStatusIndicacao, corStatus, DIAS_LIMITE_PARADA, StatusIndicacao } from '@/lib/indicacoes';
 import IndicacaoTimeline from '@/components/IndicacaoTimeline';
 import AssociadoHistorico from '@/components/AssociadoHistorico';
 
@@ -51,6 +51,7 @@ export default function Dashboard() {
   const [avaliacoes, setAvaliacoes] = useState<any[]>([]);
   const [indicacoes, setIndicacoes] = useState<any[]>([]);
   const [setores, setSetores] = useState<any[]>([]);
+  const [statusList, setStatusList] = useState<StatusIndicacao[]>([]);
   const [usuarios, setUsuarios] = useState<{ id: string; nome: string }[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
   
@@ -115,6 +116,7 @@ export default function Dashboard() {
   useEffect(() => {
     carregarSetores();
     carregarListaAssociados('', 1);
+    buscarStatusIndicacao(supabase).then(setStatusList);
     supabase.from('perfis_usuarios').select('id, nome').then(({ data }) => {
       if (data) setUsuarios(data);
     });
@@ -188,7 +190,7 @@ export default function Dashboard() {
     const [veiculosRes, avaliacoesRes, indicacoesRes] = await Promise.all([
       supabase.from('veiculos').select('*').eq('associado_id', assocData.id).eq('ativo', true),
       supabase.from('avaliacoes').select('*, setor:setores(nome), avaliacao_notas(nota, criterios_avaliacao(nome))').eq('associado_id', assocData.id).order('data_avaliacao', { ascending: false }),
-      supabase.from('indicacoes').select('*').eq('associado_id', assocData.id).order('data_indicacao', { ascending: false })
+      supabase.from('indicacoes').select('*, status:indicacao_status(id, nome, cor, ativo, conta_como_fechado)').eq('associado_id', assocData.id).order('data_indicacao', { ascending: false })
     ]);
     
     setVeiculos(veiculosRes.data || []);
@@ -243,11 +245,12 @@ export default function Dashboard() {
     setExpandedIndicacoes(prev => ({...prev, [indId]: !prev[indId]}));
   };
 
-  const updateIndicacaoStatus = async (id: string, novoStatus: string) => {
+  const updateIndicacaoStatus = async (id: string, novoStatusId: string) => {
     const tid = toast.loading('Atualizando...');
-    const { error } = await supabase.from('indicacoes').update({ status: novoStatus }).eq('id', id);
+    const { error } = await supabase.from('indicacoes').update({ status_id: novoStatusId }).eq('id', id);
     if (!error) {
-      setIndicacoes(indicacoes.map(i => i.id === id ? {...i, status: novoStatus} : i));
+      const novoStatus = statusList.find(s => s.id === novoStatusId);
+      setIndicacoes(indicacoes.map(i => i.id === id ? {...i, status_id: novoStatusId, status: novoStatus} : i));
       toast.success('Status atualizado', { id: tid });
     } else {
       toast.error('Erro ao atualizar', { id: tid });
@@ -618,7 +621,7 @@ export default function Dashboard() {
               <div className="space-y-3">
                 {indicacoes.map(ind => {
                   const dias = diasDesde(ind.updated_at || ind.data_indicacao);
-                  const parada = (ind.status === 'pendente' || ind.status === 'em_tratativa') && dias >= DIAS_LIMITE_PARADA;
+                  const parada = !ind.status?.conta_como_fechado && dias >= DIAS_LIMITE_PARADA;
                   return (
                   <div key={ind.id} className="border border-slate-200 rounded-xl overflow-hidden">
                     <div className="p-4 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -640,12 +643,14 @@ export default function Dashboard() {
                       </div>
                       <div className="flex items-center gap-3">
                         <select
-                          value={ind.status}
+                          value={ind.status_id}
                           onChange={(e) => updateIndicacaoStatus(ind.id, e.target.value)}
-                          className={`text-xs font-bold px-3 py-1.5 rounded-lg border-0 cursor-pointer focus:ring-2 focus:ring-blue-500 appearance-none ${STATUS_BADGE_CLASSES[ind.status] || 'bg-slate-100 text-slate-700'}`}
+                          className={`text-xs font-bold px-3 py-1.5 rounded-lg border-0 cursor-pointer focus:ring-2 focus:ring-blue-500 appearance-none ${corStatus(ind.status?.cor).badge}`}
                         >
-                          {Object.entries(STATUS_LABELS).map(([value, label]) => (
-                            <option key={value} value={value}>{label}</option>
+                          {/* Se o status atual da indicação estiver desativado, mostra ele
+                              também (senão o select fica sem a opção que já está selecionada). */}
+                          {[...statusList, ...(ind.status && !statusList.some(s => s.id === ind.status_id) ? [ind.status] : [])].map((s: any) => (
+                            <option key={s.id} value={s.id}>{s.nome}</option>
                           ))}
                         </select>
                         <button
@@ -681,7 +686,7 @@ export default function Dashboard() {
       {showNovaPlaca && <ModalNovaPlaca associadoId={associado?.id} onClose={() => setShowNovaPlaca(false)} onSave={() => handleSearch({preventDefault:()=>null} as any)} />}
       {veiculoEditando && <ModalEditarVeiculo veiculo={veiculoEditando} onClose={() => setVeiculoEditando(null)} onSave={(atualizado: any) => { setVeiculos(veiculos.map(v => v.id === atualizado.id ? atualizado : v)); setVeiculoEditando(null); }} />}
       {showNovaAvaliacao.aberto && <ModalNovaAvaliacao associadoId={associado?.id} veiculos={veiculos} setorPreSelecionado={showNovaAvaliacao.setorId} setores={setores} onClose={() => setShowNovaAvaliacao({aberto: false, setorId: null})} onSave={() => handleSearch({preventDefault:()=>null} as any)} />}
-      {showNovaIndicacao && <ModalNovaIndicacao associadoId={associado?.id} onClose={() => setShowNovaIndicacao(false)} onSave={() => handleSearch({preventDefault:()=>null} as any)} />}
+      {showNovaIndicacao && <ModalNovaIndicacao associadoId={associado?.id} statusList={statusList} onClose={() => setShowNovaIndicacao(false)} onSave={() => handleSearch({preventDefault:()=>null} as any)} />}
     </div>
   );
 }
@@ -1149,23 +1154,30 @@ function ModalNovaAvaliacao({ associadoId, veiculos, setorPreSelecionado, setore
   );
 }
 
-function ModalNovaIndicacao({ associadoId, onClose, onSave }: any) {
+function ModalNovaIndicacao({ associadoId, statusList, onClose, onSave }: any) {
   const [nome, setNome] = useState('');
   const [telefone, setTelefone] = useState('');
   const [obs, setObs] = useState('');
-  
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Status inicial: o primeiro na ordem configurada (ex: "Pendente"), já
+    // que o status deixou de ter um valor padrão fixo no banco — agora é
+    // uma tabela configurável.
+    const statusInicial = statusList?.[0]?.id;
+    if (!statusInicial) return toast.error('Nenhum status configurado. Configure os status de indicação primeiro.');
+
     const tid = toast.loading('Registrando indicação...');
     const { data: { user } } = await supabase.auth.getUser();
-    
-    const { error } = await supabase.from('indicacoes').insert({ 
-      associado_id: associadoId, 
-      nome_indicado: nome, 
+
+    const { error } = await supabase.from('indicacoes').insert({
+      associado_id: associadoId,
+      nome_indicado: nome,
       telefone_indicado: telefone,
       observacoes: obs,
       usuario_id: user?.id,
-      responsavel_id: user?.id
+      responsavel_id: user?.id,
+      status_id: statusInicial
     });
     
     if (error) { toast.error('Erro ao registrar', { id: tid }); }
