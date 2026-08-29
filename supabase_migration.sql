@@ -273,6 +273,14 @@ ON convites FOR ALL TO authenticated USING (is_admin());
 CREATE POLICY "Visitantes podem ler convites pelo token"
 ON convites FOR SELECT TO anon USING (true);
 
+-- Sem isso, o próprio convidado (que ainda não é admin) não conseguia
+-- marcar seu convite como aceito ao concluir o cadastro em /invite/[token]
+-- — ficava bloqueado pela política acima, que exige is_admin() pra UPDATE.
+CREATE POLICY "Convidado pode aceitar o próprio convite"
+ON convites FOR UPDATE TO authenticated
+USING (status = 'pendente' AND email = auth.email())
+WITH CHECK (status = 'aceito' AND email = auth.email());
+
 -- Políticas para associados, veiculos, avaliacoes, indicacoes (Todos os autenticados)
 CREATE POLICY "Autenticados podem ler/escrever associados"
 ON associados FOR ALL TO authenticated USING (true);
