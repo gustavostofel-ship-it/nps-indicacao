@@ -3,11 +3,15 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Search, Plus, UserPlus, Car, Star, Megaphone, Edit2, X, ChevronDown, ChevronUp, Users, ArrowLeft, Hash, Clock, ChevronLeft, ChevronRight, History, Phone, Power, MessageCircle, Archive, ArchiveRestore, Trash2 } from 'lucide-react';
+import { Search, Plus, UserPlus, Car, Star, Megaphone, Edit2, X, ChevronDown, ChevronUp, Users, ArrowLeft, Hash, Clock, ChevronLeft, ChevronRight, History, Phone, Power, MessageCircle, Archive, ArchiveRestore, Trash2, AlertOctagon } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { diasDesde, maskCPF, validarCPF, maskPlaca, validarPlaca, maskPhone } from '@/lib/utils';
 import { buscarStatusIndicacao, corStatus, normalizarStatusEmbutido, DIAS_LIMITE_PARADA, StatusIndicacao } from '@/lib/indicacoes';
+import { buscarStatusReclamacao, StatusReclamacao } from '@/lib/reclamacoes';
 import IndicacaoTimeline from '@/components/IndicacaoTimeline';
+import ReclamacaoTimeline from '@/components/ReclamacaoTimeline';
+import ModalFinalizarReclamacao from '@/components/ModalFinalizarReclamacao';
+import { registrarObservacaoReclamacao } from '@/lib/reclamacoes';
 import AssociadoHistorico from '@/components/AssociadoHistorico';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 
@@ -54,8 +58,11 @@ export default function Dashboard() {
   const [veiculos, setVeiculos] = useState<any[]>([]);
   const [avaliacoes, setAvaliacoes] = useState<any[]>([]);
   const [indicacoes, setIndicacoes] = useState<any[]>([]);
+  const [reclamacoes, setReclamacoes] = useState<any[]>([]);
   const [setores, setSetores] = useState<any[]>([]);
   const [statusList, setStatusList] = useState<StatusIndicacao[]>([]);
+  const [statusReclamacaoList, setStatusReclamacaoList] = useState<StatusReclamacao[]>([]);
+  const [expandedReclamacoes, setExpandedReclamacoes] = useState<Record<string, boolean>>({});
   const [usuarios, setUsuarios] = useState<{ id: string; nome: string }[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
   
@@ -64,6 +71,7 @@ export default function Dashboard() {
   const [showNovaPlaca, setShowNovaPlaca] = useState(false);
   const [showNovaAvaliacao, setShowNovaAvaliacao] = useState<{aberto: boolean, setorId: string | null}>({aberto: false, setorId: null});
   const [showNovaIndicacao, setShowNovaIndicacao] = useState(false);
+  const [novaReclamacao, setNovaReclamacao] = useState<{aberto: boolean, avaliacao: any | null}>({aberto: false, avaliacao: null});
   const [editandoAvaliacao, setEditandoAvaliacao] = useState<any>(null);
   const [avaliacaoParaExcluir, setAvaliacaoParaExcluir] = useState<any>(null);
   const [excluindoAvaliacao, setExcluindoAvaliacao] = useState(false);
@@ -142,6 +150,7 @@ export default function Dashboard() {
     carregarSetores();
     carregarListaAssociados('', 1);
     buscarStatusIndicacao(supabase).then(setStatusList);
+    buscarStatusReclamacao(supabase).then(setStatusReclamacaoList);
     supabase.from('perfis_usuarios').select('id, nome').then(({ data }) => {
       if (data) setUsuarios(data);
     });
@@ -212,15 +221,17 @@ export default function Dashboard() {
     setEditTelefone(assocData.telefone || '');
     setShowHistoricoAssociado(false);
     
-    const [veiculosRes, avaliacoesRes, indicacoesRes] = await Promise.all([
+    const [veiculosRes, avaliacoesRes, indicacoesRes, reclamacoesRes] = await Promise.all([
       supabase.from('veiculos').select('*').eq('associado_id', assocData.id).eq('ativo', true),
       supabase.from('avaliacoes').select('*, setor:setores(nome), avaliacao_notas(id, nota, criterio_id, criterios_avaliacao(id, nome))').eq('associado_id', assocData.id).order('data_avaliacao', { ascending: false }),
-      supabase.from('indicacoes').select('*, status:indicacao_status(id, nome, cor, ativo, conta_como_fechado)').eq('associado_id', assocData.id).order('data_indicacao', { ascending: false })
+      supabase.from('indicacoes').select('*, status:indicacao_status(id, nome, cor, ativo, conta_como_fechado)').eq('associado_id', assocData.id).order('data_indicacao', { ascending: false }),
+      supabase.from('reclamacoes').select('*, avaliacao:avaliacoes(nota, setor:setores(nome)), status:reclamacao_status(id, nome, cor, ativo, conta_como_resolvido)').eq('associado_id', assocData.id).order('data_abertura', { ascending: false })
     ]);
-    
+
     setVeiculos(veiculosRes.data || []);
     setAvaliacoes(avaliacoesRes.data || []);
     setIndicacoes((indicacoesRes.data || []).map(normalizarStatusEmbutido));
+    setReclamacoes((reclamacoesRes.data || []).map(normalizarStatusEmbutido));
   };
 
   const handleSaveAssociado = async () => {
@@ -313,6 +324,52 @@ export default function Dashboard() {
     } else {
       toast.error('Erro ao atualizar', { id: tid });
     }
+  };
+
+  const toggleReclamacaoExpand = (recId: string) => {
+    setExpandedReclamacoes(prev => ({...prev, [recId]: !prev[recId]}));
+  };
+
+  const [finalizandoReclamacao, setFinalizandoReclamacao] = useState<{ id: string, statusId: string, statusNome: string } | null>(null);
+
+  // Igual ao Painel de Reclamações: mudar pra um status "conta como
+  // resolvido" exige uma nota de finalização antes de aplicar de verdade.
+  const updateReclamacaoStatus = (id: string, novoStatusId: string) => {
+    const rec = reclamacoes.find(r => r.id === id);
+    const novoStatus = statusReclamacaoList.find(s => s.id === novoStatusId);
+    if (novoStatus?.conta_como_resolvido && !rec?.status?.conta_como_resolvido) {
+      setFinalizandoReclamacao({ id, statusId: novoStatusId, statusNome: novoStatus.nome });
+      return;
+    }
+    aplicarNovoStatusReclamacao(id, novoStatusId);
+  };
+
+  const aplicarNovoStatusReclamacao = async (id: string, novoStatusId: string) => {
+    const tid = toast.loading('Atualizando...');
+    const { error } = await supabase.from('reclamacoes').update({ status_id: novoStatusId }).eq('id', id);
+    if (!error) {
+      const novoStatus = statusReclamacaoList.find(s => s.id === novoStatusId);
+      setReclamacoes(prev => prev.map(r => r.id === id ? {...r, status_id: novoStatusId, status: novoStatus} : r));
+      toast.success('Status atualizado', { id: tid });
+    } else {
+      toast.error('Erro ao atualizar', { id: tid });
+    }
+  };
+
+  const confirmarFinalizacaoReclamacao = async (nota: string) => {
+    if (!finalizandoReclamacao) return;
+    const { id, statusId } = finalizandoReclamacao;
+    const tid = toast.loading('Finalizando...');
+    const errNota = await registrarObservacaoReclamacao(supabase, id, nota, currentUserId);
+    const { error } = await supabase.from('reclamacoes').update({ status_id: statusId }).eq('id', id);
+    if (error || errNota) {
+      toast.error('Erro ao finalizar', { id: tid });
+    } else {
+      toast.success('Reclamação finalizada!', { id: tid });
+      const novoStatus = statusReclamacaoList.find(s => s.id === statusId);
+      setReclamacoes(prev => prev.map(r => r.id === id ? {...r, status_id: statusId, status: novoStatus} : r));
+    }
+    setFinalizandoReclamacao(null);
   };
 
   return (
@@ -698,7 +755,23 @@ export default function Dashboard() {
                                             </button>
                                           </div>
                                         </div>
-                                        <p className="text-slate-400 text-[11px] mb-1">Avaliado por {getNomeUsuario(av.usuario_id)}</p>
+                                        <div className="flex items-center justify-between gap-2 mb-1">
+                                          <p className="text-slate-400 text-[11px]">Avaliado por {getNomeUsuario(av.usuario_id)}</p>
+                                          {av.nota <= 6 && (
+                                            reclamacoes.some(r => r.avaliacao_id === av.id) ? (
+                                              <span className="flex items-center gap-1 text-[10px] font-bold text-red-700 bg-red-100 px-1.5 py-0.5 rounded">
+                                                <AlertOctagon className="w-2.5 h-2.5" /> Em tratativa
+                                              </span>
+                                            ) : (
+                                              <button
+                                                onClick={() => setNovaReclamacao({ aberto: true, avaliacao: av })}
+                                                className="flex items-center gap-1 text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 px-1.5 py-0.5 rounded transition-colors"
+                                              >
+                                                <AlertOctagon className="w-2.5 h-2.5" /> Abrir Reclamação
+                                              </button>
+                                            )
+                                          )}
+                                        </div>
                                         {temNotasCriterios && (
                                           <div className="mt-1 pl-2 border-l-2 border-slate-200 space-y-1">
                                             {av.avaliacao_notas.map((an: any, idx: number) => (
@@ -808,6 +881,90 @@ export default function Dashboard() {
               </div>
             )}
           </div>
+
+          {/* Reclamações */}
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+            <div className="flex justify-between items-center mb-5">
+              <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <AlertOctagon className="h-5 w-5 text-red-500" /> Reclamações
+              </h3>
+              <button
+                onClick={() => setNovaReclamacao({ aberto: true, avaliacao: null })}
+                className="bg-red-50 text-red-600 hover:bg-red-100 px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 transition-colors"
+              >
+                <Plus className="h-4 w-4" /> Nova Reclamação
+              </button>
+            </div>
+
+            {reclamacoes.length === 0 ? (
+              <div className="text-center py-10 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+                <AlertOctagon className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                <p className="text-slate-500 font-medium">Nenhuma reclamação registrada.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {reclamacoes.map(rec => {
+                  const dias = diasDesde(rec.updated_at || rec.data_abertura);
+                  const parada = !rec.status?.conta_como_resolvido && dias >= DIAS_LIMITE_PARADA;
+                  return (
+                  <div key={rec.id} className="border border-slate-200 rounded-xl overflow-hidden">
+                    <div className="p-4 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {rec.protocolo && (
+                            <span className="flex items-center gap-1 text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded font-mono">
+                              <Hash className="w-3 h-3" />{rec.protocolo}
+                            </span>
+                          )}
+                          {rec.avaliacao && (
+                            <span className="flex items-center gap-1 text-[11px] font-bold text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded">
+                              <Star className="w-3 h-3" /> Nota {rec.avaliacao.nota} · {rec.avaliacao.setor?.nome}
+                            </span>
+                          )}
+                          {parada && (
+                            <span className="flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded">
+                              <Clock className="w-3 h-3" />{Math.floor(dias)}d parada
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-slate-600 mt-1">{rec.descricao}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">Aberta em {new Date(rec.data_abertura).toLocaleDateString('pt-BR')} por {getNomeUsuario(rec.aberto_por)}</p>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <select
+                          value={rec.status_id}
+                          onChange={(e) => updateReclamacaoStatus(rec.id, e.target.value)}
+                          className={`text-xs font-bold px-3 py-1.5 rounded-lg border-0 cursor-pointer focus:ring-2 focus:ring-blue-500 appearance-none ${corStatus(rec.status?.cor).badge}`}
+                        >
+                          {[...statusReclamacaoList, ...(rec.status && !statusReclamacaoList.some(s => s.id === rec.status_id) ? [rec.status] : [])].map((s: any) => (
+                            <option key={s.id} value={s.id}>{s.nome}</option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={() => toggleReclamacaoExpand(rec.id)}
+                          className="text-slate-400 hover:text-blue-600 transition-colors p-2 rounded-lg hover:bg-slate-50"
+                        >
+                          {expandedReclamacoes[rec.id] ? <ChevronUp className="w-5 h-5"/> : <ChevronDown className="w-5 h-5"/>}
+                        </button>
+                      </div>
+                    </div>
+
+                    {expandedReclamacoes[rec.id] && (
+                      <div className="p-4 bg-slate-50 border-t border-slate-100">
+                        <ReclamacaoTimeline
+                          supabase={supabase}
+                          reclamacaoId={rec.id}
+                          usuarios={usuarios}
+                          currentUserId={currentUserId}
+                        />
+                      </div>
+                    )}
+                  </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -818,6 +975,22 @@ export default function Dashboard() {
       {showNovaAvaliacao.aberto && <ModalNovaAvaliacao associadoId={associado?.id} veiculos={veiculos} setorPreSelecionado={showNovaAvaliacao.setorId} setores={setores} onClose={() => setShowNovaAvaliacao({aberto: false, setorId: null})} onSave={() => handleSearch({preventDefault:()=>null} as any)} />}
       {editandoAvaliacao && <ModalEditarAvaliacao avaliacao={editandoAvaliacao} onClose={() => setEditandoAvaliacao(null)} onSave={() => { setEditandoAvaliacao(null); handleSearch({preventDefault:()=>null} as any); }} />}
       {showNovaIndicacao && <ModalNovaIndicacao associadoId={associado?.id} statusList={statusList} onClose={() => setShowNovaIndicacao(false)} onSave={() => handleSearch({preventDefault:()=>null} as any)} />}
+      {novaReclamacao.aberto && (
+        <ModalNovaReclamacao
+          associadoId={associado?.id}
+          avaliacao={novaReclamacao.avaliacao}
+          statusList={statusReclamacaoList}
+          onClose={() => setNovaReclamacao({ aberto: false, avaliacao: null })}
+          onSave={() => handleSearch({preventDefault:()=>null} as any)}
+        />
+      )}
+      {finalizandoReclamacao && (
+        <ModalFinalizarReclamacao
+          statusNome={finalizandoReclamacao.statusNome}
+          onConfirm={confirmarFinalizacaoReclamacao}
+          onCancel={() => setFinalizandoReclamacao(null)}
+        />
+      )}
     </div>
   );
 }
@@ -1468,6 +1641,72 @@ function ModalNovaIndicacao({ associadoId, statusList, onClose, onSave }: any) {
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onClose} className="px-4 py-2 font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">Cancelar</button>
             <button type="submit" className="px-5 py-2 bg-blue-600 font-medium text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm">Salvar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// Abre uma reclamação/tratativa — a partir de uma avaliação ruim (nota 0-6,
+// `avaliacao` preenchida com contexto de nota/setor) ou avulsa (associado
+// ligou direto reclamando, sem avaliação por trás). Quem abre já entra como
+// responsável atual — só muda quando alguém encaminha pra outra pessoa.
+function ModalNovaReclamacao({ associadoId, avaliacao, statusList, onClose, onSave }: any) {
+  const [descricao, setDescricao] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const statusInicial = statusList?.[0]?.id;
+    if (!statusInicial) return toast.error('Nenhum status configurado. Configure os status de reclamação primeiro.');
+    if (!descricao.trim()) return toast.error('Descreva o que foi entendido do problema.');
+
+    const tid = toast.loading('Abrindo reclamação...');
+    const { data: { user } } = await supabase.auth.getUser();
+
+    const { error } = await supabase.from('reclamacoes').insert({
+      associado_id: associadoId,
+      avaliacao_id: avaliacao?.id || null,
+      descricao: descricao.trim(),
+      status_id: statusInicial,
+      aberto_por: user?.id,
+      responsavel_atual_id: user?.id,
+    });
+
+    if (error) { toast.error('Erro ao abrir reclamação: ' + error.message, { id: tid }); }
+    else { toast.success('Reclamação aberta!', { id: tid }); onSave(); onClose(); }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+          <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+            <AlertOctagon className="w-5 h-5 text-red-500" /> Nova Reclamação
+          </h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700"><X className="w-5 h-5"/></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {avaliacao && (
+            <div className="flex items-center gap-2 text-xs font-semibold text-yellow-700 bg-yellow-50 border border-yellow-100 px-3 py-2 rounded-lg">
+              <Star className="w-4 h-4" /> A partir da avaliação nota {avaliacao.nota} ({avaliacao.setor?.nome})
+            </div>
+          )}
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1">O que foi entendido do problema? *</label>
+            <textarea
+              required
+              autoFocus
+              value={descricao}
+              onChange={e => setDescricao(e.target.value)}
+              rows={4}
+              placeholder="Descreva o relato do associado e o que precisa ser apurado..."
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <button type="button" onClick={onClose} className="px-4 py-2 font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">Cancelar</button>
+            <button type="submit" className="px-5 py-2 bg-red-600 font-medium text-white rounded-lg hover:bg-red-700 transition-colors shadow-sm">Abrir Reclamação</button>
           </div>
         </form>
       </div>

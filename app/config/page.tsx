@@ -11,6 +11,7 @@ export default function ConfigPage() {
   const [usuarios, setUsuarios] = useState<any[]>([]);
   const [convites, setConvites] = useState<any[]>([]);
   const [statusIndicacao, setStatusIndicacao] = useState<any[]>([]);
+  const [statusReclamacao, setStatusReclamacao] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
 
@@ -18,11 +19,12 @@ export default function ConfigPage() {
 
   const fetchData = async () => {
     setLoading(true);
-    const [setoresRes, usuariosRes, convitesRes, statusRes, userRes] = await Promise.all([
+    const [setoresRes, usuariosRes, convitesRes, statusRes, statusReclRes, userRes] = await Promise.all([
       supabase.from('setores').select('*').order('ordem', { ascending: true }),
       supabase.from('perfis_usuarios').select('*').order('created_at', { ascending: false }),
       supabase.from('convites').select('*').order('created_at', { ascending: false }),
       supabase.from('indicacao_status').select('*').order('ordem', { ascending: true }),
+      supabase.from('reclamacao_status').select('*').order('ordem', { ascending: true }),
       supabase.auth.getUser(),
     ]);
 
@@ -30,6 +32,7 @@ export default function ConfigPage() {
     if (usuariosRes.data) setUsuarios(usuariosRes.data);
     if (convitesRes.data) setConvites(convitesRes.data);
     if (statusRes.data) setStatusIndicacao(statusRes.data);
+    if (statusReclRes.data) setStatusReclamacao(statusReclRes.data);
     setCurrentUserId(userRes.data.user?.id);
     setLoading(false);
   };
@@ -69,20 +72,45 @@ export default function ConfigPage() {
       </div>
 
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-        <StatusIndicacaoManager statusList={statusIndicacao} onUpdate={fetchData} supabase={supabase} />
+        <StatusManager
+          statusList={statusIndicacao}
+          onUpdate={fetchData}
+          supabase={supabase}
+          tabela="indicacao_status"
+          campoFlag="conta_como_fechado"
+          rotuloFlag="Conta como fechado"
+          titulo="Status de Indicação"
+          descricao={'Essas são as colunas do Kanban e as opções de status em cada indicação. "Conta como fechado" define o que entra nas métricas de Conversão e Tempo de Fechamento do Dashboard.'}
+        />
+      </div>
+
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+        <StatusManager
+          statusList={statusReclamacao}
+          onUpdate={fetchData}
+          supabase={supabase}
+          tabela="reclamacao_status"
+          campoFlag="conta_como_resolvido"
+          rotuloFlag="Conta como resolvido"
+          titulo="Status de Reclamação"
+          descricao={'Essas são as colunas do Kanban e as opções de status em cada reclamação/tratativa. "Conta como resolvido" define o que entra nas métricas de reclamações resolvidas do Dashboard.'}
+        />
       </div>
     </div>
   );
 }
 
-function StatusIndicacaoManager({ statusList, onUpdate, supabase }: any) {
+// Genérico o bastante pra gerenciar tanto indicacao_status quanto
+// reclamacao_status (mesma forma: nome/cor/ordem/ativo + uma flag de
+// "conta como concluído" cujo nome de campo e rótulo variam por domínio).
+function StatusManager({ statusList, onUpdate, supabase, tabela, campoFlag, rotuloFlag, titulo, descricao }: any) {
   const [nome, setNome] = useState('');
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nome.trim()) return;
     const toastId = toast.loading('Adicionando status...');
-    const { error } = await supabase.from('indicacao_status').insert({ nome, ordem: statusList.length });
+    const { error } = await supabase.from(tabela).insert({ nome, ordem: statusList.length });
     if (error) {
       toast.error('Erro ao adicionar status', { id: toastId });
     } else {
@@ -94,19 +122,19 @@ function StatusIndicacaoManager({ statusList, onUpdate, supabase }: any) {
 
   const handleRename = async (id: string, novoNome: string, nomeAtual: string) => {
     if (!novoNome.trim() || novoNome === nomeAtual) return;
-    const { error } = await supabase.from('indicacao_status').update({ nome: novoNome.trim() }).eq('id', id);
+    const { error } = await supabase.from(tabela).update({ nome: novoNome.trim() }).eq('id', id);
     if (error) toast.error('Erro ao renomear');
     else onUpdate();
   };
 
   const handleCorChange = async (id: string, cor: string) => {
-    const { error } = await supabase.from('indicacao_status').update({ cor }).eq('id', id);
+    const { error } = await supabase.from(tabela).update({ cor }).eq('id', id);
     if (error) toast.error('Erro ao atualizar cor');
     else onUpdate();
   };
 
-  const handleToggle = async (id: string, campo: 'ativo' | 'conta_como_fechado', valorAtual: boolean) => {
-    const { error } = await supabase.from('indicacao_status').update({ [campo]: !valorAtual }).eq('id', id);
+  const handleToggle = async (id: string, campo: string, valorAtual: boolean) => {
+    const { error } = await supabase.from(tabela).update({ [campo]: !valorAtual }).eq('id', id);
     if (error) toast.error('Erro ao atualizar');
     else onUpdate();
   };
@@ -117,8 +145,8 @@ function StatusIndicacaoManager({ statusList, onUpdate, supabase }: any) {
     if (!outro) return;
     const toastId = toast.loading('Reordenando...');
     const [r1, r2] = await Promise.all([
-      supabase.from('indicacao_status').update({ ordem: outro.ordem }).eq('id', atual.id),
-      supabase.from('indicacao_status').update({ ordem: atual.ordem }).eq('id', outro.id),
+      supabase.from(tabela).update({ ordem: outro.ordem }).eq('id', atual.id),
+      supabase.from(tabela).update({ ordem: atual.ordem }).eq('id', outro.id),
     ]);
     if (r1.error || r2.error) toast.error('Erro ao reordenar', { id: toastId });
     else { toast.success('Reordenado', { id: toastId }); onUpdate(); }
@@ -128,11 +156,9 @@ function StatusIndicacaoManager({ statusList, onUpdate, supabase }: any) {
     <div>
       <div className="flex items-center gap-2 mb-1">
         <Columns3 className="w-5 h-5 text-slate-400" />
-        <h3 className="text-lg font-bold text-slate-800">Status de Indicação</h3>
+        <h3 className="text-lg font-bold text-slate-800">{titulo}</h3>
       </div>
-      <p className="text-sm text-slate-500 mb-6">
-        Essas são as colunas do Kanban e as opções de status em cada indicação. "Conta como fechado" define o que entra nas métricas de Conversão e Tempo de Fechamento do Dashboard.
-      </p>
+      <p className="text-sm text-slate-500 mb-6">{descricao}</p>
 
       <form onSubmit={handleAdd} className="flex gap-3 mb-6 max-w-lg">
         <input
@@ -160,7 +186,7 @@ function StatusIndicacaoManager({ statusList, onUpdate, supabase }: any) {
                 <th className="py-2 pr-3 w-16">Ordem</th>
                 <th className="py-2 pr-3">Cor</th>
                 <th className="py-2 pr-3">Nome</th>
-                <th className="py-2 pr-3 text-center">Conta como fechado</th>
+                <th className="py-2 pr-3 text-center">{rotuloFlag}</th>
                 <th className="py-2 pr-3 text-center">Ativo</th>
               </tr>
             </thead>
@@ -198,8 +224,8 @@ function StatusIndicacaoManager({ statusList, onUpdate, supabase }: any) {
                   <td className="py-2 pr-3 text-center">
                     <input
                       type="checkbox"
-                      checked={s.conta_como_fechado}
-                      onChange={() => handleToggle(s.id, 'conta_como_fechado', s.conta_como_fechado)}
+                      checked={s[campoFlag]}
+                      onChange={() => handleToggle(s.id, campoFlag, s[campoFlag])}
                       className="w-4 h-4 accent-blue-600 cursor-pointer"
                     />
                   </td>

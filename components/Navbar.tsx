@@ -14,6 +14,7 @@ export function Navbar({ isAdmin, userName }: { isAdmin: boolean, userName: stri
     { href: '/', label: 'Dashboard' },
     { href: '/atendimento', label: 'Atendimento' },
     { href: '/indicacoes', label: 'Indicações' },
+    { href: '/reclamacoes', label: 'Reclamações' },
     ...(isAdmin ? [{ href: '/config', label: 'Configurações' }] : []),
   ];
 
