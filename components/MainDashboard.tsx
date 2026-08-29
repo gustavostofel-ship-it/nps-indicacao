@@ -4,13 +4,13 @@ import { useState, useEffect, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, Legend } from 'recharts';
 import { startOfMonth, format, subDays, isAfter, isBefore } from 'date-fns';
-import { ArrowRight, Star, Megaphone, Users, Target, CheckCircle2, AlertCircle, ArrowUpRight, ArrowDownRight, Clock, AlertTriangle, Download, Filter, Wifi } from 'lucide-react';
+import { ArrowRight, Star, Megaphone, Users, Target, CheckCircle2, AlertCircle, ArrowUpRight, ArrowDownRight, Clock, AlertTriangle, Download, Filter, Wifi, X } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 
 const supabase = createClient();
 
-type Avaliacao = { id: string, nota: number, data_avaliacao: string, setor: any, setor_id: string, usuario_id: string, associado_id: string };
+type Avaliacao = { id: string, nota: number, data_avaliacao: string, setor: any, setor_id: string, usuario_id: string, associado_id: string, comentario: string | null, classificacao: string | null, associado: any };
 type Indicacao = { id: string, status: string, data_indicacao: string, updated_at: string, data_fechamento: string | null, usuario_id: string, nome_indicado: string, responsavel_id: string | null, associado_id: string, protocolo: string | null };
 type Usuario = { id: string, nome: string };
 type Setor = { id: string, nome: string };
@@ -49,11 +49,15 @@ export default function MainDashboard() {
   });
   const [setorFilter, setSetorFilter] = useState('');
 
+  // Modal de consulta: lista as avaliações do período/setor filtrado — hoje
+  // não existe nenhuma tela que mostre isso de forma direta, só agregados.
+  const [showAvaliacoesModal, setShowAvaliacoesModal] = useState(false);
+
   const carregarDados = async () => {
     setLoading(true);
 
     // Base Queries (período atual)
-    let queryAval = supabase.from('avaliacoes').select('id, nota, data_avaliacao, usuario_id, associado_id, setor_id, setor:setores(nome)').order('data_avaliacao', { ascending: true });
+    let queryAval = supabase.from('avaliacoes').select('id, nota, data_avaliacao, usuario_id, associado_id, setor_id, comentario, classificacao, setor:setores(nome), associado:associados(nome_completo)').order('data_avaliacao', { ascending: true });
     let queryInd = supabase.from('indicacoes').select('id, status, data_indicacao, updated_at, data_fechamento, usuario_id, nome_indicado, responsavel_id, associado_id, protocolo').order('data_indicacao', { ascending: true });
 
     if (dateFilter.start) {
@@ -430,6 +434,13 @@ export default function MainDashboard() {
                 <span className="font-bold text-blue-600">Nota Média: {mediaNPS}</span>
                 <DeltaBadge delta={deltaNPS} />
               </div>
+              <button
+                onClick={() => setShowAvaliacoesModal(true)}
+                disabled={totalAvaliacoes === 0}
+                className="mt-3 text-xs font-semibold text-blue-600 hover:underline disabled:text-slate-300 disabled:no-underline disabled:cursor-not-allowed"
+              >
+                Ver lista do período →
+              </button>
             </div>
 
             {/* Classificação das Avaliações Card */}
@@ -488,6 +499,12 @@ export default function MainDashboard() {
               <div className="mt-2 text-sm text-slate-500 flex items-center gap-2">
                 <span className="font-bold text-orange-600">Fechadas: {fechadas}</span>
               </div>
+              <Link
+                href={`/indicacoes?inicio=${dateFilter.start}&fim=${dateFilter.end}`}
+                className={`mt-3 inline-block text-xs font-semibold hover:underline ${totalIndicacoes === 0 ? 'text-slate-300 pointer-events-none' : 'text-blue-600'}`}
+              >
+                Ver lista do período →
+              </Link>
             </div>
 
             {/* Conversão Card */}
@@ -738,6 +755,144 @@ export default function MainDashboard() {
           </div>
         </>
       )}
+
+      {showAvaliacoesModal && (
+        <AvaliacoesModal
+          avaliacoes={avaliacoes}
+          usuarios={usuarios}
+          periodo={dateFilter}
+          onClose={() => setShowAvaliacoesModal(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ================= MODAL: AVALIAÇÕES DO PERÍODO =================
+// Não existia nenhuma tela que listasse avaliações soltas — só agregados e
+// gráficos aqui, ou entrando associado por associado em Atendimento. Este
+// modal consulta a lista completa do período/setor já filtrado no dashboard.
+
+const AVAL_MODAL_PAGE_SIZE = 15;
+
+function AvaliacoesModal({
+  avaliacoes,
+  usuarios,
+  periodo,
+  onClose,
+}: {
+  avaliacoes: Avaliacao[];
+  usuarios: Usuario[];
+  periodo: { start: string; end: string };
+  onClose: () => void;
+}) {
+  const [busca, setBusca] = useState('');
+  const [pagina, setPagina] = useState(1);
+
+  const getNomeUsuario = (id: string) => usuarios.find(u => u.id === id)?.nome || 'Usuário desconhecido';
+
+  const filtradas = useMemo(() => {
+    // Mais recentes primeiro pra consulta (o array-fonte vem em ordem
+    // crescente, usado pelos gráficos de evolução).
+    const ordenadas = [...avaliacoes].sort((a, b) => new Date(b.data_avaliacao).getTime() - new Date(a.data_avaliacao).getTime());
+    if (!busca) return ordenadas;
+    const termo = busca.toLowerCase();
+    return ordenadas.filter(a =>
+      a.associado?.nome_completo?.toLowerCase().includes(termo) ||
+      (Array.isArray(a.setor) ? a.setor[0]?.nome : a.setor?.nome)?.toLowerCase().includes(termo) ||
+      a.comentario?.toLowerCase().includes(termo)
+    );
+  }, [avaliacoes, busca]);
+
+  const totalPaginas = Math.max(1, Math.ceil(filtradas.length / AVAL_MODAL_PAGE_SIZE));
+  const paginaAtual = Math.min(pagina, totalPaginas);
+  const pagina_itens = filtradas.slice((paginaAtual - 1) * AVAL_MODAL_PAGE_SIZE, paginaAtual * AVAL_MODAL_PAGE_SIZE);
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[85vh]">
+        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+          <div>
+            <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+              <Star className="w-5 h-5 text-yellow-500" /> Avaliações do período
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {new Date(`${periodo.start}T00:00:00`).toLocaleDateString('pt-BR')} até {new Date(`${periodo.end}T00:00:00`).toLocaleDateString('pt-BR')} · {filtradas.length} avaliaç{filtradas.length === 1 ? 'ão' : 'ões'}
+            </p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700"><X className="w-5 h-5" /></button>
+        </div>
+
+        <div className="px-6 py-3 border-b border-slate-100 shrink-0">
+          <input
+            type="text"
+            value={busca}
+            onChange={e => { setBusca(e.target.value); setPagina(1); }}
+            placeholder="Buscar por associado, setor ou comentário..."
+            className="w-full h-10 px-3 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <div className="overflow-y-auto flex-1">
+          {pagina_itens.length === 0 ? (
+            <div className="p-12 text-center text-slate-400 text-sm">Nenhuma avaliação encontrada.</div>
+          ) : (
+            <table className="w-full text-left text-sm text-slate-600">
+              <thead className="bg-slate-50 text-slate-500 uppercase font-semibold text-xs border-b border-slate-200 sticky top-0">
+                <tr>
+                  <th className="px-4 py-2.5">Data</th>
+                  <th className="px-4 py-2.5">Associado</th>
+                  <th className="px-4 py-2.5">Setor</th>
+                  <th className="px-4 py-2.5 text-center">Nota</th>
+                  <th className="px-4 py-2.5">Comentário</th>
+                  <th className="px-4 py-2.5">Avaliador</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {pagina_itens.map(a => {
+                  const setorNome = Array.isArray(a.setor) ? a.setor[0]?.nome : a.setor?.nome;
+                  return (
+                    <tr key={a.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-2.5 whitespace-nowrap text-slate-500">{new Date(a.data_avaliacao).toLocaleDateString('pt-BR')}</td>
+                      <td className="px-4 py-2.5 font-medium text-slate-800">{a.associado?.nome_completo || '—'}</td>
+                      <td className="px-4 py-2.5">{setorNome || '—'}</td>
+                      <td className="px-4 py-2.5 text-center">
+                        <span className={`inline-block px-2 py-0.5 rounded font-bold text-xs ${a.nota >= 9 ? 'bg-green-100 text-green-700' : a.nota >= 7 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                          {a.nota}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5 max-w-xs truncate" title={a.comentario || ''}>{a.comentario || <span className="text-slate-300 italic">—</span>}</td>
+                      <td className="px-4 py-2.5 text-slate-500">{getNomeUsuario(a.usuario_id)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {totalPaginas > 1 && (
+          <div className="px-6 py-3 border-t border-slate-100 flex items-center justify-between shrink-0">
+            <span className="text-xs text-slate-500">Página {paginaAtual} de {totalPaginas}</span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPagina(p => Math.max(1, p - 1))}
+                disabled={paginaAtual <= 1}
+                className="px-3 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Anterior
+              </button>
+              <button
+                onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))}
+                disabled={paginaAtual >= totalPaginas}
+                className="px-3 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Próxima
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

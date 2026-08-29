@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, Fragment } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Megaphone, Filter, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Hash, Clock, Wifi, List, LayoutGrid, Columns3, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -53,6 +54,11 @@ function StatusSelect({ ind, onChange }: { ind: Indicacao, onChange: (id: string
 }
 
 export default function PainelIndicacoes() {
+  // Chegando de um link como "Ver lista do período" no Dashboard Geral, a
+  // tela já abre com o mesmo período selecionado ali (?inicio=&fim=), em vez
+  // de sempre resetar pro mês atual.
+  const searchParams = useSearchParams();
+
   const [indicacoes, setIndicacoes] = useState<Indicacao[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
@@ -62,12 +68,12 @@ export default function PainelIndicacoes() {
   const [viewMode, setViewMode] = useState<ViewMode>('lista');
 
   // Filtros que disparam uma nova consulta ao banco.
-  const [filtros, setFiltros] = useState({
+  const [filtros, setFiltros] = useState(() => ({
     status: '',
     responsavel_id: '',
-    data_inicio: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
-    data_fim: format(new Date(), 'yyyy-MM-dd')
-  });
+    data_inicio: searchParams.get('inicio') || format(startOfMonth(new Date()), 'yyyy-MM-dd'),
+    data_fim: searchParams.get('fim') || format(new Date(), 'yyyy-MM-dd')
+  }));
 
   // Campo de texto (digitação imediata) vs termo efetivamente buscado
   // (com debounce de 400ms) — evita disparar uma consulta ao banco a cada
