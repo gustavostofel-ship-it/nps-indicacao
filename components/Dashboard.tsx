@@ -233,6 +233,11 @@ export default function Dashboard() {
   const toggleSetorExpand = (setorId: string) => {
     setExpandedSetores(prev => ({...prev, [setorId]: !prev[setorId]}));
   };
+
+  const getNomeUsuario = (id: string | null | undefined) => {
+    if (!id) return 'Usuário desconhecido';
+    return usuarios.find(u => u.id === id)?.nome || 'Usuário desconhecido';
+  };
   
   const toggleIndicacaoExpand = (indId: string) => {
     setExpandedIndicacoes(prev => ({...prev, [indId]: !prev[indId]}));
@@ -517,6 +522,7 @@ export default function Dashboard() {
                               </div>
                               <div>
                                 <p className="text-xs text-slate-500 font-medium">Última em {new Date(ultima.data_avaliacao).toLocaleDateString('pt-BR')}</p>
+                                <p className="text-[11px] text-slate-400">por {getNomeUsuario(ultima.usuario_id)}</p>
                                 {isPromoter && <span className="text-[10px] uppercase font-bold text-green-700">Oportunidade de Indicação</span>}
                               </div>
                             </div>
@@ -559,6 +565,7 @@ export default function Dashboard() {
                                             {temNotasCriterios ? 'Média' : 'Nota'}: {av.nota}
                                           </span>
                                         </div>
+                                        <p className="text-slate-400 text-[11px] mb-1">Avaliado por {getNomeUsuario(av.usuario_id)}</p>
                                         {temNotasCriterios && (
                                           <div className="mt-1 pl-2 border-l-2 border-slate-200 space-y-1">
                                             {av.avaliacao_notas.map((an: any, idx: number) => (
