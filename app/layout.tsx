@@ -1,5 +1,6 @@
 import type {Metadata} from 'next';
 import { Inter } from 'next/font/google';
+import { redirect } from 'next/navigation';
 import './globals.css';
 import { createClient } from '@/lib/supabase/server';
 import { Navbar } from '@/components/Navbar';
@@ -33,10 +34,18 @@ export default async function RootLayout({children}: {children: React.ReactNode}
   if (user) {
     const { data: perfil } = await supabase
       .from('perfis_usuarios')
-      .select('papel, nome')
+      .select('papel, nome, status')
       .eq('id', user.id)
       .single();
-    
+
+    // Admin pode "inativar" um usuário em Configurações — isso precisa
+    // realmente bloquear o acesso, não só ficar cosmético na listagem.
+    // Derruba a sessão dele na primeira navegação depois de inativado.
+    if (perfil && perfil.status !== 'ativo') {
+      await supabase.auth.signOut();
+      redirect('/login?motivo=inativo');
+    }
+
     isAdmin = perfil?.papel === 'admin';
     userName = perfil?.nome || user.email;
   }

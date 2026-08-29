@@ -3,12 +3,13 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Search, Plus, UserPlus, Car, Star, Megaphone, Edit2, X, ChevronDown, ChevronUp, Users, ArrowLeft, Hash, Clock, ChevronLeft, ChevronRight, History, Phone, Power, MessageCircle } from 'lucide-react';
+import { Search, Plus, UserPlus, Car, Star, Megaphone, Edit2, X, ChevronDown, ChevronUp, Users, ArrowLeft, Hash, Clock, ChevronLeft, ChevronRight, History, Phone, Power, MessageCircle, Archive, ArchiveRestore, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { diasDesde, maskCPF, validarCPF, maskPlaca, validarPlaca, maskPhone } from '@/lib/utils';
 import { buscarStatusIndicacao, corStatus, normalizarStatusEmbutido, DIAS_LIMITE_PARADA, StatusIndicacao } from '@/lib/indicacoes';
 import IndicacaoTimeline from '@/components/IndicacaoTimeline';
 import AssociadoHistorico from '@/components/AssociadoHistorico';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 const supabase = createClient();
 
@@ -46,6 +47,9 @@ export default function Dashboard() {
   const [assocPage, setAssocPage] = useState(1);
   const [assocTotalCount, setAssocTotalCount] = useState(0);
   const [showHistoricoAssociado, setShowHistoricoAssociado] = useState(false);
+  const [mostrarArquivados, setMostrarArquivados] = useState(false);
+  const [confirmArquivarAssociado, setConfirmArquivarAssociado] = useState(false);
+  const [arquivandoAssociado, setArquivandoAssociado] = useState(false);
 
   const [veiculos, setVeiculos] = useState<any[]>([]);
   const [avaliacoes, setAvaliacoes] = useState<any[]>([]);
@@ -60,6 +64,11 @@ export default function Dashboard() {
   const [showNovaPlaca, setShowNovaPlaca] = useState(false);
   const [showNovaAvaliacao, setShowNovaAvaliacao] = useState<{aberto: boolean, setorId: string | null}>({aberto: false, setorId: null});
   const [showNovaIndicacao, setShowNovaIndicacao] = useState(false);
+  const [editandoAvaliacao, setEditandoAvaliacao] = useState<any>(null);
+  const [avaliacaoParaExcluir, setAvaliacaoParaExcluir] = useState<any>(null);
+  const [excluindoAvaliacao, setExcluindoAvaliacao] = useState(false);
+  const [veiculoParaDesativar, setVeiculoParaDesativar] = useState<string | null>(null);
+  const [desativandoVeiculo, setDesativandoVeiculo] = useState(false);
   
   // Inline edit state
   const [editAssociado, setEditAssociado] = useState(false);
@@ -76,9 +85,10 @@ export default function Dashboard() {
 
   // Lista paginada de associados — busca (se houver termo) e navegação de
   // página passam sempre por aqui, evitando carregar a base inteira de uma vez.
-  const carregarListaAssociados = async (termo = '', pagina = 1) => {
+  const carregarListaAssociados = async (termo = '', pagina = 1, arquivados = mostrarArquivados) => {
     let query = supabase.from('associados')
-      .select('id, nome_completo, cpf, telefone, veiculos(id), avaliacoes(nota, data_avaliacao), indicacoes(id)', { count: 'exact' })
+      .select('id, nome_completo, cpf, telefone, ativo, veiculos(id), avaliacoes(nota, data_avaliacao), indicacoes(id)', { count: 'exact' })
+      .eq('ativo', !arquivados)
       .order('nome_completo', { ascending: true });
 
     if (termo) query = query.or(`cpf.ilike.%${termo}%,nome_completo.ilike.%${termo}%`);
@@ -106,6 +116,21 @@ export default function Dashboard() {
   const irParaPaginaAssociados = (pagina: number) => {
     setAssocPage(pagina);
     carregarListaAssociados(assocSearchTerm, pagina);
+  };
+
+  const toggleMostrarArquivados = () => {
+    const novoValor = !mostrarArquivados;
+    setMostrarArquivados(novoValor);
+    setAssocPage(1);
+    carregarListaAssociados(assocSearchTerm, 1, novoValor);
+  };
+
+  const handleRestaurarAssociado = async (id: string) => {
+    const tid = toast.loading('Restaurando...');
+    const { error } = await supabase.from('associados').update({ ativo: true }).eq('id', id);
+    if (error) return toast.error('Erro ao restaurar: ' + error.message, { id: tid });
+    toast.success('Associado restaurado!', { id: tid });
+    carregarListaAssociados(assocSearchTerm, assocPage);
   };
 
   const carregarSetores = async () => {
@@ -189,7 +214,7 @@ export default function Dashboard() {
     
     const [veiculosRes, avaliacoesRes, indicacoesRes] = await Promise.all([
       supabase.from('veiculos').select('*').eq('associado_id', assocData.id).eq('ativo', true),
-      supabase.from('avaliacoes').select('*, setor:setores(nome), avaliacao_notas(nota, criterios_avaliacao(nome))').eq('associado_id', assocData.id).order('data_avaliacao', { ascending: false }),
+      supabase.from('avaliacoes').select('*, setor:setores(nome), avaliacao_notas(id, nota, criterio_id, criterios_avaliacao(id, nome))').eq('associado_id', assocData.id).order('data_avaliacao', { ascending: false }),
       supabase.from('indicacoes').select('*, status:indicacao_status(id, nome, cor, ativo, conta_como_fechado)').eq('associado_id', assocData.id).order('data_indicacao', { ascending: false })
     ]);
     
@@ -220,14 +245,47 @@ export default function Dashboard() {
     }
   };
 
-  const handleDesativarVeiculo = async (veiculoId: string) => {
-    if (!window.confirm('Desativar este veículo? Ele deixará de aparecer na ficha do associado.')) return;
-    const tid = toast.loading('Desativando...');
-    const { error } = await supabase.from('veiculos').update({ ativo: false }).eq('id', veiculoId);
+  // Arquivar nunca apaga de verdade — só marca ativo=false, pra não perder
+  // avaliações/indicações/histórico em cascata. "Restaurar" desfaz.
+  const handleToggleAtivoAssociado = async () => {
+    const restaurando = associado.ativo === false;
+    setArquivandoAssociado(true);
+    const { error } = await supabase.from('associados').update({ ativo: restaurando }).eq('id', associado.id);
+    setArquivandoAssociado(false);
+    setConfirmArquivarAssociado(false);
+    if (error) return toast.error('Erro: ' + error.message);
+    toast.success(restaurando ? 'Associado restaurado!' : 'Associado arquivado.');
+    setAssociado({ ...associado, ativo: restaurando });
+  };
+
+  // Exclusão de avaliação é de verdade (DELETE), diferente do padrão de
+  // arquivar usado em associado/veículo — uma avaliação errada/duplicada
+  // deve poder sumir do histórico e das métricas de NPS, não só ficar
+  // escondida. avaliacao_notas é removida junto automaticamente (ON DELETE
+  // CASCADE), não precisa de um segundo delete aqui.
+  const handleExcluirAvaliacao = async () => {
+    if (!avaliacaoParaExcluir) return;
+    setExcluindoAvaliacao(true);
+    const { error } = await supabase.from('avaliacoes').delete().eq('id', avaliacaoParaExcluir.id);
+    setExcluindoAvaliacao(false);
     if (error) {
-      toast.error('Erro ao desativar', { id: tid });
+      toast.error('Erro ao excluir: ' + error.message);
+      return;
+    }
+    toast.success('Avaliação excluída.');
+    setAvaliacoes(prev => prev.filter(a => a.id !== avaliacaoParaExcluir.id));
+    setAvaliacaoParaExcluir(null);
+  };
+
+  const handleDesativarVeiculo = async (veiculoId: string) => {
+    setDesativandoVeiculo(true);
+    const { error } = await supabase.from('veiculos').update({ ativo: false }).eq('id', veiculoId);
+    setDesativandoVeiculo(false);
+    setVeiculoParaDesativar(null);
+    if (error) {
+      toast.error('Erro ao desativar: ' + error.message);
     } else {
-      toast.success('Veículo desativado', { id: tid });
+      toast.success('Veículo desativado');
       setVeiculos(veiculos.filter(v => v.id !== veiculoId));
     }
   };
@@ -287,17 +345,23 @@ export default function Dashboard() {
       {/* Initial / List State */}
       {!associado && !loading && (
         <div className="space-y-6">
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center flex-wrap gap-3">
             <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-              <Users className="h-6 w-6 text-blue-600" /> Associados
+              <Users className="h-6 w-6 text-blue-600" /> {mostrarArquivados ? 'Associados arquivados' : 'Associados'}
             </h2>
-            <button 
-              onClick={() => setShowNovoAssociado(true)}
-              className="bg-blue-600 text-white px-5 py-2.5 rounded-xl hover:bg-blue-700 font-semibold shadow-sm shadow-blue-200 transition-colors flex items-center gap-2"
-            >
-              <UserPlus className="h-5 w-5" />
-              Novo Associado
-            </button>
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-2 text-sm font-medium text-slate-500 cursor-pointer select-none">
+                <input type="checkbox" checked={mostrarArquivados} onChange={toggleMostrarArquivados} className="w-4 h-4 accent-blue-600 cursor-pointer" />
+                Mostrar arquivados
+              </label>
+              <button
+                onClick={() => setShowNovoAssociado(true)}
+                className="bg-blue-600 text-white px-5 py-2.5 rounded-xl hover:bg-blue-700 font-semibold shadow-sm shadow-blue-200 transition-colors flex items-center gap-2"
+              >
+                <UserPlus className="h-5 w-5" />
+                Novo Associado
+              </button>
+            </div>
           </div>
 
           {listaAssociados.length === 0 ? (
@@ -305,9 +369,13 @@ export default function Dashboard() {
               <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-4">
                 <Users className="h-8 w-8 text-blue-600" />
               </div>
-              <h2 className="text-xl font-bold text-slate-800 mb-2">Nenhum associado encontrado</h2>
+              <h2 className="text-xl font-bold text-slate-800 mb-2">
+                {mostrarArquivados ? 'Nenhum associado arquivado' : 'Nenhum associado encontrado'}
+              </h2>
               <p className="text-slate-500 max-w-md">
-                Você ainda não tem associados cadastrados ou nenhum corresponde à sua busca.
+                {mostrarArquivados
+                  ? 'Não há associados arquivados no momento.'
+                  : 'Você ainda não tem associados cadastrados ou nenhum corresponde à sua busca.'}
               </p>
             </div>
           ) : (
@@ -347,6 +415,14 @@ export default function Dashboard() {
                     <span className="flex items-center gap-1.5 text-xs font-semibold bg-orange-50 text-orange-600 px-2.5 py-1 rounded-lg">
                       <Megaphone className="w-4 h-4 text-orange-400" /> {assoc.indicacoes?.length || 0} indicações
                     </span>
+                    {mostrarArquivados && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleRestaurarAssociado(assoc.id); }}
+                        className="ml-auto flex items-center gap-1.5 text-xs font-semibold bg-green-50 text-green-700 hover:bg-green-100 px-2.5 py-1 rounded-lg transition-colors"
+                      >
+                        <ArchiveRestore className="w-4 h-4" /> Restaurar
+                      </button>
+                    )}
                   </div>
                 </div>
                 );
@@ -432,22 +508,68 @@ export default function Dashboard() {
               </div>
             )}
             {!editAssociado && (
-              <button
-                onClick={() => setShowHistoricoAssociado(v => !v)}
-                className="text-slate-400 hover:text-blue-600 transition-colors flex items-center gap-1 text-xs font-semibold shrink-0 ml-4"
-                title="Ver histórico de edições do cadastro"
-              >
-                <History className="h-4 w-4" /> Histórico
-                {showHistoricoAssociado ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-              </button>
+              <div className="flex items-center gap-4 shrink-0 ml-4">
+                <button
+                  onClick={() => setShowHistoricoAssociado(v => !v)}
+                  className="text-slate-400 hover:text-blue-600 transition-colors flex items-center gap-1 text-xs font-semibold"
+                  title="Ver histórico de edições do cadastro"
+                >
+                  <History className="h-4 w-4" /> Histórico
+                  {showHistoricoAssociado ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                </button>
+                <button
+                  onClick={() => associado.ativo === false ? handleToggleAtivoAssociado() : setConfirmArquivarAssociado(true)}
+                  className={`flex items-center gap-1 text-xs font-semibold transition-colors ${associado.ativo === false ? 'text-green-600 hover:text-green-700' : 'text-slate-400 hover:text-red-600'}`}
+                  title={associado.ativo === false ? 'Restaurar associado' : 'Arquivar associado'}
+                >
+                  {associado.ativo === false ? <ArchiveRestore className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
+                  {associado.ativo === false ? 'Restaurar' : 'Arquivar'}
+                </button>
+              </div>
             )}
           </div>
+
+          {associado.ativo === false && (
+            <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm font-medium px-4 py-3 rounded-xl -mt-2 flex items-center gap-2">
+              <Archive className="w-4 h-4 shrink-0" /> Este associado está arquivado — não aparece nas listas e buscas normais.
+            </div>
+          )}
 
           {showHistoricoAssociado && !editAssociado && (
             <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 -mt-2">
               <AssociadoHistorico supabase={supabase} associadoId={associado.id} usuarios={usuarios} />
             </div>
           )}
+
+          <ConfirmDialog
+            open={confirmArquivarAssociado}
+            title="Arquivar associado?"
+            message={`${associado.nome_completo} vai deixar de aparecer nas listas e buscas normais. Nada é apagado — avaliações, indicações e histórico continuam intactos, e dá pra restaurar quando quiser.`}
+            confirmLabel="Arquivar"
+            loading={arquivandoAssociado}
+            onConfirm={handleToggleAtivoAssociado}
+            onCancel={() => setConfirmArquivarAssociado(false)}
+          />
+
+          <ConfirmDialog
+            open={!!veiculoParaDesativar}
+            title="Desativar veículo?"
+            message="Ele deixará de aparecer na ficha do associado. As avaliações já feitas com esse veículo continuam no histórico normalmente."
+            confirmLabel="Desativar"
+            loading={desativandoVeiculo}
+            onConfirm={() => veiculoParaDesativar && handleDesativarVeiculo(veiculoParaDesativar)}
+            onCancel={() => setVeiculoParaDesativar(null)}
+          />
+
+          <ConfirmDialog
+            open={!!avaliacaoParaExcluir}
+            title="Excluir avaliação?"
+            message={`Essa avaliação${avaliacaoParaExcluir ? ` de ${new Date(avaliacaoParaExcluir.data_avaliacao).toLocaleDateString('pt-BR')}` : ''} será apagada permanentemente, incluindo as notas por critério. Ela sai do histórico e das métricas de NPS. Essa ação não pode ser desfeita.`}
+            confirmLabel="Excluir"
+            loading={excluindoAvaliacao}
+            onConfirm={handleExcluirAvaliacao}
+            onCancel={() => setAvaliacaoParaExcluir(null)}
+          />
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Veiculos */}
@@ -476,7 +598,7 @@ export default function Dashboard() {
                         <button onClick={() => setVeiculoEditando(v)} title="Editar veículo" className="text-slate-400 hover:text-blue-600">
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
-                        <button onClick={() => handleDesativarVeiculo(v.id)} title="Desativar veículo" className="text-slate-400 hover:text-red-600">
+                        <button onClick={() => setVeiculoParaDesativar(v.id)} title="Desativar veículo" className="text-slate-400 hover:text-red-600">
                           <Power className="w-3.5 h-3.5" />
                         </button>
                       </div>
@@ -557,16 +679,24 @@ export default function Dashboard() {
                                     const temNotasCriterios = av.avaliacao_notas && av.avaliacao_notas.length > 0;
                                     const veiculoAvaliado = veiculos.find(v => v.id === av.veiculo_id);
                                     return (
-                                      <div key={av.id} className="flex flex-col text-xs py-2 border-b border-slate-100 last:border-0">
+                                      <div key={av.id} className="flex flex-col text-xs py-2 border-b border-slate-100 last:border-0 group/av">
                                         <div className="flex justify-between items-center mb-1">
                                           <span className="text-slate-500">
                                             {new Date(av.data_avaliacao).toLocaleDateString('pt-BR')}
                                             {veiculoAvaliado ? ` · ${veiculoAvaliado.placa}` : ''}
                                             {index === 0 ? ' (Última)' : ''}
                                           </span>
-                                          <span className={`font-bold px-2 py-0.5 rounded ${av.nota >= 9 ? 'bg-green-100 text-green-700' : av.nota >= 7 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
-                                            {temNotasCriterios ? 'Média' : 'Nota'}: {av.nota}
-                                          </span>
+                                          <div className="flex items-center gap-2">
+                                            <span className={`font-bold px-2 py-0.5 rounded ${av.nota >= 9 ? 'bg-green-100 text-green-700' : av.nota >= 7 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                                              {temNotasCriterios ? 'Média' : 'Nota'}: {av.nota}
+                                            </span>
+                                            <button onClick={() => setEditandoAvaliacao(av)} title="Editar avaliação" className="text-slate-300 hover:text-blue-600 opacity-0 group-hover/av:opacity-100 transition-opacity">
+                                              <Edit2 className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button onClick={() => setAvaliacaoParaExcluir(av)} title="Excluir avaliação" className="text-slate-300 hover:text-red-600 opacity-0 group-hover/av:opacity-100 transition-opacity">
+                                              <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                          </div>
                                         </div>
                                         <p className="text-slate-400 text-[11px] mb-1">Avaliado por {getNomeUsuario(av.usuario_id)}</p>
                                         {temNotasCriterios && (
@@ -686,6 +816,7 @@ export default function Dashboard() {
       {showNovaPlaca && <ModalNovaPlaca associadoId={associado?.id} onClose={() => setShowNovaPlaca(false)} onSave={() => handleSearch({preventDefault:()=>null} as any)} />}
       {veiculoEditando && <ModalEditarVeiculo veiculo={veiculoEditando} onClose={() => setVeiculoEditando(null)} onSave={(atualizado: any) => { setVeiculos(veiculos.map(v => v.id === atualizado.id ? atualizado : v)); setVeiculoEditando(null); }} />}
       {showNovaAvaliacao.aberto && <ModalNovaAvaliacao associadoId={associado?.id} veiculos={veiculos} setorPreSelecionado={showNovaAvaliacao.setorId} setores={setores} onClose={() => setShowNovaAvaliacao({aberto: false, setorId: null})} onSave={() => handleSearch({preventDefault:()=>null} as any)} />}
+      {editandoAvaliacao && <ModalEditarAvaliacao avaliacao={editandoAvaliacao} onClose={() => setEditandoAvaliacao(null)} onSave={() => { setEditandoAvaliacao(null); handleSearch({preventDefault:()=>null} as any); }} />}
       {showNovaIndicacao && <ModalNovaIndicacao associadoId={associado?.id} statusList={statusList} onClose={() => setShowNovaIndicacao(false)} onSave={() => handleSearch({preventDefault:()=>null} as any)} />}
     </div>
   );
@@ -1147,6 +1278,136 @@ function ModalNovaAvaliacao({ associadoId, veiculos, setorPreSelecionado, setore
           <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
             <button type="button" onClick={onClose} className="px-4 py-2 font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">Cancelar</button>
             <button type="submit" className="px-5 py-2 bg-blue-600 font-medium text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm">Salvar Avaliação</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// Edita uma avaliação já existente — mesma UI de critérios/nota do
+// ModalNovaAvaliacao, mas pré-preenchida com os valores atuais e fazendo
+// UPDATE em vez de INSERT. Setor/veículo não são editáveis aqui de
+// propósito (trocar o setor mudaria qual conjunto de critérios vale, o que
+// não faz sentido pra uma avaliação que já foi registrada — pra isso o
+// correto é excluir e lançar uma nova).
+function ModalEditarAvaliacao({ avaliacao, onClose, onSave }: any) {
+  const criteriosExistentes = avaliacao.avaliacao_notas || [];
+  const temCriterios = criteriosExistentes.length > 0;
+
+  const [notasCriterios, setNotasCriterios] = useState<Record<string, number>>(() => {
+    const iniciais: Record<string, number> = {};
+    criteriosExistentes.forEach((an: any) => {
+      if (an.criterio_id) iniciais[an.criterio_id] = an.nota;
+    });
+    return iniciais;
+  });
+  const [notaGeral, setNotaGeral] = useState<number | null>(temCriterios ? null : avaliacao.nota);
+  const [comentario, setComentario] = useState(avaliacao.comentario || '');
+  const [salvando, setSalvando] = useState(false);
+
+  const getMediaCalculada = () => {
+    if (!temCriterios) return notaGeral;
+    const preenchidas = Object.values(notasCriterios);
+    if (preenchidas.length === 0) return null;
+    const sum = preenchidas.reduce((a, b) => a + b, 0);
+    return Math.round((sum / preenchidas.length) * 10) / 10;
+  };
+
+  const media = getMediaCalculada();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (temCriterios) {
+      if (Object.keys(notasCriterios).length < criteriosExistentes.length) {
+        return toast.error('Preencha as notas de todos os critérios');
+      }
+    } else if (notaGeral === null) {
+      return toast.error('Selecione uma nota');
+    }
+
+    const notaFinal = temCriterios ? media : notaGeral;
+    if (notaFinal === null) return;
+
+    setSalvando(true);
+    const tid = toast.loading('Salvando...');
+
+    const { error } = await supabase.from('avaliacoes').update({ nota: notaFinal, comentario }).eq('id', avaliacao.id);
+    if (error) {
+      setSalvando(false);
+      return toast.error('Erro ao salvar: ' + error.message, { id: tid });
+    }
+
+    if (temCriterios) {
+      // Cada critério já tem uma linha própria em avaliacao_notas (com seu
+      // próprio id) — atualiza cada uma individualmente em vez de apagar e
+      // recriar, pra não perder o created_at original de cada nota.
+      const updates = criteriosExistentes.map((an: any) =>
+        supabase.from('avaliacao_notas').update({ nota: notasCriterios[an.criterio_id] }).eq('id', an.id)
+      );
+      const resultados = await Promise.all(updates);
+      const algumErro = resultados.find(r => r.error);
+      if (algumErro) {
+        setSalvando(false);
+        return toast.error('Nota geral salva, mas houve erro num dos critérios: ' + algumErro.error?.message, { id: tid });
+      }
+    }
+
+    toast.success('Avaliação atualizada!', { id: tid });
+    setSalvando(false);
+    onSave();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+          <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2"><Edit2 className="w-5 h-5 text-blue-600"/> Editar Avaliação</h3>
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-700"><X className="w-5 h-5"/></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto">
+          <p className="text-xs text-slate-400 -mt-1">
+            {avaliacao.setor?.nome} · {new Date(avaliacao.data_avaliacao).toLocaleDateString('pt-BR')}
+          </p>
+
+          {temCriterios ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <h4 className="font-semibold text-slate-700">Critérios de Avaliação</h4>
+                {media !== null && (
+                  <span className={`px-2 py-1 rounded font-bold text-sm ${media >= 9 ? 'bg-green-100 text-green-700' : media >= 7 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                    Média: {media.toFixed(1)}
+                  </span>
+                )}
+              </div>
+              {criteriosExistentes.map((an: any) => (
+                <div key={an.id}>
+                  <label className="block text-sm font-medium text-slate-600 mb-2">{an.criterios_avaliacao?.nome || 'Critério'}</label>
+                  <NotaSelector
+                    value={notasCriterios[an.criterio_id] ?? null}
+                    onChange={(n) => setNotasCriterios(prev => ({...prev, [an.criterio_id]: n}))}
+                  />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Nota Geral (0 a 10)</label>
+              <NotaSelector value={notaGeral} onChange={setNotaGeral} />
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1">Comentário (Opcional)</label>
+            <textarea value={comentario} onChange={e=>setComentario(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" rows={3}></textarea>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
+            <button type="button" onClick={onClose} className="px-4 py-2 font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">Cancelar</button>
+            <button type="submit" disabled={salvando} className="px-5 py-2 bg-blue-600 font-medium text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-60">
+              {salvando ? 'Salvando...' : 'Salvar Alterações'}
+            </button>
           </div>
         </form>
       </div>

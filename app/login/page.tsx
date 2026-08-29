@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Mail, Lock, Eye, EyeOff, ArrowRight, Star, Megaphone, AlertTriangle } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -24,11 +24,22 @@ function GirowMark({ className = '' }: { className?: string }) {
 }
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    searchParams.get('motivo') === 'inativo' ? 'Sua conta foi desativada por um administrador. Fale com quem administra o sistema se isso for um engano.' : null
+  );
 
   const router = useRouter();
   const supabase = createClient();

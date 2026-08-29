@@ -60,7 +60,11 @@ CREATE TABLE associados (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()),
   -- Telefone de contato do associado (diferente de indicacoes.telefone_indicado,
   -- que é do indicado, não do dono da conta). Adicionado em 29/08/2026.
-  telefone TEXT
+  telefone TEXT,
+  -- Soft-delete: "apagar" associado na prática só marca ativo=false (nunca
+  -- DELETE de verdade, pra não perder avaliações/indicações/histórico em
+  -- cascata). Adicionado em 29/08/2026.
+  ativo BOOLEAN NOT NULL DEFAULT true
 );
 
 -- Tabela: associado_eventos

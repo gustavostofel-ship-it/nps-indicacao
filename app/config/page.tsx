@@ -1,9 +1,10 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Plus, Copy, Check, Trash2, Edit2, Settings, Users, LayoutDashboard, ChevronDown, ChevronUp, Columns3, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, Copy, Check, Trash2, Edit2, Settings, Users, LayoutDashboard, ChevronDown, ChevronUp, Columns3, ArrowUp, ArrowDown, Power } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { CHAVES_CORES_STATUS, corStatus } from '@/lib/indicacoes';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 export default function ConfigPage() {
   const [setores, setSetores] = useState<any[]>([]);
@@ -11,22 +12,25 @@ export default function ConfigPage() {
   const [convites, setConvites] = useState<any[]>([]);
   const [statusIndicacao, setStatusIndicacao] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
 
   const supabase = createClient();
 
   const fetchData = async () => {
     setLoading(true);
-    const [setoresRes, usuariosRes, convitesRes, statusRes] = await Promise.all([
+    const [setoresRes, usuariosRes, convitesRes, statusRes, userRes] = await Promise.all([
       supabase.from('setores').select('*').order('ordem', { ascending: true }),
       supabase.from('perfis_usuarios').select('*').order('created_at', { ascending: false }),
       supabase.from('convites').select('*').order('created_at', { ascending: false }),
-      supabase.from('indicacao_status').select('*').order('ordem', { ascending: true })
+      supabase.from('indicacao_status').select('*').order('ordem', { ascending: true }),
+      supabase.auth.getUser(),
     ]);
 
     if (setoresRes.data) setSetores(setoresRes.data);
     if (usuariosRes.data) setUsuarios(usuariosRes.data);
     if (convitesRes.data) setConvites(convitesRes.data);
     if (statusRes.data) setStatusIndicacao(statusRes.data);
+    setCurrentUserId(userRes.data.user?.id);
     setLoading(false);
   };
 
@@ -60,7 +64,7 @@ export default function ConfigPage() {
         </div>
 
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col h-full">
-           <UsuariosManager usuarios={usuarios} convites={convites} onUpdate={fetchData} supabase={supabase} />
+           <UsuariosManager usuarios={usuarios} convites={convites} onUpdate={fetchData} supabase={supabase} currentUserId={currentUserId} />
         </div>
       </div>
 
@@ -365,9 +369,44 @@ function SetoresManager({ setores, onUpdate, supabase }: any) {
   );
 }
 
-function UsuariosManager({ usuarios, convites, onUpdate, supabase }: any) {
+function UsuariosManager({ usuarios, convites, onUpdate, supabase, currentUserId }: any) {
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({ nome: '', email: '', funcao: '', papel: 'atendente' });
+  const [usuarioParaExcluir, setUsuarioParaExcluir] = useState<any>(null);
+  const [excluindo, setExcluindo] = useState(false);
+
+  const toggleStatusUsuario = async (usr: any) => {
+    const novoStatus = usr.status === 'ativo' ? 'inativo' : 'ativo';
+    const toastId = toast.loading(novoStatus === 'ativo' ? 'Ativando...' : 'Inativando...');
+    const { error } = await supabase.from('perfis_usuarios').update({ status: novoStatus }).eq('id', usr.id);
+    if (error) {
+      toast.error('Erro ao atualizar status', { id: toastId });
+    } else {
+      toast.success(novoStatus === 'ativo' ? 'Usuário ativado!' : 'Usuário inativado — ele será desconectado no próximo acesso.', { id: toastId });
+      onUpdate();
+    }
+  };
+
+  const handleExcluirUsuario = async () => {
+    if (!usuarioParaExcluir) return;
+    setExcluindo(true);
+    const toastId = toast.loading('Excluindo usuário...');
+    try {
+      const res = await fetch(`/api/usuarios/${usuarioParaExcluir.id}`, { method: 'DELETE' });
+      const body = await res.json();
+      if (!res.ok) {
+        toast.error(body.error || 'Erro ao excluir usuário', { id: toastId });
+      } else {
+        toast.success('Usuário excluído.', { id: toastId });
+        setUsuarioParaExcluir(null);
+        onUpdate();
+      }
+    } catch {
+      toast.error('Erro de rede ao excluir usuário', { id: toastId });
+    } finally {
+      setExcluindo(false);
+    }
+  };
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -463,24 +502,51 @@ function UsuariosManager({ usuarios, convites, onUpdate, supabase }: any) {
             </div>
           ))}
 
-          {usuarios.map((usr: any) => (
-            <div key={usr.id} className="p-4 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between">
+          {usuarios.map((usr: any) => {
+            const souEu = usr.id === currentUserId;
+            return (
+            <div key={usr.id} className="p-4 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between gap-3">
               <div>
-                <p className="font-bold text-slate-800 text-sm">{usr.nome}</p>
+                <p className="font-bold text-slate-800 text-sm">{usr.nome} {souEu && <span className="text-slate-400 font-normal">(você)</span>}</p>
                 <p className="text-xs text-slate-500 mt-0.5 font-medium">{usr.funcao}</p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${usr.papel === 'admin' ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-600'}`}>
                   {usr.papel === 'admin' ? 'Admin' : 'Atendente'}
                 </span>
-                <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${usr.status === 'ativo' ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600'}`}>
-                  {usr.status}
-                </span>
+                <button
+                  onClick={() => !souEu && toggleStatusUsuario(usr)}
+                  disabled={souEu}
+                  title={souEu ? 'Você não pode inativar sua própria conta' : (usr.status === 'ativo' ? 'Inativar usuário' : 'Ativar usuário')}
+                  className={`text-xs font-bold px-2.5 py-1 rounded-full transition-colors ${usr.status === 'ativo' ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'} disabled:opacity-60 disabled:cursor-not-allowed`}
+                >
+                  {usr.status === 'ativo' ? 'Ativo' : 'Inativo'}
+                </button>
+                {!souEu && (
+                  <button
+                    onClick={() => setUsuarioParaExcluir(usr)}
+                    title="Excluir usuário"
+                    className="text-slate-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!usuarioParaExcluir}
+        title="Excluir usuário?"
+        message={`A conta de ${usuarioParaExcluir?.nome} será excluída permanentemente — ele perde o acesso ao sistema imediatamente. Essa ação não pode ser desfeita. Se for só afastar temporariamente, use "Inativar" em vez de excluir.`}
+        confirmLabel="Excluir"
+        loading={excluindo}
+        onConfirm={handleExcluirUsuario}
+        onCancel={() => setUsuarioParaExcluir(null)}
+      />
     </div>
   );
 }
