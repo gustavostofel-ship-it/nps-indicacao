@@ -7,6 +7,7 @@ import { startOfMonth, format, subDays, isAfter, isBefore } from 'date-fns';
 import { ArrowRight, Star, Megaphone, Users, Target, CheckCircle2, AlertCircle, ArrowUpRight, ArrowDownRight, Clock, AlertTriangle, Download, Filter, Wifi, X } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
+import { DIAS_LIMITE_PARADA } from '@/lib/indicacoes';
 
 const supabase = createClient();
 
@@ -17,7 +18,9 @@ type Setor = { id: string, nome: string };
 
 const COLORS = ['#22c55e', '#eab308', '#ef4444']; // Promotor, Neutro, Detrator
 const STATUS_COLORS = { pendente: '#eab308', em_tratativa: '#3b82f6', fechado: '#22c55e', sem_retorno: '#ef4444' };
-const DIAS_LIMITE_ESQUECIDA = 3; // dias sem atualização para considerar uma indicação "esquecida"
+// Mesmo limite usado no selo "dias parado" do Painel de Indicações
+// (lib/indicacoes.ts) — um só lugar de verdade pra esse número.
+const DIAS_LIMITE_ESQUECIDA = DIAS_LIMITE_PARADA;
 
 // Badge de variação percentual em relação ao período anterior.
 // invertido=true significa "menor é melhor" (ex: tempo de fechamento).

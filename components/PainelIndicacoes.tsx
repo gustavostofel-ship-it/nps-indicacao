@@ -573,7 +573,11 @@ function KanbanBoard({
   const [dragOverStatus, setDragOverStatus] = useState<string | null>(null);
 
   const handleDrop = (statusKey: string) => {
-    if (draggingId) updateStatus(draggingId, statusKey);
+    const ind = indicacoes.find(i => i.id === draggingId);
+    // Só atualiza se realmente mudou de coluna — evita um PATCH e um toast
+    // "Status atualizado" desnecessários quando o card é solto na coluna
+    // onde ele já estava.
+    if (draggingId && ind && ind.status !== statusKey) updateStatus(draggingId, statusKey);
     setDraggingId(null);
     setDragOverStatus(null);
   };
