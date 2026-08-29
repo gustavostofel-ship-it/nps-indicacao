@@ -79,7 +79,6 @@ export default function InvitePage() {
         .insert({
           id: authData.user.id,
           nome: invite.nome,
-          cargo: invite.cargo,
           funcao: invite.funcao,
           papel: invite.papel,
           status: 'ativo'
@@ -119,7 +118,6 @@ export default function InvitePage() {
         <div className="bg-gray-50 p-4 rounded-md mb-6 space-y-2 text-sm border border-gray-200">
           <p><strong>Nome:</strong> {invite.nome}</p>
           <p><strong>E-mail:</strong> {invite.email}</p>
-          <p><strong>Cargo:</strong> {invite.cargo}</p>
           <p><strong>Função:</strong> {invite.funcao}</p>
         </div>
 

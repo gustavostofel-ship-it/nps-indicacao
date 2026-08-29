@@ -367,7 +367,7 @@ function SetoresManager({ setores, onUpdate, supabase }: any) {
 
 function UsuariosManager({ usuarios, convites, onUpdate, supabase }: any) {
   const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState({ nome: '', email: '', cargo: '', funcao: '', papel: 'atendente' });
+  const [formData, setFormData] = useState({ nome: '', email: '', funcao: '', papel: 'atendente' });
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -391,7 +391,7 @@ function UsuariosManager({ usuarios, convites, onUpdate, supabase }: any) {
       }
     } else {
       toast.success('Convite gerado com sucesso!', { id: toastId });
-      setFormData({ nome: '', email: '', cargo: '', funcao: '', papel: 'atendente' });
+      setFormData({ nome: '', email: '', funcao: '', papel: 'atendente' });
       setShowForm(false);
       onUpdate();
     }
@@ -425,10 +425,7 @@ function UsuariosManager({ usuarios, convites, onUpdate, supabase }: any) {
             <input type="email" placeholder="E-mail" required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <input type="text" placeholder="Cargo (Ex: Supervisor)" required value={formData.cargo} onChange={e => setFormData({...formData, cargo: e.target.value})} className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
             <input type="text" placeholder="Função" required value={formData.funcao} onChange={e => setFormData({...formData, funcao: e.target.value})} className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-          </div>
-          <div>
             <select value={formData.papel} onChange={e => setFormData({...formData, papel: e.target.value})} className="w-full px-3 py-2 border border-blue-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none font-medium">
               <option value="atendente">Atendente</option>
               <option value="admin">Administrador</option>
@@ -457,7 +454,7 @@ function UsuariosManager({ usuarios, convites, onUpdate, supabase }: any) {
                   <span className="text-[10px] uppercase tracking-wider font-bold bg-orange-200 text-orange-800 px-2 py-0.5 rounded-full">Pendente</span>
                 </p>
                 <p className="text-xs text-orange-700 mt-0.5">{convite.email}</p>
-                <p className="text-xs text-orange-700 mt-0.5">{convite.cargo} • {convite.papel === 'admin' ? 'Administrador' : 'Atendente'}</p>
+                <p className="text-xs text-orange-700 mt-0.5">{convite.funcao} • {convite.papel === 'admin' ? 'Administrador' : 'Atendente'}</p>
               </div>
               <button onClick={() => copyToClipboard(convite.token)} className="text-orange-600 bg-white hover:bg-orange-100 p-2 border border-orange-200 rounded-lg shadow-sm transition-colors flex items-center gap-2" title="Copiar Link">
                 <Copy className="w-4 h-4" />
@@ -470,7 +467,7 @@ function UsuariosManager({ usuarios, convites, onUpdate, supabase }: any) {
             <div key={usr.id} className="p-4 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between">
               <div>
                 <p className="font-bold text-slate-800 text-sm">{usr.nome}</p>
-                <p className="text-xs text-slate-500 mt-0.5 font-medium">{usr.cargo}</p>
+                <p className="text-xs text-slate-500 mt-0.5 font-medium">{usr.funcao}</p>
               </div>
               <div className="flex items-center gap-2">
                 <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${usr.papel === 'admin' ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-600'}`}>
