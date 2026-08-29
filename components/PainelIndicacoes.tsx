@@ -72,7 +72,24 @@ export default function PainelIndicacoes() {
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
   const [page, setPage] = useState(1);
-  const [viewMode, setViewMode] = useState<ViewMode>('lista');
+  // Lembra o último modo de visualização escolhido (Lista/Card/Kanban) entre
+  // navegações — sem isso, toda vez que o usuário saía da aba e voltava o
+  // painel resetava pra "lista". Lazy init lê direto na primeira renderização
+  // pra não "piscar" lista antes de trocar pro modo salvo.
+  const VIEW_MODE_KEY = 'girow:indicacoes:viewMode';
+  const [viewMode, setViewModeState] = useState<ViewMode>(() => {
+    if (typeof window === 'undefined') return 'lista';
+    const salvo = window.localStorage.getItem(VIEW_MODE_KEY);
+    return salvo === 'lista' || salvo === 'card' || salvo === 'kanban' ? salvo : 'lista';
+  });
+  const setViewMode = (modo: ViewMode) => {
+    setViewModeState(modo);
+    try {
+      window.localStorage.setItem(VIEW_MODE_KEY, modo);
+    } catch {
+      // localStorage indisponível (modo privado, etc.) — ignora, só não persiste
+    }
+  };
 
   const statusAtivos = statusTodos.filter(s => s.ativo);
 
