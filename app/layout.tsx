@@ -19,7 +19,13 @@ export const metadata: Metadata = {
 export default async function RootLayout({children}: {children: React.ReactNode}) {
   const isSupabaseConfigured = process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  // getSession() lê o usuário do cookie sem chamar o servidor de Auth do
+  // Supabase pela rede — usar getUser() (que faz essa chamada) aqui seria
+  // redundante, já que o middleware já validou o token de forma autoritativa
+  // em toda navegação antes desta layout rodar. Isso tirava uma chamada de
+  // rede inteira de cada troca de aba, que era a maior causa da lentidão.
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user;
 
   let isAdmin = false;
   let userName = '';
