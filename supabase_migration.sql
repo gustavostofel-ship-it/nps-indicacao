@@ -50,6 +50,20 @@ CREATE TABLE associados (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now())
 );
 
+-- Tabela: associado_eventos
+-- Histórico imutável de auditoria dos dados cadastrais do associado (criação,
+-- correção de nome/CPF). Mesmo princípio de indicacao_eventos. Adicionada em
+-- 28/08/2026.
+CREATE TABLE associado_eventos (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  associado_id UUID NOT NULL REFERENCES associados(id) ON DELETE CASCADE,
+  autor_id UUID REFERENCES auth.users(id),
+  campo TEXT NOT NULL, -- 'criacao' | 'nome_completo' | 'cpf'
+  valor_anterior TEXT,
+  valor_novo TEXT,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc', now())
+);
+
 -- Tabela: veiculos
 CREATE TABLE veiculos (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -173,6 +187,7 @@ CREATE INDEX idx_criterios_avaliacao_setor_id ON criterios_avaliacao(setor_id);
 CREATE INDEX idx_avaliacao_notas_avaliacao_id ON avaliacao_notas(avaliacao_id);
 CREATE INDEX idx_avaliacao_notas_criterio_id ON avaliacao_notas(criterio_id);
 CREATE INDEX idx_indicacao_eventos_indicacao_id ON indicacao_eventos(indicacao_id);
+CREATE INDEX idx_associado_eventos_associado_id ON associado_eventos(associado_id);
 
 -- RLS (Row Level Security)
 ALTER TABLE perfis_usuarios ENABLE ROW LEVEL SECURITY;
@@ -185,6 +200,7 @@ ALTER TABLE indicacoes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE criterios_avaliacao ENABLE ROW LEVEL SECURITY;
 ALTER TABLE avaliacao_notas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE indicacao_eventos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE associado_eventos ENABLE ROW LEVEL SECURITY;
 
 -- Helper function to check if user is admin
 CREATE OR REPLACE FUNCTION is_admin() RETURNS BOOLEAN AS $$
@@ -287,6 +303,43 @@ FOR EACH ROW EXECUTE PROCEDURE registrar_evento_indicacao();
 CREATE TRIGGER trg_registrar_evento_indicacao_update
 AFTER UPDATE ON indicacoes
 FOR EACH ROW EXECUTE PROCEDURE registrar_evento_indicacao();
+
+-- Políticas e registro automático de auditoria para associado_eventos (mesmo
+-- princípio de indicacao_eventos)
+CREATE POLICY "Autenticados podem ler/escrever associado_eventos"
+ON associado_eventos FOR ALL TO authenticated USING (true);
+
+CREATE OR REPLACE FUNCTION registrar_evento_associado() RETURNS TRIGGER AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    INSERT INTO associado_eventos (associado_id, autor_id, campo, valor_novo)
+    VALUES (NEW.id, auth.uid(), 'criacao', NEW.nome_completo);
+    RETURN NEW;
+  END IF;
+
+  IF TG_OP = 'UPDATE' THEN
+    IF NEW.nome_completo IS DISTINCT FROM OLD.nome_completo THEN
+      INSERT INTO associado_eventos (associado_id, autor_id, campo, valor_anterior, valor_novo)
+      VALUES (NEW.id, auth.uid(), 'nome_completo', OLD.nome_completo, NEW.nome_completo);
+    END IF;
+    IF NEW.cpf IS DISTINCT FROM OLD.cpf THEN
+      INSERT INTO associado_eventos (associado_id, autor_id, campo, valor_anterior, valor_novo)
+      VALUES (NEW.id, auth.uid(), 'cpf', OLD.cpf, NEW.cpf);
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER trg_registrar_evento_associado_insert
+AFTER INSERT ON associados
+FOR EACH ROW EXECUTE PROCEDURE registrar_evento_associado();
+
+CREATE TRIGGER trg_registrar_evento_associado_update
+AFTER UPDATE ON associados
+FOR EACH ROW EXECUTE PROCEDURE registrar_evento_associado();
 
 -- Trigger para atualizar `updated_at` em `associados`
 CREATE OR REPLACE FUNCTION update_modified_column()

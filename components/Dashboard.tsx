@@ -2,20 +2,29 @@
 
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Search, Plus, UserPlus, Car, Star, Megaphone, Edit2, X, ChevronDown, ChevronUp, Users, ArrowLeft, Hash, Clock } from 'lucide-react';
+import { Search, Plus, UserPlus, Car, Star, Megaphone, Edit2, X, ChevronDown, ChevronUp, Users, ArrowLeft, Hash, Clock, ChevronLeft, ChevronRight, History } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { diasDesde } from '@/lib/utils';
 import { STATUS_BADGE_CLASSES, STATUS_LABELS, DIAS_LIMITE_PARADA } from '@/lib/indicacoes';
 import IndicacaoTimeline from '@/components/IndicacaoTimeline';
+import AssociadoHistorico from '@/components/AssociadoHistorico';
 
 const supabase = createClient();
+
+// Quantos associados mostrar por página na lista — evita carregar a base
+// inteira de uma vez conforme o cadastro cresce.
+const ASSOC_PAGE_SIZE = 12;
 
 export default function Dashboard() {
   const [busca, setBusca] = useState('');
   const [loading, setLoading] = useState(false);
   const [associado, setAssociado] = useState<any>(null);
   const [listaAssociados, setListaAssociados] = useState<any[]>([]);
-  
+  const [assocSearchTerm, setAssocSearchTerm] = useState('');
+  const [assocPage, setAssocPage] = useState(1);
+  const [assocTotalCount, setAssocTotalCount] = useState(0);
+  const [showHistoricoAssociado, setShowHistoricoAssociado] = useState(false);
+
   const [veiculos, setVeiculos] = useState<any[]>([]);
   const [avaliacoes, setAvaliacoes] = useState<any[]>([]);
   const [indicacoes, setIndicacoes] = useState<any[]>([]);
@@ -38,11 +47,38 @@ export default function Dashboard() {
   const [expandedSetores, setExpandedSetores] = useState<Record<string, boolean>>({});
   const [expandedIndicacoes, setExpandedIndicacoes] = useState<Record<string, boolean>>({});
 
-  const carregarListaAssociados = async () => {
-    const { data } = await supabase.from('associados')
-      .select('id, nome_completo, cpf, veiculos(id), avaliacoes(id), indicacoes(id)')
+  // Lista paginada de associados — busca (se houver termo) e navegação de
+  // página passam sempre por aqui, evitando carregar a base inteira de uma vez.
+  const carregarListaAssociados = async (termo = '', pagina = 1) => {
+    let query = supabase.from('associados')
+      .select('id, nome_completo, cpf, veiculos(id), avaliacoes(id), indicacoes(id)', { count: 'exact' })
       .order('nome_completo', { ascending: true });
-    if (data) setListaAssociados(data);
+
+    if (termo) query = query.or(`cpf.ilike.%${termo}%,nome_completo.ilike.%${termo}%`);
+
+    const from = (pagina - 1) * ASSOC_PAGE_SIZE;
+    query = query.range(from, from + ASSOC_PAGE_SIZE - 1);
+
+    const { data, count, error } = await query;
+
+    if (error) {
+      toast.error('Erro ao carregar associados: ' + error.message);
+      setListaAssociados([]);
+      setAssocTotalCount(0);
+      return;
+    }
+
+    if (termo && (!data || data.length === 0)) {
+      toast.error('Nenhum associado encontrado.');
+    }
+
+    setListaAssociados(data || []);
+    setAssocTotalCount(count || 0);
+  };
+
+  const irParaPaginaAssociados = (pagina: number) => {
+    setAssocPage(pagina);
+    carregarListaAssociados(assocSearchTerm, pagina);
   };
 
   const carregarSetores = async () => {
@@ -52,7 +88,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     carregarSetores();
-    carregarListaAssociados();
+    carregarListaAssociados('', 1);
     supabase.from('perfis_usuarios').select('id, nome').then(({ data }) => {
       if (data) setUsuarios(data);
     });
@@ -63,22 +99,30 @@ export default function Dashboard() {
     e.preventDefault();
     setAssociado(null);
     if (!busca) {
-      await carregarListaAssociados();
+      setAssocSearchTerm('');
+      setAssocPage(1);
+      await carregarListaAssociados('', 1);
       return;
     }
-    
+
     setLoading(true);
 
-    let foundExact = await supabase.from('associados').select('*').eq('cpf', busca).maybeSingle();
-    if (foundExact.data) {
-      await carregarDadosAssociado(foundExact.data);
+    // CPF exato e placa exata são checados em paralelo (antes eram duas idas
+    // sequenciais ao banco antes de cair na busca combinada) — reduz a
+    // espera no caso mais comum de digitar um CPF ou placa completos.
+    const [cpfRes, placaRes] = await Promise.all([
+      supabase.from('associados').select('*').eq('cpf', busca).maybeSingle(),
+      supabase.from('veiculos').select('associado_id').ilike('placa', busca).eq('ativo', true).maybeSingle(),
+    ]);
+
+    if (cpfRes.data) {
+      await carregarDadosAssociado(cpfRes.data);
       setLoading(false);
       return;
     }
 
-    let foundPlaca = await supabase.from('veiculos').select('associado_id').ilike('placa', busca).eq('ativo', true).maybeSingle();
-    if (foundPlaca.data) {
-      let assoc = await supabase.from('associados').select('*').eq('id', foundPlaca.data.associado_id).maybeSingle();
+    if (placaRes.data) {
+      const assoc = await supabase.from('associados').select('*').eq('id', placaRes.data.associado_id).maybeSingle();
       if (assoc.data) {
         await carregarDadosAssociado(assoc.data);
         setLoading(false);
@@ -86,19 +130,9 @@ export default function Dashboard() {
       }
     }
 
-    const { data, error } = await supabase
-      .from('associados')
-      .select('id, nome_completo, cpf, veiculos(id), avaliacoes(id), indicacoes(id)')
-      .or(`cpf.ilike.%${busca}%,nome_completo.ilike.%${busca}%`)
-      .order('nome_completo', { ascending: true });
-
-    if (error || !data || data.length === 0) {
-      toast.error('Nenhum associado encontrado.');
-      setListaAssociados([]);
-    } else {
-      setListaAssociados(data);
-    }
-
+    setAssocSearchTerm(busca);
+    setAssocPage(1);
+    await carregarListaAssociados(busca, 1);
     setLoading(false);
   };
 
@@ -106,6 +140,7 @@ export default function Dashboard() {
     setAssociado(assocData);
     setEditNome(assocData.nome_completo);
     setEditCpf(assocData.cpf);
+    setShowHistoricoAssociado(false);
     
     const [veiculosRes, avaliacoesRes, indicacoesRes] = await Promise.all([
       supabase.from('veiculos').select('*').eq('associado_id', assocData.id).eq('ativo', true),
@@ -230,6 +265,33 @@ export default function Dashboard() {
               ))}
             </div>
           )}
+
+          {assocTotalCount > ASSOC_PAGE_SIZE && (
+            <div className="flex items-center justify-between bg-white px-5 py-3 rounded-xl border border-slate-100 shadow-sm">
+              <span className="text-sm text-slate-500">
+                Mostrando {(assocPage - 1) * ASSOC_PAGE_SIZE + 1}–{Math.min(assocPage * ASSOC_PAGE_SIZE, assocTotalCount)} de {assocTotalCount}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => irParaPaginaAssociados(assocPage - 1)}
+                  disabled={assocPage <= 1}
+                  className="p-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="text-sm font-medium text-slate-700 px-2">
+                  Página {assocPage} de {Math.max(1, Math.ceil(assocTotalCount / ASSOC_PAGE_SIZE))}
+                </span>
+                <button
+                  onClick={() => irParaPaginaAssociados(assocPage + 1)}
+                  disabled={assocPage * ASSOC_PAGE_SIZE >= assocTotalCount}
+                  className="p-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -237,8 +299,8 @@ export default function Dashboard() {
       {associado && (
         <div className="space-y-6">
           <div className="flex items-center">
-            <button 
-              onClick={() => { setAssociado(null); setBusca(''); carregarListaAssociados(); }}
+            <button
+              onClick={() => { setAssociado(null); setBusca(''); setAssocSearchTerm(''); setAssocPage(1); carregarListaAssociados('', 1); }}
               className="text-slate-500 hover:text-blue-600 flex items-center gap-2 font-medium transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
@@ -258,7 +320,7 @@ export default function Dashboard() {
                 </div>
               </div>
             ) : (
-              <div>
+              <div className="w-full">
                 <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
                   {associado.nome_completo}
                   <button onClick={() => setEditAssociado(true)} className="text-slate-400 hover:text-blue-600 transition-colors p-1" title="Editar dados">
@@ -268,7 +330,23 @@ export default function Dashboard() {
                 <p className="text-slate-500 mt-1 font-medium">CPF: {associado.cpf}</p>
               </div>
             )}
+            {!editAssociado && (
+              <button
+                onClick={() => setShowHistoricoAssociado(v => !v)}
+                className="text-slate-400 hover:text-blue-600 transition-colors flex items-center gap-1 text-xs font-semibold shrink-0 ml-4"
+                title="Ver histórico de edições do cadastro"
+              >
+                <History className="h-4 w-4" /> Histórico
+                {showHistoricoAssociado ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              </button>
+            )}
           </div>
+
+          {showHistoricoAssociado && !editAssociado && (
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 -mt-2">
+              <AssociadoHistorico supabase={supabase} associadoId={associado.id} usuarios={usuarios} />
+            </div>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Veiculos */}

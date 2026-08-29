@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useMemo, Fragment } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { Megaphone, Filter, ChevronDown, ChevronUp, Hash, Clock, Wifi } from 'lucide-react';
+import { Megaphone, Filter, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Hash, Clock, Wifi } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { subDays, startOfMonth, format } from 'date-fns';
 import { diasDesde } from '@/lib/utils';
@@ -10,6 +10,10 @@ import { STATUS_LABELS, STATUS_BADGE_CLASSES, DIAS_LIMITE_PARADA } from '@/lib/i
 import IndicacaoTimeline from '@/components/IndicacaoTimeline';
 
 const supabase = createClient();
+
+// Quantas indicações mostrar por página — evita carregar o histórico
+// inteiro de uma vez conforme ele cresce.
+const PAGE_SIZE = 20;
 
 type Indicacao = any;
 type Usuario = { id: string, nome: string };
@@ -44,9 +48,11 @@ function StatusSelect({ ind, onChange }: { ind: Indicacao, onChange: (id: string
 
 export default function PainelIndicacoes() {
   const [indicacoes, setIndicacoes] = useState<Indicacao[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
+  const [page, setPage] = useState(1);
 
   // Filtros que disparam uma nova consulta ao banco.
   const [filtros, setFiltros] = useState({
@@ -56,9 +62,20 @@ export default function PainelIndicacoes() {
     data_fim: format(new Date(), 'yyyy-MM-dd')
   });
 
-  // Busca por texto: filtra só na memória (não deve gerar uma nova consulta
-  // ao banco a cada letra digitada — ver anotação abaixo).
+  // Campo de texto (digitação imediata) vs termo efetivamente buscado
+  // (com debounce de 400ms) — evita disparar uma consulta ao banco a cada
+  // tecla digitada, e agora busca no histórico inteiro, não só na página
+  // carregada (por isso precisa ir ao servidor, não dá pra filtrar só local).
+  const [searchInput, setSearchInput] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setSearchTerm(searchInput);
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [searchInput]);
 
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
 
@@ -69,10 +86,11 @@ export default function PainelIndicacoes() {
 
   const carregarIndicacoes = async () => {
     setLoading(true);
+
     let query = supabase.from('indicacoes').select(`
       *,
       associados(nome_completo)
-    `).order('data_indicacao', { ascending: false });
+    `, { count: 'exact' }).order('data_indicacao', { ascending: false });
 
     if (filtros.status) query = query.eq('status', filtros.status);
     if (filtros.responsavel_id === 'unassigned') {
@@ -89,31 +107,39 @@ export default function PainelIndicacoes() {
       query = query.lte('data_indicacao', end);
     }
 
-    const { data, error } = await query;
+    if (searchTerm) {
+      // Nome do indicado e protocolo são colunas da própria tabela — dá pra
+      // filtrar direto. Nome do associado é de outra tabela, então primeiro
+      // descobrimos os ids dos associados que combinam com o termo.
+      const { data: assocMatches } = await supabase
+        .from('associados')
+        .select('id')
+        .ilike('nome_completo', `%${searchTerm}%`);
+      const assocIds = (assocMatches || []).map((a: any) => a.id);
+
+      let orClause = `nome_indicado.ilike.%${searchTerm}%,protocolo.ilike.%${searchTerm}%`;
+      if (assocIds.length > 0) orClause += `,associado_id.in.(${assocIds.join(',')})`;
+      query = query.or(orClause);
+    }
+
+    const from = (page - 1) * PAGE_SIZE;
+    query = query.range(from, from + PAGE_SIZE - 1);
+
+    const { data, count, error } = await query;
 
     if (error) {
       console.error('Erro ao carregar indicações:', error);
       toast.error('Erro ao carregar indicações: ' + error.message);
       setIndicacoes([]);
+      setTotalCount(0);
       setLoading(false);
       return;
     }
 
     setIndicacoes(data || []);
+    setTotalCount(count || 0);
     setLoading(false);
   };
-
-  // Filtro de texto aplicado só sobre os dados já carregados — não refaz a
-  // consulta ao Supabase a cada tecla digitada.
-  const indicacoesFiltradas = useMemo(() => {
-    if (!searchTerm) return indicacoes;
-    const term = searchTerm.toLowerCase();
-    return indicacoes.filter((item: any) =>
-      item.nome_indicado?.toLowerCase().includes(term) ||
-      item.protocolo?.toLowerCase().includes(term) ||
-      item.associados?.nome_completo?.toLowerCase().includes(term)
-    );
-  }, [indicacoes, searchTerm]);
 
   useEffect(() => {
     carregarUsuarios();
@@ -123,7 +149,7 @@ export default function PainelIndicacoes() {
   useEffect(() => {
     carregarIndicacoes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtros]);
+  }, [filtros, page, searchTerm]);
 
   // Tempo real: qualquer criação/alteração em indicacoes feita por outra
   // pessoa (ou outra aba) atualiza esta tela sozinha, sem precisar de F5.
@@ -136,7 +162,12 @@ export default function PainelIndicacoes() {
       .subscribe();
     return () => { supabase.removeChannel(channel); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtros]);
+  }, [filtros, page, searchTerm]);
+
+  const atualizarFiltro = (novo: Partial<typeof filtros>) => {
+    setFiltros(prev => ({ ...prev, ...novo }));
+    setPage(1);
+  };
 
   const updateStatus = async (id: string, novoStatus: string) => {
     const tid = toast.loading('Atualizando status...');
@@ -167,8 +198,7 @@ export default function PainelIndicacoes() {
     if (type === '7dias') start = subDays(today, 7);
     if (type === 'mes') start = startOfMonth(today);
 
-    setFiltros({
-      ...filtros,
+    atualizarFiltro({
       data_inicio: format(start, 'yyyy-MM-dd'),
       data_fim: format(today, 'yyyy-MM-dd')
     });
@@ -207,8 +237,8 @@ export default function PainelIndicacoes() {
             <input
               type="text"
               placeholder="Nome, associado ou protocolo..."
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
+              value={searchInput}
+              onChange={e => setSearchInput(e.target.value)}
               className="h-10 w-full px-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
             />
           </div>
@@ -217,7 +247,7 @@ export default function PainelIndicacoes() {
             <label className="block text-sm font-medium text-slate-600 mb-1">Status</label>
             <select
               value={filtros.status}
-              onChange={e => setFiltros({...filtros, status: e.target.value})}
+              onChange={e => atualizarFiltro({ status: e.target.value })}
               className="h-10 w-full px-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
             >
               <option value="">Todos</option>
@@ -231,7 +261,7 @@ export default function PainelIndicacoes() {
             <label className="block text-sm font-medium text-slate-600 mb-1">Responsável</label>
             <select
               value={filtros.responsavel_id}
-              onChange={e => setFiltros({...filtros, responsavel_id: e.target.value})}
+              onChange={e => atualizarFiltro({ responsavel_id: e.target.value })}
               className="h-10 w-full px-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
             >
               <option value="">Todos</option>
@@ -248,14 +278,14 @@ export default function PainelIndicacoes() {
               <input
                 type="date"
                 value={filtros.data_inicio}
-                onChange={e => setFiltros({...filtros, data_inicio: e.target.value})}
+                onChange={e => atualizarFiltro({ data_inicio: e.target.value })}
                 className="h-10 w-full min-w-0 px-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
               />
               <span className="hidden sm:inline self-center text-slate-400">-</span>
               <input
                 type="date"
                 value={filtros.data_fim}
-                onChange={e => setFiltros({...filtros, data_fim: e.target.value})}
+                onChange={e => atualizarFiltro({ data_fim: e.target.value })}
                 className="h-10 w-full min-w-0 px-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -263,7 +293,7 @@ export default function PainelIndicacoes() {
               <button onClick={() => applyDateShortcut('hoje')} className="text-blue-600 font-medium hover:underline">Hoje</button>
               <button onClick={() => applyDateShortcut('7dias')} className="text-blue-600 font-medium hover:underline">7 Dias</button>
               <button onClick={() => applyDateShortcut('mes')} className="text-blue-600 font-medium hover:underline">Este Mês</button>
-              <button onClick={() => setFiltros({...filtros, data_inicio: '', data_fim: ''})} className="text-slate-500 hover:underline">Limpar</button>
+              <button onClick={() => atualizarFiltro({ data_inicio: '', data_fim: '' })} className="text-slate-500 hover:underline">Limpar</button>
             </div>
           </div>
         </div>
@@ -277,7 +307,7 @@ export default function PainelIndicacoes() {
               <div key={i} className="h-14 bg-slate-100 rounded-xl" />
             ))}
           </div>
-        ) : indicacoesFiltradas.length === 0 ? (
+        ) : indicacoes.length === 0 ? (
           <div className="p-12 text-center text-slate-500">
             Nenhuma indicação encontrada com os filtros atuais.
           </div>
@@ -297,7 +327,7 @@ export default function PainelIndicacoes() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {indicacoesFiltradas.map(ind => (
+                  {indicacoes.map(ind => (
                     <Fragment key={ind.id}>
                       <tr className="hover:bg-slate-50 transition-colors">
                         <td className="px-4 py-3 whitespace-nowrap">
@@ -366,7 +396,7 @@ export default function PainelIndicacoes() {
 
             {/* Mobile Cards View */}
             <div className="block lg:hidden divide-y divide-slate-100">
-              {indicacoesFiltradas.map(ind => (
+              {indicacoes.map(ind => (
                 <div key={ind.id} className="p-4 space-y-4">
                   <div className="flex justify-between items-start">
                     <div>
@@ -439,6 +469,33 @@ export default function PainelIndicacoes() {
           </>
         )}
       </div>
+
+      {totalCount > PAGE_SIZE && (
+        <div className="flex items-center justify-between bg-white px-5 py-3 rounded-xl border border-slate-200 shadow-sm">
+          <span className="text-sm text-slate-500">
+            Mostrando {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, totalCount)} de {totalCount}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className="p-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="text-sm font-medium text-slate-700 px-2">
+              Página {page} de {Math.max(1, Math.ceil(totalCount / PAGE_SIZE))}
+            </span>
+            <button
+              onClick={() => setPage(p => p + 1)}
+              disabled={page * PAGE_SIZE >= totalCount}
+              className="p-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
