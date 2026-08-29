@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Mail, Lock, Eye, EyeOff, ArrowRight, Star, Megaphone, AlertTriangle } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -169,6 +170,9 @@ export default function LoginPage() {
               <div>
                 <div className="flex items-baseline justify-between mb-1.5">
                   <label className="block text-[12px] font-medium text-[#8ea2c4]">Senha</label>
+                  <Link href="/forgot-password" className="text-[11.5px] font-medium text-[#60a5fa] hover:text-[#8ec0fb] transition-colors">
+                    Esqueci minha senha
+                  </Link>
                 </div>
                 <div className="relative">
                   <Lock className="w-4 h-4 text-[#5f7699] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />

@@ -32,6 +32,9 @@ CREATE TABLE setores (
 CREATE TABLE convites (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   nome TEXT NOT NULL,
+  -- Definido pelo admin ao gerar o convite (não mais pela pessoa convidada,
+  -- que agora só define a senha na tela de aceitar convite).
+  email TEXT,
   cargo TEXT,
   funcao TEXT,
   papel papel_usuario NOT NULL DEFAULT 'atendente',
@@ -41,6 +44,12 @@ CREATE TABLE convites (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()),
   aceito_em TIMESTAMP WITH TIME ZONE
 );
+
+-- Evita dois convites pendentes pro mesmo e-mail (não afeta os já
+-- aceitos/expirados).
+CREATE UNIQUE INDEX idx_convites_email_pendente
+ON convites (email)
+WHERE status = 'pendente';
 
 -- Tabela: associados
 CREATE TABLE associados (

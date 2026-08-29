@@ -367,23 +367,31 @@ function SetoresManager({ setores, onUpdate, supabase }: any) {
 
 function UsuariosManager({ usuarios, convites, onUpdate, supabase }: any) {
   const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState({ nome: '', cargo: '', funcao: '', papel: 'atendente' });
-  
+  const [formData, setFormData] = useState({ nome: '', email: '', cargo: '', funcao: '', papel: 'atendente' });
+
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
+    const emailNormalizado = formData.email.trim().toLowerCase();
     const toastId = toast.loading('Gerando convite...');
     const { data: { user } } = await supabase.auth.getUser();
-    
+
     const { error } = await supabase.from('convites').insert({
       ...formData,
+      email: emailNormalizado,
       criado_por: user?.id
     });
-    
+
     if (error) {
-      toast.error('Erro ao gerar convite', { id: toastId });
+      // E-mail já convidado (ver índice único parcial em convites.email) — dá
+      // um retorno específico em vez do genérico "erro ao gerar convite".
+      if (error.code === '23505') {
+        toast.error('Já existe um convite pendente para esse e-mail.', { id: toastId });
+      } else {
+        toast.error('Erro ao gerar convite', { id: toastId });
+      }
     } else {
       toast.success('Convite gerado com sucesso!', { id: toastId });
-      setFormData({ nome: '', cargo: '', funcao: '', papel: 'atendente' });
+      setFormData({ nome: '', email: '', cargo: '', funcao: '', papel: 'atendente' });
       setShowForm(false);
       onUpdate();
     }
@@ -414,10 +422,13 @@ function UsuariosManager({ usuarios, convites, onUpdate, supabase }: any) {
         <form onSubmit={handleInvite} className="mb-6 p-5 bg-blue-50 border border-blue-100 rounded-xl space-y-4 text-sm animate-in slide-in-from-top-2 duration-300">
           <div className="grid grid-cols-2 gap-4">
             <input type="text" placeholder="Nome completo" required value={formData.nome} onChange={e => setFormData({...formData, nome: e.target.value})} className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-            <input type="text" placeholder="Cargo (Ex: Supervisor)" required value={formData.cargo} onChange={e => setFormData({...formData, cargo: e.target.value})} className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+            <input type="email" placeholder="E-mail" required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
           </div>
           <div className="grid grid-cols-2 gap-4">
+            <input type="text" placeholder="Cargo (Ex: Supervisor)" required value={formData.cargo} onChange={e => setFormData({...formData, cargo: e.target.value})} className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
             <input type="text" placeholder="Função" required value={formData.funcao} onChange={e => setFormData({...formData, funcao: e.target.value})} className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+          </div>
+          <div>
             <select value={formData.papel} onChange={e => setFormData({...formData, papel: e.target.value})} className="w-full px-3 py-2 border border-blue-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none font-medium">
               <option value="atendente">Atendente</option>
               <option value="admin">Administrador</option>
@@ -445,6 +456,7 @@ function UsuariosManager({ usuarios, convites, onUpdate, supabase }: any) {
                   {convite.nome} 
                   <span className="text-[10px] uppercase tracking-wider font-bold bg-orange-200 text-orange-800 px-2 py-0.5 rounded-full">Pendente</span>
                 </p>
+                <p className="text-xs text-orange-700 mt-0.5">{convite.email}</p>
                 <p className="text-xs text-orange-700 mt-0.5">{convite.cargo} • {convite.papel === 'admin' ? 'Administrador' : 'Atendente'}</p>
               </div>
               <button onClick={() => copyToClipboard(convite.token)} className="text-orange-600 bg-white hover:bg-orange-100 p-2 border border-orange-200 rounded-lg shadow-sm transition-colors flex items-center gap-2" title="Copiar Link">

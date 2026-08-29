@@ -9,9 +9,9 @@ export default function InvitePage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [invite, setInvite] = useState<any>(null);
-  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  
+  const [confirmarSenha, setConfirmarSenha] = useState('');
+
   const router = useRouter();
   const supabase = createClient();
 
@@ -26,6 +26,10 @@ export default function InvitePage() {
       
       if (error || !data) {
         setError('Convite inválido, expirado ou já utilizado.');
+      } else if (!data.email) {
+        // Convites gerados antes desta mudança não têm e-mail salvo — não dá
+        // pra completar o cadastro sem um admin recriar o convite.
+        setError('Este convite foi gerado num formato antigo, sem e-mail. Peça ao administrador para gerar um novo convite.');
       } else {
         setInvite(data);
       }
@@ -37,12 +41,22 @@ export default function InvitePage() {
 
   const handleAccept = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitting(true);
     setError(null);
+
+    if (password.length < 6) {
+      setError('A senha precisa ter pelo menos 6 caracteres.');
+      return;
+    }
+    if (password !== confirmarSenha) {
+      setError('As senhas não coincidem.');
+      return;
+    }
+
+    setSubmitting(true);
 
     // 1. Criar o usuário no Auth
     const { data: authData, error: authError } = await supabase.auth.signUp({
-      email,
+      email: invite.email,
       password,
       options: {
         data: {
@@ -104,33 +118,37 @@ export default function InvitePage() {
         
         <div className="bg-gray-50 p-4 rounded-md mb-6 space-y-2 text-sm border border-gray-200">
           <p><strong>Nome:</strong> {invite.nome}</p>
+          <p><strong>E-mail:</strong> {invite.email}</p>
           <p><strong>Cargo:</strong> {invite.cargo}</p>
           <p><strong>Função:</strong> {invite.funcao}</p>
         </div>
 
         <form onSubmit={handleAccept} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">E-mail</label>
-            <input 
-              type="email" 
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Crie uma Senha</label>
-            <input 
-              type="password" 
+            <input
+              type="password"
               required
               minLength={6}
+              autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
-          <button 
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Confirme a Senha</label>
+            <input
+              type="password"
+              required
+              minLength={6}
+              autoComplete="new-password"
+              value={confirmarSenha}
+              onChange={(e) => setConfirmarSenha(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <button
             type="submit"
             disabled={submitting}
             className="w-full bg-blue-600 text-white font-medium py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
