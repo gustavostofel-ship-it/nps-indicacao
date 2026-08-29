@@ -7,7 +7,7 @@ import { startOfMonth, format, subDays, isAfter, isBefore } from 'date-fns';
 import { ArrowRight, Star, Megaphone, Users, Target, CheckCircle2, AlertCircle, ArrowUpRight, ArrowDownRight, Clock, AlertTriangle, Download, Filter, Wifi, X } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
-import { buscarStatusIndicacao, corStatus, DIAS_LIMITE_PARADA, StatusIndicacao } from '@/lib/indicacoes';
+import { buscarStatusIndicacao, corStatus, normalizarStatusEmbutido, DIAS_LIMITE_PARADA, StatusIndicacao } from '@/lib/indicacoes';
 
 const supabase = createClient();
 
@@ -117,11 +117,11 @@ export default function MainDashboard() {
     if (resSetores.error) console.error('Erro ao carregar setores:', resSetores.error);
 
     setAvaliacoes(resAval.data || []);
-    setIndicacoes(resInd.data || []);
+    setIndicacoes((resInd.data || []).map(normalizarStatusEmbutido));
     setUsuarios(resUser.data || []);
     setSetoresList(resSetores.data || []);
     setAvaliacoesPrev(resAvalPrev.data || []);
-    setIndicacoesPrev(resIndPrev.data || []);
+    setIndicacoesPrev((resIndPrev.data || []).map(normalizarStatusEmbutido));
 
     setLoading(false);
   };

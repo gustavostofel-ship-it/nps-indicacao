@@ -37,6 +37,19 @@ export function corStatus(cor: string) {
 // Mesmo limite usado no alerta do Dashboard Geral (MainDashboard.tsx).
 export const DIAS_LIMITE_PARADA = 3;
 
+// O embed `status:indicacao_status(...)` numa consulta de indicações pode
+// vir como objeto ou como array de 1 item, dependendo de como o Supabase
+// infere a relação — mesma situação que já acontecia com `setor` nas
+// avaliações. Normaliza pra sempre virar um objeto único (ou null).
+// Retorno tipado como `any` no campo status de propósito: o TypeScript não
+// consegue estreitar o tipo genérico só com a checagem em tempo de
+// execução, e `any` aqui é compatível com qualquer formato esperado
+// (StatusIndicacao | null) nos componentes que usam isso.
+export function normalizarStatusEmbutido<T extends { status?: any }>(row: T): Omit<T, 'status'> & { status: any } {
+  const status = Array.isArray(row.status) ? (row.status[0] ?? null) : row.status;
+  return { ...row, status };
+}
+
 export async function buscarStatusIndicacao(supabase: any, incluirInativos = false): Promise<StatusIndicacao[]> {
   let query = supabase.from('indicacao_status').select('*').order('ordem', { ascending: true });
   if (!incluirInativos) query = query.eq('ativo', true);

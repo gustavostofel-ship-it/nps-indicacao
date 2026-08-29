@@ -7,7 +7,7 @@ import { Megaphone, Filter, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, H
 import toast from 'react-hot-toast';
 import { subDays, startOfMonth, format } from 'date-fns';
 import { diasDesde } from '@/lib/utils';
-import { buscarStatusIndicacao, corStatus, DIAS_LIMITE_PARADA, StatusIndicacao } from '@/lib/indicacoes';
+import { buscarStatusIndicacao, corStatus, normalizarStatusEmbutido, DIAS_LIMITE_PARADA, StatusIndicacao } from '@/lib/indicacoes';
 import IndicacaoTimeline from '@/components/IndicacaoTimeline';
 
 const supabase = createClient();
@@ -176,7 +176,7 @@ export default function PainelIndicacoes() {
       return;
     }
 
-    setIndicacoes(data || []);
+    setIndicacoes((data || []).map(normalizarStatusEmbutido));
     setTotalCount(count || 0);
     setLoading(false);
   };

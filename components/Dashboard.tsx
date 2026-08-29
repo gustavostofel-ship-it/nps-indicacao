@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Search, Plus, UserPlus, Car, Star, Megaphone, Edit2, X, ChevronDown, ChevronUp, Users, ArrowLeft, Hash, Clock, ChevronLeft, ChevronRight, History, Phone, Power, MessageCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { diasDesde, maskCPF, validarCPF, maskPlaca, validarPlaca, maskPhone } from '@/lib/utils';
-import { buscarStatusIndicacao, corStatus, DIAS_LIMITE_PARADA, StatusIndicacao } from '@/lib/indicacoes';
+import { buscarStatusIndicacao, corStatus, normalizarStatusEmbutido, DIAS_LIMITE_PARADA, StatusIndicacao } from '@/lib/indicacoes';
 import IndicacaoTimeline from '@/components/IndicacaoTimeline';
 import AssociadoHistorico from '@/components/AssociadoHistorico';
 
@@ -195,7 +195,7 @@ export default function Dashboard() {
     
     setVeiculos(veiculosRes.data || []);
     setAvaliacoes(avaliacoesRes.data || []);
-    setIndicacoes(indicacoesRes.data || []);
+    setIndicacoes((indicacoesRes.data || []).map(normalizarStatusEmbutido));
   };
 
   const handleSaveAssociado = async () => {
