@@ -29,8 +29,10 @@ export const CORES_STATUS: Record<string, { badge: string; ring: string; dot: st
 };
 export const CHAVES_CORES_STATUS = Object.keys(CORES_STATUS);
 
-export function corStatus(cor: string) {
-  return CORES_STATUS[cor] || CORES_STATUS.cinza;
+// Aceita undefined/null de propósito: em toda tela isso é chamado como
+// corStatus(ind.status?.cor), e `status` pode não ter carregado ainda.
+export function corStatus(cor: string | undefined | null) {
+  return (cor && CORES_STATUS[cor]) || CORES_STATUS.cinza;
 }
 
 // Quantos dias sem atualização para considerar uma indicação "parada".
