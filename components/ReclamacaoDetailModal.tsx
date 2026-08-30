@@ -1,8 +1,9 @@
 'use client';
 
-import { X, Hash, Star, Clock } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, Hash, Star, Clock, Pencil } from 'lucide-react';
 import { diasDesde } from '@/lib/utils';
-import { corStatus, DIAS_LIMITE_PARADA, StatusReclamacao } from '@/lib/reclamacoes';
+import { corStatus, DIAS_LIMITE_PARADA, StatusReclamacao, MotivoReclamacao } from '@/lib/reclamacoes';
 import ReclamacaoTimeline from '@/components/ReclamacaoTimeline';
 
 type Usuario = { id: string; nome: string };
@@ -13,24 +14,55 @@ type Usuario = { id: string; nome: string };
 export default function ReclamacaoDetailModal({
   rec,
   statusTodos,
+  motivosTodos,
   usuarios,
   currentUserId,
   supabase,
   onClose,
   onStatusChange,
   onResponsavelChange,
+  onSalvarEdicao,
   getNomeUsuario,
 }: {
   rec: any;
   statusTodos: StatusReclamacao[];
+  motivosTodos: MotivoReclamacao[];
   usuarios: Usuario[];
   currentUserId: string | undefined;
   supabase: any;
   onClose: () => void;
   onStatusChange: (id: string, statusId: string) => void;
   onResponsavelChange: (id: string, respId: string) => void;
+  onSalvarEdicao: (id: string, motivoId: string, descricao: string) => Promise<void>;
   getNomeUsuario: (id: string) => string;
 }) {
+  // Edição de motivo/detalhes — sempre gera evento no histórico (a trigger
+  // no banco cuida disso sozinha ao comparar OLD/NEW, então não tem como
+  // esquecer de registrar).
+  const [editando, setEditando] = useState(false);
+  const [motivoId, setMotivoId] = useState(rec.motivo_id || '');
+  const [detalhes, setDetalhes] = useState(rec.descricao || '');
+  const [salvando, setSalvando] = useState(false);
+
+  // Se o usuário fechar e reabrir noutro item (ou o item mudar por baixo),
+  // os campos de edição precisam re-sincronizar com os dados atuais.
+  useEffect(() => {
+    setMotivoId(rec.motivo_id || '');
+    setDetalhes(rec.descricao || '');
+    setEditando(false);
+  }, [rec.id]);
+
+  // Sempre inclui o motivo atual da reclamação na lista de opções, mesmo que
+  // ele tenha sido desativado depois — senão o select ficaria sem a opção
+  // que já está selecionada.
+  const opcoesMotivo = motivosTodos.filter(m => m.ativo || m.id === rec.motivo_id);
+
+  const handleSalvarEdicao = async () => {
+    setSalvando(true);
+    await onSalvarEdicao(rec.id, motivoId, detalhes.trim());
+    setSalvando(false);
+    setEditando(false);
+  };
   const statusAtivos = statusTodos.filter(s => s.ativo);
   const opcoesStatus = (!rec.status || (rec.status.ativo === false && !statusAtivos.some(s => s.id === rec.status_id)))
     ? [...statusAtivos, ...(statusTodos.find(s => s.id === rec.status_id) ? [statusTodos.find(s => s.id === rec.status_id)!] : [])]
@@ -53,17 +85,16 @@ export default function ReclamacaoDetailModal({
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <div className="text-xs text-slate-400 mb-1 uppercase font-semibold">Motivo</div>
-              <div className="text-sm font-semibold text-slate-800">{rec.motivo?.nome || 'Sem motivo definido'}</div>
-            </div>
-            <div>
-              <div className="text-xs text-slate-400 mb-1 uppercase font-semibold">Aberta em</div>
-              <div className="text-sm font-medium text-slate-700">
-                {new Date(rec.data_abertura).toLocaleDateString('pt-BR')} por {getNomeUsuario(rec.aberto_por)}
-              </div>
-            </div>
+          <div className="flex items-start justify-between gap-4">
+            <div className="text-xs text-slate-400 uppercase font-semibold">Aberta em {new Date(rec.data_abertura).toLocaleDateString('pt-BR')} por {getNomeUsuario(rec.aberto_por)}</div>
+            {!editando && (
+              <button
+                onClick={() => setEditando(true)}
+                className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800 shrink-0"
+              >
+                <Pencil className="w-3.5 h-3.5" /> Editar motivo/detalhes
+              </button>
+            )}
           </div>
 
           {rec.avaliacao && (
@@ -72,10 +103,55 @@ export default function ReclamacaoDetailModal({
             </div>
           )}
 
-          {rec.descricao && (
+          {editando ? (
+            <div className="space-y-3 bg-blue-50/50 border border-blue-100 rounded-xl p-4">
+              <div>
+                <label className="block text-xs text-slate-500 mb-1 uppercase font-semibold">Motivo</label>
+                <select
+                  value={motivoId}
+                  onChange={e => setMotivoId(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                >
+                  <option value="">Sem motivo definido</option>
+                  {opcoesMotivo.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500 mb-1 uppercase font-semibold">Detalhes</label>
+                <textarea
+                  value={detalhes}
+                  onChange={e => setDetalhes(e.target.value)}
+                  rows={3}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none text-sm"
+                />
+              </div>
+              <p className="text-[11px] text-slate-400">Qualquer alteração aqui fica registrada no histórico abaixo.</p>
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => { setEditando(false); setMotivoId(rec.motivo_id || ''); setDetalhes(rec.descricao || ''); }}
+                  className="px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-white rounded-lg transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleSalvarEdicao}
+                  disabled={salvando}
+                  className="px-4 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-60"
+                >
+                  {salvando ? 'Salvando...' : 'Salvar'}
+                </button>
+              </div>
+            </div>
+          ) : (
             <div>
-              <div className="text-xs text-slate-400 mb-1 uppercase font-semibold">Detalhes</div>
-              <p className="text-sm text-slate-600 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 whitespace-pre-wrap">{rec.descricao}</p>
+              <div className="text-xs text-slate-400 mb-1 uppercase font-semibold">Motivo</div>
+              <div className="text-sm font-semibold text-slate-800">{rec.motivo?.nome || 'Sem motivo definido'}</div>
+              {rec.descricao && (
+                <>
+                  <div className="text-xs text-slate-400 mb-1 mt-3 uppercase font-semibold">Detalhes</div>
+                  <p className="text-sm text-slate-600 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 whitespace-pre-wrap">{rec.descricao}</p>
+                </>
+              )}
             </div>
           )}
 

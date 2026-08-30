@@ -586,7 +586,7 @@ ON reclamacoes FOR ALL TO authenticated USING (true);
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'tipo_evento_reclamacao') THEN
-    EXECUTE $sql$CREATE TYPE tipo_evento_reclamacao AS ENUM ('criacao', 'status_alterado', 'responsavel_alterado', 'observacao')$sql$;
+    EXECUTE $sql$CREATE TYPE tipo_evento_reclamacao AS ENUM ('criacao', 'status_alterado', 'responsavel_alterado', 'observacao', 'motivo_alterado', 'descricao_alterada')$sql$;
   END IF;
 END $$;
 
@@ -646,6 +646,18 @@ BEGIN
     IF NEW.responsavel_atual_id IS DISTINCT FROM OLD.responsavel_atual_id THEN
       INSERT INTO reclamacao_eventos (reclamacao_id, tipo, autor_id, valor_anterior, valor_novo)
       VALUES (NEW.id, 'responsavel_alterado', auth.uid(), OLD.responsavel_atual_id::text, NEW.responsavel_atual_id::text);
+    END IF;
+    IF NEW.motivo_id IS DISTINCT FROM OLD.motivo_id THEN
+      INSERT INTO reclamacao_eventos (reclamacao_id, tipo, autor_id, valor_anterior, valor_novo)
+      VALUES (
+        NEW.id, 'motivo_alterado', auth.uid(),
+        (SELECT nome FROM reclamacao_motivo WHERE id = OLD.motivo_id),
+        (SELECT nome FROM reclamacao_motivo WHERE id = NEW.motivo_id)
+      );
+    END IF;
+    IF NEW.descricao IS DISTINCT FROM OLD.descricao THEN
+      INSERT INTO reclamacao_eventos (reclamacao_id, tipo, autor_id, valor_anterior, valor_novo)
+      VALUES (NEW.id, 'descricao_alterada', auth.uid(), OLD.descricao, NEW.descricao);
     END IF;
     RETURN NEW;
   END IF;

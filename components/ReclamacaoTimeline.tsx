@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { PlusCircle, RefreshCw, UserCog, MessageSquare, Send } from 'lucide-react';
+import { PlusCircle, RefreshCw, UserCog, MessageSquare, Send, Tag, FileEdit } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
   ReclamacaoEvento,
@@ -15,6 +15,8 @@ const ICONS: Record<string, any> = {
   status_alterado: RefreshCw,
   responsavel_alterado: UserCog,
   observacao: MessageSquare,
+  motivo_alterado: Tag,
+  descricao_alterada: FileEdit,
 };
 
 const DOT_CLASSES: Record<string, string> = {
@@ -22,6 +24,8 @@ const DOT_CLASSES: Record<string, string> = {
   status_alterado: 'bg-amber-100 text-amber-600',
   responsavel_alterado: 'bg-green-100 text-green-600',
   observacao: 'bg-slate-100 text-slate-500',
+  motivo_alterado: 'bg-purple-100 text-purple-600',
+  descricao_alterada: 'bg-slate-100 text-slate-500',
 };
 
 type Usuario = { id: string; nome: string };
@@ -141,6 +145,11 @@ export default function ReclamacaoTimeline({
                     {ev.tipo === 'observacao' && ev.descricao && (
                       <div className="mt-2 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-sm text-slate-600 whitespace-pre-wrap">
                         {ev.descricao}
+                      </div>
+                    )}
+                    {ev.tipo === 'descricao_alterada' && (
+                      <div className="mt-2 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-sm text-slate-600 whitespace-pre-wrap">
+                        {ev.valor_novo || <span className="italic text-slate-400">(detalhes removidos)</span>}
                       </div>
                     )}
                   </div>

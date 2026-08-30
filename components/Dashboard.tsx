@@ -698,17 +698,31 @@ export default function Dashboard() {
                           </div>
                           
                           {ultima ? (
-                            <div className="mt-3 flex items-center gap-3">
-                              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg
-                                ${ultima.nota >= 9 ? 'bg-green-200 text-green-800' : 
-                                  ultima.nota >= 7 ? 'bg-yellow-200 text-yellow-800' : 'bg-red-200 text-red-800'}`}>
-                                {ultima.nota}
+                            <div className="mt-3 flex items-center gap-3 justify-between">
+                              <div className="flex items-center gap-3">
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg shrink-0
+                                  ${ultima.nota >= 9 ? 'bg-green-200 text-green-800' :
+                                    ultima.nota >= 7 ? 'bg-yellow-200 text-yellow-800' : 'bg-red-200 text-red-800'}`}>
+                                  {ultima.nota}
+                                </div>
+                                <div>
+                                  <p className="text-xs text-slate-500 font-medium">Última em {new Date(ultima.data_avaliacao).toLocaleDateString('pt-BR')}</p>
+                                  <p className="text-[11px] text-slate-400">por {getNomeUsuario(ultima.usuario_id)}</p>
+                                  {isPromoter && <span className="text-[10px] uppercase font-bold text-green-700">Oportunidade de Indicação</span>}
+                                </div>
                               </div>
-                              <div>
-                                <p className="text-xs text-slate-500 font-medium">Última em {new Date(ultima.data_avaliacao).toLocaleDateString('pt-BR')}</p>
-                                <p className="text-[11px] text-slate-400">por {getNomeUsuario(ultima.usuario_id)}</p>
-                                {isPromoter && <span className="text-[10px] uppercase font-bold text-green-700">Oportunidade de Indicação</span>}
-                              </div>
+                              {reclamacoes.some(r => r.avaliacao_id === ultima.id) ? (
+                                <span className="flex items-center gap-1 text-[10px] font-bold text-red-700 bg-red-100 px-1.5 py-0.5 rounded shrink-0">
+                                  <AlertOctagon className="w-2.5 h-2.5" /> Em tratativa
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => setNovaReclamacao({ aberto: true, avaliacao: ultima })}
+                                  className="flex items-center gap-1 text-[10px] font-bold text-red-600 bg-red-50 hover:bg-red-100 px-1.5 py-0.5 rounded transition-colors shrink-0"
+                                >
+                                  <AlertOctagon className="w-2.5 h-2.5" /> Abrir Reclamação
+                                </button>
+                              )}
                             </div>
                           ) : (
                             <p className="text-sm text-slate-400 mt-2">Sem avaliações</p>

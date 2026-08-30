@@ -7,7 +7,7 @@ import { AlertOctagon, Filter, ChevronLeft, ChevronRight, Hash, Clock, Wifi, Lis
 import toast from 'react-hot-toast';
 import { subDays, startOfMonth, format } from 'date-fns';
 import { diasDesde } from '@/lib/utils';
-import { buscarStatusReclamacao, corStatus, normalizarStatusEmbutido, registrarObservacaoReclamacao, DIAS_LIMITE_PARADA, StatusReclamacao } from '@/lib/reclamacoes';
+import { buscarStatusReclamacao, buscarMotivosReclamacao, corStatus, normalizarStatusEmbutido, registrarObservacaoReclamacao, DIAS_LIMITE_PARADA, StatusReclamacao, MotivoReclamacao } from '@/lib/reclamacoes';
 import ModalFinalizarReclamacao from '@/components/ModalFinalizarReclamacao';
 import ReclamacaoDetailModal from '@/components/ReclamacaoDetailModal';
 
@@ -39,6 +39,7 @@ export default function PainelReclamacoes() {
   const [totalCount, setTotalCount] = useState(0);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [statusTodos, setStatusTodos] = useState<StatusReclamacao[]>([]);
+  const [motivosTodos, setMotivosTodos] = useState<MotivoReclamacao[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
   const [page, setPage] = useState(1);
@@ -144,6 +145,7 @@ export default function PainelReclamacoes() {
   useEffect(() => {
     carregarUsuarios();
     buscarStatusReclamacao(supabase, true).then(setStatusTodos);
+    buscarMotivosReclamacao(supabase, true).then(setMotivosTodos);
     supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id));
   }, []);
 
@@ -206,6 +208,21 @@ export default function PainelReclamacoes() {
       setReclamacoes(prev => prev.map(r => r.id === id ? {...r, status_id: statusId, status: novoStatus} : r));
     }
     setFinalizando(null);
+  };
+
+  const salvarEdicao = async (id: string, motivoId: string, descricao: string) => {
+    const tid = toast.loading('Salvando...');
+    const { error } = await supabase.from('reclamacoes').update({
+      motivo_id: motivoId || null,
+      descricao: descricao || null,
+    }).eq('id', id);
+    if (error) {
+      toast.error('Erro ao salvar: ' + error.message, { id: tid });
+      return;
+    }
+    toast.success('Alterações salvas!', { id: tid });
+    const novoMotivo = motivosTodos.find(m => m.id === motivoId);
+    setReclamacoes(prev => prev.map(r => r.id === id ? {...r, motivo_id: motivoId || null, motivo: novoMotivo || null, descricao: descricao || null} : r));
   };
 
   const updateResponsavel = async (id: string, novoResp: string) => {
@@ -441,12 +458,14 @@ export default function PainelReclamacoes() {
         <ReclamacaoDetailModal
           rec={reclamacaoAberta}
           statusTodos={statusTodos}
+          motivosTodos={motivosTodos}
           usuarios={usuarios}
           currentUserId={currentUserId}
           supabase={supabase}
           onClose={() => setDetalheAbertoId(null)}
           onStatusChange={updateStatus}
           onResponsavelChange={updateResponsavel}
+          onSalvarEdicao={salvarEdicao}
           getNomeUsuario={getNomeUsuario}
         />
       )}

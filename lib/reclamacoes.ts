@@ -55,7 +55,7 @@ export async function buscarMotivosReclamacao(supabase: any, incluirInativos = f
   return data || [];
 }
 
-export type TipoEventoReclamacao = 'criacao' | 'status_alterado' | 'responsavel_alterado' | 'observacao';
+export type TipoEventoReclamacao = 'criacao' | 'status_alterado' | 'responsavel_alterado' | 'observacao' | 'motivo_alterado' | 'descricao_alterada';
 
 export type ReclamacaoEvento = {
   id: string;
@@ -114,6 +114,10 @@ export function descreverEventoReclamacao(evento: ReclamacaoEvento) {
       return evento.valor_novo ? 'Responsável reatribuído' : 'Responsável removido';
     case 'observacao':
       return 'Observação adicionada';
+    case 'motivo_alterado':
+      return `Motivo alterado: ${evento.valor_anterior || '—'} → ${evento.valor_novo || '—'}`;
+    case 'descricao_alterada':
+      return 'Detalhes atualizados';
     default:
       return evento.descricao || 'Evento registrado';
   }
