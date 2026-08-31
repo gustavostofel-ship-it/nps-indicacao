@@ -23,7 +23,10 @@ export default function InvitePage() {
       // dados de UM convite, e só se a gente já souber o token exato. Isso
       // evita que a tabela de convites fique listável por qualquer visitante
       // não-logado (ver supabase_migration_seguranca_convites.sql).
-      const { data, error } = await supabase
+      // Tipado como `any`: essa função RPC não existe nos tipos gerados do
+      // Supabase (não há um arquivo de tipos gerado neste projeto), então o
+      // TypeScript não tem como saber os campos que ela devolve sozinho.
+      const { data, error }: { data: any; error: any } = await supabase
         .rpc('buscar_convite_por_token', { p_token: token })
         .maybeSingle();
 
