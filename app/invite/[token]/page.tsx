@@ -2,12 +2,13 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter, useParams } from 'next/navigation';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 
 export default function InvitePage() {
   const { token } = useParams();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [concluido, setConcluido] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [invite, setInvite] = useState<any>(null);
   const [password, setPassword] = useState('');
@@ -85,11 +86,17 @@ export default function InvitePage() {
     }
 
     if (authData.user) {
-      router.push('/login');
+      setSubmitting(false);
+      setConcluido(true);
+      // Se o projeto exigir confirmação de e-mail, authData.session vem nulo
+      // aqui (usuário criado, mas ainda não pode logar até confirmar) — por
+      // isso a tela de conclusão avisa sobre o e-mail em vez de já mandar
+      // pro login sem explicar nada.
+      setTimeout(() => router.push('/login'), 4000);
     }
   };
 
-  if (loading) return <div className="text-center py-12">Carregando convite...</div>;
+  if (loading) return <div className="text-center py-12 text-slate-300">Carregando convite...</div>;
 
   if (error) return (
     <div className="min-h-screen flex items-center justify-center -mt-16">
@@ -100,16 +107,31 @@ export default function InvitePage() {
     </div>
   );
 
+  if (concluido) return (
+    <div className="min-h-screen flex items-center justify-center -mt-16">
+      <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100 w-full max-w-md text-center">
+        <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
+          <CheckCircle2 className="w-6 h-6 text-green-600" />
+        </div>
+        <h2 className="text-xl font-bold text-gray-900 mb-2">Cadastro concluído!</h2>
+        <p className="text-sm text-gray-600 leading-relaxed">
+          Se o sistema pedir confirmação, chega um e-mail em <strong className="text-gray-800">{invite?.email}</strong> — confere também a caixa de spam.
+        </p>
+        <p className="text-sm text-gray-500 mt-3">Redirecionando para o login...</p>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen flex items-center justify-center -mt-16">
       <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-100 w-full max-w-md">
         <h2 className="text-2xl font-bold text-gray-900 mb-2 text-center">Aceitar Convite</h2>
         <p className="text-sm text-gray-500 mb-6 text-center">Preencha seus dados de acesso para entrar no sistema.</p>
-        
-        <div className="bg-gray-50 p-4 rounded-md mb-6 space-y-2 text-sm border border-gray-200">
-          <p><strong>Nome:</strong> {invite.nome}</p>
-          <p><strong>E-mail:</strong> {invite.email}</p>
-          <p><strong>Função:</strong> {invite.funcao}</p>
+
+        <div className="bg-gray-50 p-4 rounded-md mb-6 space-y-2 text-sm border border-gray-200 text-gray-700">
+          <p><strong className="text-gray-800">Nome:</strong> {invite.nome}</p>
+          <p><strong className="text-gray-800">E-mail:</strong> {invite.email}</p>
+          <p><strong className="text-gray-800">Função:</strong> {invite.funcao}</p>
         </div>
 
         <form onSubmit={handleAccept} className="space-y-4">

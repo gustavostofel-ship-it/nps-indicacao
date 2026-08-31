@@ -52,7 +52,14 @@ export default async function RootLayout({children}: {children: React.ReactNode}
 
   return (
     <html lang="pt-BR" className={inter.variable} suppressHydrationWarning>
-      <body className={`min-h-screen flex flex-col font-sans text-slate-800 dark:text-slate-100 ${user ? 'bg-slate-50 dark:bg-slate-900' : 'bg-[#070f1f]'}`} suppressHydrationWarning>
+      {/* dark:text-slate-100 só entra quando tem usuário logado (é onde o
+          modo escuro realmente existe, com o botão no menu). Sem esse
+          "user ?" a variante dark: aplicava também nas telas sem login
+          (convite, por ex.) sempre que o navegador já tivesse o tema escuro
+          salvo de uma sessão anterior — como essas telas não têm cor de
+          texto própria em vários pontos (herdam do body), o texto virava
+          quase branco em cima de cartão branco, ilegível. */}
+      <body className={`min-h-screen flex flex-col font-sans ${user ? 'text-slate-800 dark:text-slate-100 bg-slate-50 dark:bg-slate-900' : 'text-slate-800 bg-[#070f1f]'}`} suppressHydrationWarning>
         {/* Roda antes de qualquer coisa pintar na tela, pra já aplicar o
             tema escolhido sem um "flash" da tela clara antes de escurecer.
             Lê localStorage direto (não dá pra saber isso no servidor). */}
