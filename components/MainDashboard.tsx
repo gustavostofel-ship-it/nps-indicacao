@@ -9,8 +9,26 @@ import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { buscarStatusIndicacao, corStatus, normalizarStatusEmbutido, DIAS_LIMITE_PARADA, StatusIndicacao } from '@/lib/indicacoes';
 import { buscarStatusReclamacao, StatusReclamacao } from '@/lib/reclamacoes';
+import { useIsDark } from '@/lib/theme';
 
 const supabase = createClient();
+
+// O recharts não enxerga classes `dark:` do Tailwind — linha de grade,
+// texto dos eixos e o fundo do tooltip são props inline (JS), não CSS.
+// useIsDark() escuta o toggle de tema (ver lib/theme.ts) pra recalcular
+// essas cores na hora — sem isso o tooltip/cursor do hover ficava sempre
+// branco, mesmo com o resto da tela no escuro.
+function useChartColors() {
+  const escuro = useIsDark();
+  return {
+    grid: escuro ? '#334155' : '#e2e8f0',
+    tick: escuro ? '#94a3b8' : '#64748b',
+    cursor: escuro ? '#334155' : '#f8fafc',
+    tooltipBg: escuro ? '#1e293b' : '#ffffff',
+    tooltipBorder: escuro ? '#334155' : '#e2e8f0',
+    tooltipText: escuro ? '#e2e8f0' : '#0f172a',
+  };
+}
 
 type StatusEmbutido = { id: string, nome: string, cor: string, conta_como_fechado: boolean } | null;
 type StatusReclamacaoEmbutido = { id: string, nome: string, cor: string, conta_como_resolvido: boolean } | null;
@@ -39,6 +57,7 @@ function DeltaBadge({ delta, invertido = false }: { delta: number | null, invert
 }
 
 export default function MainDashboard() {
+  const chartColors = useChartColors();
   const [avaliacoes, setAvaliacoes] = useState<Avaliacao[]>([]);
   const [indicacoes, setIndicacoes] = useState<Indicacao[]>([]);
   const [reclamacoes, setReclamacoes] = useState<Reclamacao[]>([]);
@@ -693,10 +712,10 @@ export default function MainDashboard() {
                 {npsEvolutionData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={npsEvolutionData}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                      <XAxis dataKey="date" tick={{fontSize: 12, fill: '#64748b'}} tickLine={false} axisLine={false} />
-                      <YAxis domain={[0, 10]} tick={{fontSize: 12, fill: '#64748b'}} tickLine={false} axisLine={false} />
-                      <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartColors.grid} />
+                      <XAxis dataKey="date" tick={{fontSize: 12, fill: chartColors.tick}} tickLine={false} axisLine={false} />
+                      <YAxis domain={[0, 10]} tick={{fontSize: 12, fill: chartColors.tick}} tickLine={false} axisLine={false} />
+                      <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid " + chartColors.tooltipBorder, boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)", backgroundColor: chartColors.tooltipBg, color: chartColors.tooltipText }} />
                       <Line type="monotone" dataKey="media" name="Média NPS" stroke="#3b82f6" strokeWidth={3} dot={{r: 4, strokeWidth: 2}} activeDot={{r: 6}} />
                     </LineChart>
                   </ResponsiveContainer>
@@ -713,10 +732,10 @@ export default function MainDashboard() {
                 {setorData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={setorData} layout="vertical" margin={{ left: 20 }}>
-                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={chartColors.grid} />
                       <XAxis type="number" domain={[0, 10]} hide />
-                      <YAxis dataKey="name" type="category" tick={{fontSize: 12, fill: '#64748b'}} tickLine={false} axisLine={false} />
-                      <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                      <YAxis dataKey="name" type="category" tick={{fontSize: 12, fill: chartColors.tick}} tickLine={false} axisLine={false} />
+                      <Tooltip cursor={{fill: chartColors.cursor}} contentStyle={{ borderRadius: "8px", border: "1px solid " + chartColors.tooltipBorder, boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)", backgroundColor: chartColors.tooltipBg, color: chartColors.tooltipText }} />
                       <Bar dataKey="media" name="Média" fill="#6366f1" radius={[0, 4, 4, 0]} barSize={24} />
                     </BarChart>
                   </ResponsiveContainer>
@@ -738,8 +757,8 @@ export default function MainDashboard() {
                           <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                         ))}
                       </Pie>
-                      <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                      <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{fontSize: '12px', color: '#64748b'}} />
+                      <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid " + chartColors.tooltipBorder, boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)", backgroundColor: chartColors.tooltipBg, color: chartColors.tooltipText }} />
+                      <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{fontSize: "12px", color: chartColors.tick}} />
                     </PieChart>
                   </ResponsiveContainer>
                 ) : (
@@ -755,10 +774,10 @@ export default function MainDashboard() {
                 {totalIndicacoes > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={statusData}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                      <XAxis dataKey="name" tick={{fontSize: 12, fill: '#64748b'}} tickLine={false} axisLine={false} />
-                      <YAxis allowDecimals={false} tick={{fontSize: 12, fill: '#64748b'}} tickLine={false} axisLine={false} />
-                      <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartColors.grid} />
+                      <XAxis dataKey="name" tick={{fontSize: 12, fill: chartColors.tick}} tickLine={false} axisLine={false} />
+                      <YAxis allowDecimals={false} tick={{fontSize: 12, fill: chartColors.tick}} tickLine={false} axisLine={false} />
+                      <Tooltip cursor={{fill: chartColors.cursor}} contentStyle={{ borderRadius: "8px", border: "1px solid " + chartColors.tooltipBorder, boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)", backgroundColor: chartColors.tooltipBg, color: chartColors.tooltipText }} />
                       <Bar dataKey="value" name="Quantidade" radius={[4, 4, 0, 0]} barSize={40}>
                         {statusData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.fill} />
@@ -779,10 +798,10 @@ export default function MainDashboard() {
                 {totalReclamacoes > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={statusReclamacaoData}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                      <XAxis dataKey="name" tick={{fontSize: 11, fill: '#64748b'}} tickLine={false} axisLine={false} interval={0} angle={-15} textAnchor="end" height={50} />
-                      <YAxis allowDecimals={false} tick={{fontSize: 12, fill: '#64748b'}} tickLine={false} axisLine={false} />
-                      <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartColors.grid} />
+                      <XAxis dataKey="name" tick={{fontSize: 11, fill: chartColors.tick}} tickLine={false} axisLine={false} interval={0} angle={-15} textAnchor="end" height={50} />
+                      <YAxis allowDecimals={false} tick={{fontSize: 12, fill: chartColors.tick}} tickLine={false} axisLine={false} />
+                      <Tooltip cursor={{fill: chartColors.cursor}} contentStyle={{ borderRadius: "8px", border: "1px solid " + chartColors.tooltipBorder, boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)", backgroundColor: chartColors.tooltipBg, color: chartColors.tooltipText }} />
                       <Bar dataKey="value" name="Quantidade" radius={[4, 4, 0, 0]} barSize={40}>
                         {statusReclamacaoData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.fill} />
@@ -804,10 +823,10 @@ export default function MainDashboard() {
                 {totalComCorrelacao > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={correlacaoData} layout="vertical" margin={{ left: 20 }}>
-                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={chartColors.grid} />
                       <XAxis type="number" allowDecimals={false} hide />
-                      <YAxis dataKey="name" type="category" tick={{fontSize: 12, fill: '#64748b'}} tickLine={false} axisLine={false} width={90} />
-                      <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                      <YAxis dataKey="name" type="category" tick={{fontSize: 12, fill: chartColors.tick}} tickLine={false} axisLine={false} width={90} />
+                      <Tooltip cursor={{fill: chartColors.cursor}} contentStyle={{ borderRadius: "8px", border: "1px solid " + chartColors.tooltipBorder, boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)", backgroundColor: chartColors.tooltipBg, color: chartColors.tooltipText }} />
                       <Bar dataKey="value" name="Indicações" radius={[0, 4, 4, 0]} barSize={22}>
                         {correlacaoData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.fill} />

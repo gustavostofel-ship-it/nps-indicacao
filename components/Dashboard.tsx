@@ -685,8 +685,8 @@ export default function Dashboard() {
                     const isPromoter = ultima && ultima.nota >= 9;
                     
                     return (
-                      <div key={setor.id} className={`border rounded-xl overflow-hidden transition-colors ${isPromoter ? 'border-green-300 shadow-sm' : 'border-slate-200 dark:border-slate-700'}`}>
-                        <div className={`p-4 ${isPromoter ? 'bg-green-50' : 'bg-slate-50 dark:bg-slate-900/40'}`}>
+                      <div key={setor.id} className={`border rounded-xl overflow-hidden transition-colors ${isPromoter ? 'border-green-300 dark:border-green-500/30 shadow-sm' : 'border-slate-200 dark:border-slate-700'}`}>
+                        <div className={`p-4 ${isPromoter ? 'bg-green-50 dark:bg-green-500/10' : 'bg-slate-50 dark:bg-slate-900/40'}`}>
                           <div className="flex justify-between items-start mb-2">
                             <h4 className="font-bold text-slate-800 dark:text-slate-100">{setor.nome}</h4>
                             <button 

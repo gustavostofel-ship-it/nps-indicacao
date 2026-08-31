@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Sun, Moon } from 'lucide-react';
+import { THEME_CHANGE_EVENT } from '@/lib/theme';
 
 const THEME_KEY = 'girow:theme';
 
@@ -12,6 +13,10 @@ function aplicarTema(escuro: boolean) {
   } catch {
     // localStorage indisponível (modo privado, etc.) — só não persiste a escolha
   }
+  // Avisa componentes que dependem de saber o tema em JS (gráficos do
+  // recharts, etc.) — classes `dark:` do Tailwind já reagem sozinhas via
+  // CSS, isso aqui é só pra quem não pode usar CSS pra essa cor.
+  window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
 }
 
 // Botão sol/lua no menu — alterna a classe "dark" na tag <html> (ver o
