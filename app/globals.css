@@ -15,8 +15,14 @@
    que não quebra linha, etc.), isso trava a rolagem lateral da PÁGINA
    inteira em vez de deixar o usuário arrastar o site inteiro pros lados.
    O conteúdo específico que precisar rolar (tabelas largas) continua
-   rolando normalmente dentro do seu próprio container. */
+   rolando normalmente dentro do seu próprio container.
+   Importante: "clip" aqui, não "hidden". overflow-x:hidden sozinho força
+   o navegador a tratar overflow-y como "auto" por baixo dos panos (regra
+   da spec de CSS), o que transforma o <body> num scroll container próprio
+   — e isso quebra `position: sticky` de qualquer coisa dentro dele (foi
+   exatamente o que aconteceu com o menu fixo do topo). "clip" corta o
+   conteúdo que passa da tela do mesmo jeito, sem esse efeito colateral. */
 html, body {
-  overflow-x: hidden;
+  overflow-x: clip;
   max-width: 100vw;
 }
