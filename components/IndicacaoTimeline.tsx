@@ -21,7 +21,7 @@ const DOT_CLASSES: Record<string, string> = {
   criacao: 'bg-blue-100 text-blue-600',
   status_alterado: 'bg-amber-100 text-amber-600',
   responsavel_alterado: 'bg-green-100 text-green-600',
-  observacao: 'bg-slate-100 text-slate-500',
+  observacao: 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400',
 };
 
 type Usuario = { id: string; nome: string };
@@ -78,14 +78,14 @@ export default function IndicacaoTimeline({
   return (
     <div className="space-y-4">
       <div>
-        <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wide">
+        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wide">
           Nova observação
         </label>
         <div className="flex gap-2">
           <textarea
             value={novaNota}
             onChange={(e) => setNovaNota(e.target.value)}
-            className="flex-1 w-full p-3 text-sm bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+            className="flex-1 w-full p-3 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none"
             rows={2}
             placeholder="Registre uma ligação, retorno ou anotação sobre o andamento..."
           />
@@ -101,16 +101,16 @@ export default function IndicacaoTimeline({
       </div>
 
       <div>
-        <div className="text-xs font-bold text-slate-500 mb-3 uppercase tracking-wide">
+        <div className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-3 uppercase tracking-wide">
           Histórico
         </div>
         {loading ? (
           <div className="space-y-2 animate-pulse">
-            <div className="h-10 bg-slate-100 rounded-lg" />
-            <div className="h-10 bg-slate-100 rounded-lg" />
+            <div className="h-10 bg-slate-100 dark:bg-slate-800 rounded-lg" />
+            <div className="h-10 bg-slate-100 dark:bg-slate-800 rounded-lg" />
           </div>
         ) : eventos.length === 0 ? (
-          <p className="text-sm text-slate-400 italic">Nenhum evento registrado ainda.</p>
+          <p className="text-sm text-slate-400 dark:text-slate-500 italic">Nenhum evento registrado ainda.</p>
         ) : (
           <ul className="space-y-0">
             {eventos.map((ev, idx) => {
@@ -119,27 +119,27 @@ export default function IndicacaoTimeline({
               return (
                 <li key={ev.id} className="flex gap-3 relative">
                   <div className="flex flex-col items-center">
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${DOT_CLASSES[ev.tipo] || 'bg-slate-100 text-slate-500'}`}>
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${DOT_CLASSES[ev.tipo] || 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`}>
                       <Icon className="w-3.5 h-3.5" />
                     </div>
                     {!isLast && <div className="w-px flex-1 bg-slate-200 my-1" />}
                   </div>
-                  <div className={`flex-1 ${isLast ? 'pb-0' : 'pb-4 mb-4 border-b border-slate-100'}`}>
+                  <div className={`flex-1 ${isLast ? 'pb-0' : 'pb-4 mb-4 border-b border-slate-100 dark:border-slate-700/60'}`}>
                     <div className="flex justify-between items-start gap-2 flex-wrap">
-                      <span className="text-sm font-semibold text-slate-700">
+                      <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
                         {ev.tipo === 'responsavel_alterado'
                           ? (ev.valor_novo
                               ? `Responsável reatribuído: ${ev.valor_anterior ? getNome(ev.valor_anterior) : 'Ninguém'} → ${getNome(ev.valor_novo)}`
                               : `Responsável removido: ${getNome(ev.valor_anterior)}`)
                           : descreverEvento(ev)}
                       </span>
-                      <span className="text-[11px] text-slate-400 font-medium whitespace-nowrap">
+                      <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium whitespace-nowrap">
                         {new Date(ev.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
-                    <div className="text-xs text-slate-500 mt-0.5">{getNome(ev.autor_id)}</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{getNome(ev.autor_id)}</div>
                     {ev.tipo === 'observacao' && ev.descricao && (
-                      <div className="mt-2 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 text-sm text-slate-600 whitespace-pre-wrap">
+                      <div className="mt-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-700/60 rounded-lg px-3 py-2 text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap">
                         {ev.descricao}
                       </div>
                     )}

@@ -377,18 +377,18 @@ export default function Dashboard() {
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       {/* Search Bar */}
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+      <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/60">
         <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-              <Search className="h-5 w-5 text-slate-400" />
+              <Search className="h-5 w-5 text-slate-400 dark:text-slate-500" />
             </div>
             <input
               type="text"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               placeholder="Buscar por CPF ou Nome do associado..."
-              className="block w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white focus:outline-none transition-all shadow-sm"
+              className="block w-full pl-11 pr-4 py-3 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white focus:outline-none transition-all shadow-sm"
             />
           </div>
           <button
@@ -405,11 +405,11 @@ export default function Dashboard() {
       {!associado && !loading && (
         <div className="space-y-6">
           <div className="flex justify-between items-center flex-wrap gap-3">
-            <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+            <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
               <Users className="h-6 w-6 text-blue-600" /> {mostrarArquivados ? 'Associados arquivados' : 'Associados'}
             </h2>
             <div className="flex items-center gap-4">
-              <label className="flex items-center gap-2 text-sm font-medium text-slate-500 cursor-pointer select-none">
+              <label className="flex items-center gap-2 text-sm font-medium text-slate-500 dark:text-slate-400 cursor-pointer select-none">
                 <input type="checkbox" checked={mostrarArquivados} onChange={toggleMostrarArquivados} className="w-4 h-4 accent-blue-600 cursor-pointer" />
                 Mostrar arquivados
               </label>
@@ -424,14 +424,14 @@ export default function Dashboard() {
           </div>
 
           {listaAssociados.length === 0 ? (
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-12 flex flex-col items-center justify-center text-center">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/60 p-12 flex flex-col items-center justify-center text-center">
               <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mb-4">
                 <Users className="h-8 w-8 text-blue-600" />
               </div>
-              <h2 className="text-xl font-bold text-slate-800 mb-2">
+              <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-2">
                 {mostrarArquivados ? 'Nenhum associado arquivado' : 'Nenhum associado encontrado'}
               </h2>
-              <p className="text-slate-500 max-w-md">
+              <p className="text-slate-500 dark:text-slate-400 max-w-md">
                 {mostrarArquivados
                   ? 'Não há associados arquivados no momento.'
                   : 'Você ainda não tem associados cadastrados ou nenhum corresponde à sua busca.'}
@@ -445,7 +445,7 @@ export default function Dashboard() {
                 <div
                   key={assoc.id}
                   onClick={() => { setBusca(assoc.cpf); handleSearch({preventDefault: () => null} as any); }}
-                  className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 hover:border-blue-300 hover:shadow-md transition-all cursor-pointer flex flex-col gap-3 group"
+                  className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/60 hover:border-blue-300 dark:hover:border-blue-500/50 hover:shadow-md transition-all cursor-pointer flex flex-col gap-3 group"
                 >
                   <div>
                     <div className="flex items-center gap-2">
@@ -455,18 +455,18 @@ export default function Dashboard() {
                           title={`Última avaliação: ${classe}`}
                         />
                       )}
-                      <h3 className="font-bold text-lg text-slate-800 group-hover:text-blue-600 transition-colors">{assoc.nome_completo}</h3>
+                      <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100 group-hover:text-blue-600 transition-colors">{assoc.nome_completo}</h3>
                     </div>
-                    <p className="text-sm text-slate-500 font-medium">CPF: {assoc.cpf}</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">CPF: {assoc.cpf}</p>
                     {assoc.telefone && (
-                      <p className="text-sm text-slate-500 font-medium flex items-center gap-1.5 mt-0.5">
-                        <Phone className="w-3.5 h-3.5 text-slate-400" /> {assoc.telefone}
+                      <p className="text-sm text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1.5 mt-0.5">
+                        <Phone className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" /> {assoc.telefone}
                       </p>
                     )}
                   </div>
-                  <div className="flex items-center gap-3 mt-2 border-t border-slate-100 pt-3 flex-wrap">
-                    <span className="flex items-center gap-1.5 text-xs font-semibold bg-slate-100 text-slate-600 px-2.5 py-1 rounded-lg">
-                      <Car className="w-4 h-4 text-slate-400" /> {assoc.veiculos?.length || 0} veículos
+                  <div className="flex items-center gap-3 mt-2 border-t border-slate-100 dark:border-slate-700/60 pt-3 flex-wrap">
+                    <span className="flex items-center gap-1.5 text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2.5 py-1 rounded-lg">
+                      <Car className="w-4 h-4 text-slate-400 dark:text-slate-500" /> {assoc.veiculos?.length || 0} veículos
                     </span>
                     <span className="flex items-center gap-1.5 text-xs font-semibold bg-blue-50 text-blue-600 px-2.5 py-1 rounded-lg">
                       <Star className="w-4 h-4 text-blue-400" /> {assoc.avaliacoes?.length || 0} avaliações
@@ -490,25 +490,25 @@ export default function Dashboard() {
           )}
 
           {assocTotalCount > ASSOC_PAGE_SIZE && (
-            <div className="flex items-center justify-between bg-white px-5 py-3 rounded-xl border border-slate-100 shadow-sm">
-              <span className="text-sm text-slate-500">
+            <div className="flex items-center justify-between bg-white dark:bg-slate-800 px-5 py-3 rounded-xl border border-slate-100 dark:border-slate-700/60 shadow-sm">
+              <span className="text-sm text-slate-500 dark:text-slate-400">
                 Mostrando {(assocPage - 1) * ASSOC_PAGE_SIZE + 1}–{Math.min(assocPage * ASSOC_PAGE_SIZE, assocTotalCount)} de {assocTotalCount}
               </span>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => irParaPaginaAssociados(assocPage - 1)}
                   disabled={assocPage <= 1}
-                  className="p-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
-                <span className="text-sm font-medium text-slate-700 px-2">
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-200 px-2">
                   Página {assocPage} de {Math.max(1, Math.ceil(assocTotalCount / ASSOC_PAGE_SIZE))}
                 </span>
                 <button
                   onClick={() => irParaPaginaAssociados(assocPage + 1)}
                   disabled={assocPage * ASSOC_PAGE_SIZE >= assocTotalCount}
-                  className="p-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -524,7 +524,7 @@ export default function Dashboard() {
           <div className="flex items-center">
             <button
               onClick={() => { setAssociado(null); setBusca(''); setAssocSearchTerm(''); setAssocPage(1); carregarListaAssociados('', 1); }}
-              className="text-slate-500 hover:text-blue-600 flex items-center gap-2 font-medium transition-colors"
+              className="text-slate-500 dark:text-slate-400 hover:text-blue-600 flex items-center gap-2 font-medium transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
               Voltar para a lista
@@ -532,26 +532,26 @@ export default function Dashboard() {
           </div>
           
           {/* Header Info */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex justify-between items-start">
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/60 flex justify-between items-start">
             {editAssociado ? (
               <div className="flex-1 max-w-lg space-y-3">
-                <input value={editNome} onChange={e=>setEditNome(e.target.value)} className="w-full text-xl font-bold px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Nome Completo" />
-                <input value={editCpf} onChange={e=>setEditCpf(maskCPF(e.target.value))} maxLength={14} className="w-full text-slate-600 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="CPF" />
-                <input value={editTelefone} onChange={e=>setEditTelefone(maskPhone(e.target.value))} maxLength={15} className="w-full text-slate-600 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Telefone (opcional)" />
+                <input value={editNome} onChange={e=>setEditNome(e.target.value)} className="w-full text-xl font-bold px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Nome Completo" />
+                <input value={editCpf} onChange={e=>setEditCpf(maskCPF(e.target.value))} maxLength={14} className="w-full text-slate-600 dark:text-slate-300 px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="CPF" />
+                <input value={editTelefone} onChange={e=>setEditTelefone(maskPhone(e.target.value))} maxLength={15} className="w-full text-slate-600 dark:text-slate-300 px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Telefone (opcional)" />
                 <div className="flex gap-2">
                   <button onClick={handleSaveAssociado} className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700">Salvar</button>
-                  <button onClick={() => {setEditAssociado(false); setEditNome(associado.nome_completo); setEditCpf(associado.cpf); setEditTelefone(associado.telefone || '');}} className="px-4 py-2 bg-slate-100 text-slate-700 text-sm font-semibold rounded-lg hover:bg-slate-200">Cancelar</button>
+                  <button onClick={() => {setEditAssociado(false); setEditNome(associado.nome_completo); setEditCpf(associado.cpf); setEditTelefone(associado.telefone || '');}} className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm font-semibold rounded-lg hover:bg-slate-200">Cancelar</button>
                 </div>
               </div>
             ) : (
               <div className="w-full">
-                <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
+                <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-3">
                   {associado.nome_completo}
-                  <button onClick={() => setEditAssociado(true)} className="text-slate-400 hover:text-blue-600 transition-colors p-1" title="Editar dados">
+                  <button onClick={() => setEditAssociado(true)} className="text-slate-400 dark:text-slate-500 hover:text-blue-600 transition-colors p-1" title="Editar dados">
                     <Edit2 className="h-4 w-4" />
                   </button>
                 </h2>
-                <p className="text-slate-500 mt-1 font-medium">CPF: {associado.cpf}</p>
+                <p className="text-slate-500 dark:text-slate-400 mt-1 font-medium">CPF: {associado.cpf}</p>
                 {associado.telefone ? (
                   <div className="flex items-center gap-3 mt-1.5">
                     <a href={`tel:${associado.telefone.replace(/\D/g, '')}`} className="flex items-center gap-1.5 text-sm font-semibold text-blue-600 hover:underline">
@@ -562,7 +562,7 @@ export default function Dashboard() {
                     </a>
                   </div>
                 ) : (
-                  <p className="text-slate-400 mt-1.5 text-sm italic">Sem telefone cadastrado</p>
+                  <p className="text-slate-400 dark:text-slate-500 mt-1.5 text-sm italic">Sem telefone cadastrado</p>
                 )}
               </div>
             )}
@@ -570,7 +570,7 @@ export default function Dashboard() {
               <div className="flex items-center gap-4 shrink-0 ml-4">
                 <button
                   onClick={() => setShowHistoricoAssociado(v => !v)}
-                  className="text-slate-400 hover:text-blue-600 transition-colors flex items-center gap-1 text-xs font-semibold"
+                  className="text-slate-400 dark:text-slate-500 hover:text-blue-600 transition-colors flex items-center gap-1 text-xs font-semibold"
                   title="Ver histórico de edições do cadastro"
                 >
                   <History className="h-4 w-4" /> Histórico
@@ -578,7 +578,7 @@ export default function Dashboard() {
                 </button>
                 <button
                   onClick={() => associado.ativo === false ? handleToggleAtivoAssociado() : setConfirmArquivarAssociado(true)}
-                  className={`flex items-center gap-1 text-xs font-semibold transition-colors ${associado.ativo === false ? 'text-green-600 hover:text-green-700' : 'text-slate-400 hover:text-red-600'}`}
+                  className={`flex items-center gap-1 text-xs font-semibold transition-colors ${associado.ativo === false ? 'text-green-600 hover:text-green-700' : 'text-slate-400 dark:text-slate-500 hover:text-red-600'}`}
                   title={associado.ativo === false ? 'Restaurar associado' : 'Arquivar associado'}
                 >
                   {associado.ativo === false ? <ArchiveRestore className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
@@ -595,7 +595,7 @@ export default function Dashboard() {
           )}
 
           {showHistoricoAssociado && !editAssociado && (
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 -mt-2">
+            <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/60 -mt-2">
               <AssociadoHistorico supabase={supabase} associadoId={associado.id} usuarios={usuarios} />
             </div>
           )}
@@ -632,9 +632,9 @@ export default function Dashboard() {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Veiculos */}
-            <div className="lg:col-span-1 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+            <div className="lg:col-span-1 bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/60">
               <div className="flex justify-between items-center mb-5">
-                <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                   <Car className="h-5 w-5 text-blue-600" /> Veículos
                 </h3>
                 <button onClick={() => setShowNovaPlaca(true)} className="text-blue-600 hover:text-blue-800 font-semibold text-sm flex items-center gap-1">
@@ -642,22 +642,22 @@ export default function Dashboard() {
                 </button>
               </div>
               {veiculos.length === 0 ? (
-                <div className="text-center py-6 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
-                  <p className="text-slate-500 text-sm font-medium">Nenhum veículo</p>
+                <div className="text-center py-6 bg-slate-50 dark:bg-slate-900/40 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
+                  <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Nenhum veículo</p>
                 </div>
               ) : (
                 <div className="flex flex-wrap gap-2">
                   {veiculos.map(v => (
-                    <div key={v.id} className="bg-slate-100 border border-slate-200 px-3 py-2 rounded-lg text-sm flex items-start gap-2 group">
+                    <div key={v.id} className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2 rounded-lg text-sm flex items-start gap-2 group">
                       <div className="flex flex-col">
-                        <span className="font-bold text-slate-800">{v.placa}</span>
-                        <span className="text-slate-500 text-xs">{v.modelo}</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-100">{v.placa}</span>
+                        <span className="text-slate-500 dark:text-slate-400 text-xs">{v.modelo}</span>
                       </div>
                       <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => setVeiculoEditando(v)} title="Editar veículo" className="text-slate-400 hover:text-blue-600">
+                        <button onClick={() => setVeiculoEditando(v)} title="Editar veículo" className="text-slate-400 dark:text-slate-500 hover:text-blue-600">
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
-                        <button onClick={() => setVeiculoParaDesativar(v.id)} title="Desativar veículo" className="text-slate-400 hover:text-red-600">
+                        <button onClick={() => setVeiculoParaDesativar(v.id)} title="Desativar veículo" className="text-slate-400 dark:text-slate-500 hover:text-red-600">
                           <Power className="w-3.5 h-3.5" />
                         </button>
                       </div>
@@ -668,14 +668,14 @@ export default function Dashboard() {
             </div>
 
             {/* Avaliações */}
-            <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-              <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-5">
+            <div className="lg:col-span-2 bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/60">
+              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 mb-5">
                 <Star className="h-5 w-5 text-yellow-500" /> Avaliações NPS
               </h3>
               
               {setores.length === 0 ? (
-                <div className="text-center py-6 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
-                  <p className="text-slate-500 text-sm font-medium">Nenhum setor de avaliação configurado no sistema.</p>
+                <div className="text-center py-6 bg-slate-50 dark:bg-slate-900/40 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
+                  <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Nenhum setor de avaliação configurado no sistema.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -685,10 +685,10 @@ export default function Dashboard() {
                     const isPromoter = ultima && ultima.nota >= 9;
                     
                     return (
-                      <div key={setor.id} className={`border rounded-xl overflow-hidden transition-colors ${isPromoter ? 'border-green-300 shadow-sm' : 'border-slate-200'}`}>
-                        <div className={`p-4 ${isPromoter ? 'bg-green-50' : 'bg-slate-50'}`}>
+                      <div key={setor.id} className={`border rounded-xl overflow-hidden transition-colors ${isPromoter ? 'border-green-300 shadow-sm' : 'border-slate-200 dark:border-slate-700'}`}>
+                        <div className={`p-4 ${isPromoter ? 'bg-green-50' : 'bg-slate-50 dark:bg-slate-900/40'}`}>
                           <div className="flex justify-between items-start mb-2">
-                            <h4 className="font-bold text-slate-800">{setor.nome}</h4>
+                            <h4 className="font-bold text-slate-800 dark:text-slate-100">{setor.nome}</h4>
                             <button 
                               onClick={() => setShowNovaAvaliacao({aberto: true, setorId: setor.id})}
                               className="text-blue-600 hover:text-blue-800 text-xs font-bold px-2 py-1 bg-blue-100 rounded flex items-center"
@@ -706,8 +706,8 @@ export default function Dashboard() {
                                   {ultima.nota}
                                 </div>
                                 <div>
-                                  <p className="text-xs text-slate-500 font-medium">Última em {new Date(ultima.data_avaliacao).toLocaleDateString('pt-BR')}</p>
-                                  <p className="text-[11px] text-slate-400">por {getNomeUsuario(ultima.usuario_id)}</p>
+                                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Última em {new Date(ultima.data_avaliacao).toLocaleDateString('pt-BR')}</p>
+                                  <p className="text-[11px] text-slate-400 dark:text-slate-500">por {getNomeUsuario(ultima.usuario_id)}</p>
                                   {isPromoter && <span className="text-[10px] uppercase font-bold text-green-700">Oportunidade de Indicação</span>}
                                 </div>
                               </div>
@@ -725,7 +725,7 @@ export default function Dashboard() {
                               )}
                             </div>
                           ) : (
-                            <p className="text-sm text-slate-400 mt-2">Sem avaliações</p>
+                            <p className="text-sm text-slate-400 dark:text-slate-500 mt-2">Sem avaliações</p>
                           )}
                         </div>
                         
@@ -737,10 +737,10 @@ export default function Dashboard() {
                           if (!podeExpandir) return null;
                           
                           return (
-                            <div className="border-t border-slate-200/50 bg-white">
+                            <div className="border-t border-slate-200 dark:border-slate-700/50 bg-white dark:bg-slate-800">
                               <button 
                                 onClick={() => toggleSetorExpand(setor.id)} 
-                                className="w-full px-4 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-50 flex justify-center items-center gap-1"
+                                className="w-full px-4 py-2 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 flex justify-center items-center gap-1"
                               >
                                 {expandedSetores[setor.id] ? 'Ocultar Detalhes' : (temHistorico ? 'Ver Detalhes e Histórico' : 'Ver Detalhes')}
                                 {expandedSetores[setor.id] ? <ChevronUp className="w-3 h-3"/> : <ChevronDown className="w-3 h-3"/>}
@@ -752,9 +752,9 @@ export default function Dashboard() {
                                     const temNotasCriterios = av.avaliacao_notas && av.avaliacao_notas.length > 0;
                                     const veiculoAvaliado = veiculos.find(v => v.id === av.veiculo_id);
                                     return (
-                                      <div key={av.id} className="flex flex-col text-xs py-2 border-b border-slate-100 last:border-0 group/av">
+                                      <div key={av.id} className="flex flex-col text-xs py-2 border-b border-slate-100 dark:border-slate-700/60 last:border-0 group/av">
                                         <div className="flex justify-between items-center mb-1">
-                                          <span className="text-slate-500">
+                                          <span className="text-slate-500 dark:text-slate-400">
                                             {new Date(av.data_avaliacao).toLocaleDateString('pt-BR')}
                                             {veiculoAvaliado ? ` · ${veiculoAvaliado.placa}` : ''}
                                             {index === 0 ? ' (Última)' : ''}
@@ -772,7 +772,7 @@ export default function Dashboard() {
                                           </div>
                                         </div>
                                         <div className="flex items-center justify-between gap-2 mb-1">
-                                          <p className="text-slate-400 text-[11px]">Avaliado por {getNomeUsuario(av.usuario_id)}</p>
+                                          <p className="text-slate-400 dark:text-slate-500 text-[11px]">Avaliado por {getNomeUsuario(av.usuario_id)}</p>
                                           {(
                                             reclamacoes.some(r => r.avaliacao_id === av.id) ? (
                                               <span className="flex items-center gap-1 text-[10px] font-bold text-red-700 bg-red-100 px-1.5 py-0.5 rounded">
@@ -789,9 +789,9 @@ export default function Dashboard() {
                                           )}
                                         </div>
                                         {temNotasCriterios && (
-                                          <div className="mt-1 pl-2 border-l-2 border-slate-200 space-y-1">
+                                          <div className="mt-1 pl-2 border-l-2 border-slate-200 dark:border-slate-700 space-y-1">
                                             {av.avaliacao_notas.map((an: any, idx: number) => (
-                                              <div key={idx} className="flex justify-between text-slate-600">
+                                              <div key={idx} className="flex justify-between text-slate-600 dark:text-slate-300">
                                                 <span>{an.criterios_avaliacao?.nome || 'Critério'}:</span>
                                                 <span className="font-medium">{an.nota}</span>
                                               </div>
@@ -799,7 +799,7 @@ export default function Dashboard() {
                                           </div>
                                         )}
                                         {av.comentario && (
-                                          <p className="mt-1.5 text-slate-600 bg-slate-50 rounded px-2 py-1.5 whitespace-pre-wrap">{av.comentario}</p>
+                                          <p className="mt-1.5 text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/40 rounded px-2 py-1.5 whitespace-pre-wrap">{av.comentario}</p>
                                         )}
                                       </div>
                                     );
@@ -818,9 +818,9 @@ export default function Dashboard() {
           </div>
 
           {/* Indicações */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/60">
             <div className="flex justify-between items-center mb-5">
-              <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                 <Megaphone className="h-5 w-5 text-blue-600" /> Indicações
               </h3>
               <button 
@@ -832,9 +832,9 @@ export default function Dashboard() {
             </div>
             
             {indicacoes.length === 0 ? (
-              <div className="text-center py-10 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+              <div className="text-center py-10 bg-slate-50 dark:bg-slate-900/40 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
                 <Megaphone className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                <p className="text-slate-500 font-medium">Nenhuma indicação registrada.</p>
+                <p className="text-slate-500 dark:text-slate-400 font-medium">Nenhuma indicação registrada.</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -842,13 +842,13 @@ export default function Dashboard() {
                   const dias = diasDesde(ind.updated_at || ind.data_indicacao);
                   const parada = !ind.status?.conta_como_fechado && dias >= DIAS_LIMITE_PARADA;
                   return (
-                  <div key={ind.id} className="border border-slate-200 rounded-xl overflow-hidden">
-                    <div className="p-4 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div key={ind.id} className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+                    <div className="p-4 bg-white dark:bg-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-bold text-slate-800">{ind.nome_indicado}</p>
+                          <p className="font-bold text-slate-800 dark:text-slate-100">{ind.nome_indicado}</p>
                           {ind.protocolo && (
-                            <span className="flex items-center gap-1 text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded font-mono">
+                            <span className="flex items-center gap-1 text-[11px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded font-mono">
                               <Hash className="w-3 h-3" />{ind.protocolo}
                             </span>
                           )}
@@ -858,7 +858,7 @@ export default function Dashboard() {
                             </span>
                           )}
                         </div>
-                        <p className="text-sm text-slate-500 mt-0.5">{ind.telefone_indicado} • {new Date(ind.data_indicacao).toLocaleDateString('pt-BR')}</p>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{ind.telefone_indicado} • {new Date(ind.data_indicacao).toLocaleDateString('pt-BR')}</p>
                       </div>
                       <div className="flex items-center gap-3">
                         <select
@@ -874,7 +874,7 @@ export default function Dashboard() {
                         </select>
                         <button
                           onClick={() => toggleIndicacaoExpand(ind.id)}
-                          className="text-slate-400 hover:text-blue-600 transition-colors p-2 rounded-lg hover:bg-slate-50"
+                          className="text-slate-400 dark:text-slate-500 hover:text-blue-600 transition-colors p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800"
                         >
                           {expandedIndicacoes[ind.id] ? <ChevronUp className="w-5 h-5"/> : <ChevronDown className="w-5 h-5"/>}
                         </button>
@@ -882,7 +882,7 @@ export default function Dashboard() {
                     </div>
 
                     {expandedIndicacoes[ind.id] && (
-                      <div className="p-4 bg-slate-50 border-t border-slate-100">
+                      <div className="p-4 bg-slate-50 dark:bg-slate-900/40 border-t border-slate-100 dark:border-slate-700/60">
                         <IndicacaoTimeline
                           supabase={supabase}
                           indicacaoId={ind.id}
@@ -899,9 +899,9 @@ export default function Dashboard() {
           </div>
 
           {/* Reclamações */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/60">
             <div className="flex justify-between items-center mb-5">
-              <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                 <AlertOctagon className="h-5 w-5 text-red-500" /> Reclamações
               </h3>
               <button
@@ -913,9 +913,9 @@ export default function Dashboard() {
             </div>
 
             {reclamacoes.length === 0 ? (
-              <div className="text-center py-10 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+              <div className="text-center py-10 bg-slate-50 dark:bg-slate-900/40 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
                 <AlertOctagon className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                <p className="text-slate-500 font-medium">Nenhuma reclamação registrada.</p>
+                <p className="text-slate-500 dark:text-slate-400 font-medium">Nenhuma reclamação registrada.</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -923,12 +923,12 @@ export default function Dashboard() {
                   const dias = diasDesde(rec.updated_at || rec.data_abertura);
                   const parada = !rec.status?.conta_como_resolvido && dias >= DIAS_LIMITE_PARADA;
                   return (
-                  <div key={rec.id} className="border border-slate-200 rounded-xl overflow-hidden">
-                    <div className="p-4 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div key={rec.id} className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+                    <div className="p-4 bg-white dark:bg-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
                           {rec.protocolo && (
-                            <span className="flex items-center gap-1 text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded font-mono">
+                            <span className="flex items-center gap-1 text-[11px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded font-mono">
                               <Hash className="w-3 h-3" />{rec.protocolo}
                             </span>
                           )}
@@ -943,9 +943,9 @@ export default function Dashboard() {
                             </span>
                           )}
                         </div>
-                        <p className="text-sm font-semibold text-slate-700 mt-1">{rec.motivo?.nome || 'Sem motivo definido'}</p>
-                        {rec.descricao && <p className="text-sm text-slate-500 mt-0.5">{rec.descricao}</p>}
-                        <p className="text-xs text-slate-400 mt-0.5">Aberta em {new Date(rec.data_abertura).toLocaleDateString('pt-BR')} por {getNomeUsuario(rec.aberto_por)}</p>
+                        <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 mt-1">{rec.motivo?.nome || 'Sem motivo definido'}</p>
+                        {rec.descricao && <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{rec.descricao}</p>}
+                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Aberta em {new Date(rec.data_abertura).toLocaleDateString('pt-BR')} por {getNomeUsuario(rec.aberto_por)}</p>
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
                         <select
@@ -959,7 +959,7 @@ export default function Dashboard() {
                         </select>
                         <button
                           onClick={() => toggleReclamacaoExpand(rec.id)}
-                          className="text-slate-400 hover:text-blue-600 transition-colors p-2 rounded-lg hover:bg-slate-50"
+                          className="text-slate-400 dark:text-slate-500 hover:text-blue-600 transition-colors p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800"
                         >
                           {expandedReclamacoes[rec.id] ? <ChevronUp className="w-5 h-5"/> : <ChevronDown className="w-5 h-5"/>}
                         </button>
@@ -967,7 +967,7 @@ export default function Dashboard() {
                     </div>
 
                     {expandedReclamacoes[rec.id] && (
-                      <div className="p-4 bg-slate-50 border-t border-slate-100">
+                      <div className="p-4 bg-slate-50 dark:bg-slate-900/40 border-t border-slate-100 dark:border-slate-700/60">
                         <ReclamacaoTimeline
                           supabase={supabase}
                           reclamacaoId={rec.id}
@@ -1022,7 +1022,7 @@ function NotaSelector({ value, onChange }: { value: number | null, onChange: (n:
         const isSelected = value === n;
         const colorClass = isSelected 
           ? (n >= 9 ? 'bg-green-600 border-green-600 text-white' : n >= 7 ? 'bg-yellow-500 border-yellow-500 text-white' : 'bg-red-600 border-red-600 text-white')
-          : 'bg-white border-slate-300 text-slate-600 hover:border-slate-400';
+          : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-400';
         return (
           <button
             key={n}
@@ -1149,40 +1149,40 @@ function ModalNovoAssociado({ setores, onClose, onSave }: any) {
 
   return (
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
-        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-          <h3 className="font-bold text-lg text-slate-800">Novo Associado - Passo {step} de 3</h3>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-700"><X className="w-5 h-5"/></button>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700/60 flex justify-between items-center bg-slate-50 dark:bg-slate-900/40">
+          <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100">Novo Associado - Passo {step} de 3</h3>
+          <button type="button" onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200"><X className="w-5 h-5"/></button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
           {step === 1 && (
             <div className="space-y-4 animate-in slide-in-from-right-4">
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Nome Completo *</label>
-                <input required value={nome} onChange={e=>setNome(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Nome Completo *</label>
+                <input required value={nome} onChange={e=>setNome(e.target.value)} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">CPF *</label>
-                <input required value={cpf} onChange={e=>setCpf(maskCPF(e.target.value))} maxLength={14} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="000.000.000-00" />
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">CPF *</label>
+                <input required value={cpf} onChange={e=>setCpf(maskCPF(e.target.value))} maxLength={14} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="000.000.000-00" />
               </div>
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1">Telefone (Opcional)</label>
-                <input value={telefone} onChange={e=>setTelefone(maskPhone(e.target.value))} maxLength={15} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="(00) 00000-0000" />
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Telefone (Opcional)</label>
+                <input value={telefone} onChange={e=>setTelefone(maskPhone(e.target.value))} maxLength={15} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="(00) 00000-0000" />
               </div>
             </div>
           )}
 
           {step === 2 && (
             <div className="space-y-4 animate-in slide-in-from-right-4">
-              <h4 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2"><Car className="w-4 h-4 text-slate-400"/> Primeiro Veículo (Opcional)</h4>
+              <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-3 flex items-center gap-2"><Car className="w-4 h-4 text-slate-400 dark:text-slate-500"/> Primeiro Veículo (Opcional)</h4>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 mb-1">Placa</label>
-                  <input value={placa} onChange={e=>setPlaca(maskPlaca(e.target.value))} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none uppercase" placeholder="ABC1D23" maxLength={8} />
+                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Placa</label>
+                  <input value={placa} onChange={e=>setPlaca(maskPlaca(e.target.value))} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none uppercase" placeholder="ABC1D23" maxLength={8} />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 mb-1">Modelo</label>
-                  <input value={modelo} onChange={e=>setModelo(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Ex: Onix 1.0" />
+                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Modelo</label>
+                  <input value={modelo} onChange={e=>setModelo(e.target.value)} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Ex: Onix 1.0" />
                 </div>
               </div>
             </div>
@@ -1190,23 +1190,23 @@ function ModalNovoAssociado({ setores, onClose, onSave }: any) {
 
           {step === 3 && (
             <div className="space-y-4 animate-in slide-in-from-right-4">
-              <h4 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2"><Star className="w-4 h-4 text-slate-400"/> Primeira Avaliação (Opcional)</h4>
+              <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-3 flex items-center gap-2"><Star className="w-4 h-4 text-slate-400 dark:text-slate-500"/> Primeira Avaliação (Opcional)</h4>
 
               {(!placa || !modelo) ? (
-                 <p className="text-sm text-slate-500 bg-slate-50 p-3 rounded-lg border border-slate-100">Adicione um veículo no passo anterior para poder avaliar.</p>
+                 <p className="text-sm text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/40 p-3 rounded-lg border border-slate-100 dark:border-slate-700/60">Adicione um veículo no passo anterior para poder avaliar.</p>
               ) : (
                 <>
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-1">Setor</label>
-                    <select value={setorId} onChange={e=>setSetorId(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Setor</label>
+                    <select value={setorId} onChange={e=>setSetorId(e.target.value)} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
                       {setores.map((s:any) => <option key={s.id} value={s.id}>{s.nome}</option>)}
                     </select>
                   </div>
 
                   {temCriterios ? (
                     <div className="space-y-4 pt-1">
-                      <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                        <h5 className="font-semibold text-slate-700 text-sm">Critérios de Avaliação</h5>
+                      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-2">
+                        <h5 className="font-semibold text-slate-700 dark:text-slate-200 text-sm">Critérios de Avaliação</h5>
                         {mediaCriterios !== null && (
                           <span className={`px-2 py-1 rounded font-bold text-sm ${mediaCriterios >= 9 ? 'bg-green-100 text-green-700' : mediaCriterios >= 7 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
                             Média: {mediaCriterios.toFixed(1)}
@@ -1215,7 +1215,7 @@ function ModalNovoAssociado({ setores, onClose, onSave }: any) {
                       </div>
                       {criterios.map(c => (
                         <div key={c.id}>
-                          <label className="block text-sm font-medium text-slate-600 mb-2">{c.nome}</label>
+                          <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">{c.nome}</label>
                           <NotaSelector
                             value={notasCriterios[c.id] ?? null}
                             onChange={(n) => setNotasCriterios(prev => ({...prev, [c.id]: n}))}
@@ -1225,14 +1225,14 @@ function ModalNovoAssociado({ setores, onClose, onSave }: any) {
                     </div>
                   ) : (
                     <div>
-                      <label className="block text-sm font-semibold text-slate-700 mb-2">Nota (0 a 10)</label>
+                      <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">Nota (0 a 10)</label>
                       <NotaSelector value={notaGeral} onChange={setNotaGeral} />
                     </div>
                   )}
 
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-1">Comentário (Opcional)</label>
-                    <textarea value={comentario} onChange={e=>setComentario(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" rows={2}></textarea>
+                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Comentário (Opcional)</label>
+                    <textarea value={comentario} onChange={e=>setComentario(e.target.value)} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" rows={2}></textarea>
                   </div>
                 </>
               )}
@@ -1240,9 +1240,9 @@ function ModalNovoAssociado({ setores, onClose, onSave }: any) {
           )}
 
           <div className="flex justify-end gap-3 pt-4">
-            <button type="button" onClick={onClose} className="px-4 py-2 font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">Cancelar</button>
+            <button type="button" onClick={onClose} className="px-4 py-2 font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">Cancelar</button>
             {step > 1 && (
-              <button type="button" onClick={() => setStep(step - 1)} className="px-4 py-2 font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">Voltar</button>
+              <button type="button" onClick={() => setStep(step - 1)} className="px-4 py-2 font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">Voltar</button>
             )}
             <button type="submit" className="px-5 py-2 bg-blue-600 font-medium text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm">
               {step === 3 ? 'Finalizar' : 'Próximo'}
@@ -1269,22 +1269,22 @@ function ModalNovaPlaca({ associadoId, onClose, onSave }: any) {
 
   return (
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-          <h3 className="font-bold text-lg text-slate-800">Nova Placa</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700"><X className="w-5 h-5"/></button>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700/60 flex justify-between items-center bg-slate-50 dark:bg-slate-900/40">
+          <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100">Nova Placa</h3>
+          <button onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200"><X className="w-5 h-5"/></button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Placa *</label>
-            <input required value={placa} onChange={e=>setPlaca(maskPlaca(e.target.value))} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none uppercase" placeholder="ABC1D23" maxLength={8} />
+            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Placa *</label>
+            <input required value={placa} onChange={e=>setPlaca(maskPlaca(e.target.value))} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none uppercase" placeholder="ABC1D23" maxLength={8} />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Modelo *</label>
-            <input required value={modelo} onChange={e=>setModelo(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Modelo *</label>
+            <input required value={modelo} onChange={e=>setModelo(e.target.value)} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
           </div>
           <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={onClose} className="px-4 py-2 font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">Cancelar</button>
+            <button type="button" onClick={onClose} className="px-4 py-2 font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">Cancelar</button>
             <button type="submit" className="px-5 py-2 bg-blue-600 font-medium text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm">Adicionar</button>
           </div>
         </form>
@@ -1308,22 +1308,22 @@ function ModalEditarVeiculo({ veiculo, onClose, onSave }: any) {
 
   return (
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-          <h3 className="font-bold text-lg text-slate-800">Editar Veículo</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700"><X className="w-5 h-5"/></button>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700/60 flex justify-between items-center bg-slate-50 dark:bg-slate-900/40">
+          <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100">Editar Veículo</h3>
+          <button onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200"><X className="w-5 h-5"/></button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Placa *</label>
-            <input required value={placa} onChange={e=>setPlaca(maskPlaca(e.target.value))} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none uppercase" placeholder="ABC1D23" maxLength={8} />
+            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Placa *</label>
+            <input required value={placa} onChange={e=>setPlaca(maskPlaca(e.target.value))} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none uppercase" placeholder="ABC1D23" maxLength={8} />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Modelo *</label>
-            <input required value={modelo} onChange={e=>setModelo(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Modelo *</label>
+            <input required value={modelo} onChange={e=>setModelo(e.target.value)} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
           </div>
           <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={onClose} className="px-4 py-2 font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">Cancelar</button>
+            <button type="button" onClick={onClose} className="px-4 py-2 font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">Cancelar</button>
             <button type="submit" className="px-5 py-2 bg-blue-600 font-medium text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm">Salvar</button>
           </div>
         </form>
@@ -1412,22 +1412,22 @@ function ModalNovaAvaliacao({ associadoId, veiculos, setorPreSelecionado, setore
 
   return (
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
-        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-          <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2"><Star className="w-5 h-5 text-yellow-500"/> Registrar Avaliação</h3>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-700"><X className="w-5 h-5"/></button>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700/60 flex justify-between items-center bg-slate-50 dark:bg-slate-900/40">
+          <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100 flex items-center gap-2"><Star className="w-5 h-5 text-yellow-500"/> Registrar Avaliação</h3>
+          <button type="button" onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200"><X className="w-5 h-5"/></button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Setor</label>
-              <select required value={setorId} onChange={e=>setSetorId(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Setor</label>
+              <select required value={setorId} onChange={e=>setSetorId(e.target.value)} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
                 {setores.map((s:any) => <option key={s.id} value={s.id}>{s.nome}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-1">Veículo</label>
-              <select required value={veiculoId} onChange={e=>setVeiculoId(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Veículo</label>
+              <select required value={veiculoId} onChange={e=>setVeiculoId(e.target.value)} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
                 {veiculos.length === 0 && <option value="">Sem veículos</option>}
                 {veiculos.map((v:any) => <option key={v.id} value={v.id}>{v.placa}</option>)}
               </select>
@@ -1436,8 +1436,8 @@ function ModalNovaAvaliacao({ associadoId, veiculos, setorPreSelecionado, setore
           
           {temCriterios ? (
             <div className="space-y-4 pt-2">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                <h4 className="font-semibold text-slate-700">Critérios de Avaliação</h4>
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-2">
+                <h4 className="font-semibold text-slate-700 dark:text-slate-200">Critérios de Avaliação</h4>
                 {media !== null && (
                   <span className={`px-2 py-1 rounded font-bold text-sm ${media >= 9 ? 'bg-green-100 text-green-700' : media >= 7 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
                     Média: {media.toFixed(1)}
@@ -1446,7 +1446,7 @@ function ModalNovaAvaliacao({ associadoId, veiculos, setorPreSelecionado, setore
               </div>
               {criterios.map(c => (
                 <div key={c.id}>
-                  <label className="block text-sm font-medium text-slate-600 mb-2">{c.nome}</label>
+                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">{c.nome}</label>
                   <NotaSelector 
                     value={notasCriterios[c.id] ?? null} 
                     onChange={(n) => setNotasCriterios(prev => ({...prev, [c.id]: n}))} 
@@ -1456,18 +1456,18 @@ function ModalNovaAvaliacao({ associadoId, veiculos, setorPreSelecionado, setore
             </div>
           ) : (
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Nota Geral (0 a 10)</label>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">Nota Geral (0 a 10)</label>
               <NotaSelector value={notaGeral} onChange={setNotaGeral} />
             </div>
           )}
 
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Comentário (Opcional)</label>
-            <textarea value={comentario} onChange={e=>setComentario(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" rows={3}></textarea>
+            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Comentário (Opcional)</label>
+            <textarea value={comentario} onChange={e=>setComentario(e.target.value)} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" rows={3}></textarea>
           </div>
 
-          <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
-            <button type="button" onClick={onClose} className="px-4 py-2 font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">Cancelar</button>
+          <div className="flex justify-end gap-3 pt-2 border-t border-slate-100 dark:border-slate-700/60">
+            <button type="button" onClick={onClose} className="px-4 py-2 font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">Cancelar</button>
             <button type="submit" className="px-5 py-2 bg-blue-600 font-medium text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm">Salvar Avaliação</button>
           </div>
         </form>
@@ -1552,20 +1552,20 @@ function ModalEditarAvaliacao({ avaliacao, onClose, onSave }: any) {
 
   return (
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
-        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-          <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2"><Edit2 className="w-5 h-5 text-blue-600"/> Editar Avaliação</h3>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-700"><X className="w-5 h-5"/></button>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700/60 flex justify-between items-center bg-slate-50 dark:bg-slate-900/40">
+          <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100 flex items-center gap-2"><Edit2 className="w-5 h-5 text-blue-600"/> Editar Avaliação</h3>
+          <button type="button" onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200"><X className="w-5 h-5"/></button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto">
-          <p className="text-xs text-slate-400 -mt-1">
+          <p className="text-xs text-slate-400 dark:text-slate-500 -mt-1">
             {avaliacao.setor?.nome} · {new Date(avaliacao.data_avaliacao).toLocaleDateString('pt-BR')}
           </p>
 
           {temCriterios ? (
             <div className="space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                <h4 className="font-semibold text-slate-700">Critérios de Avaliação</h4>
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-2">
+                <h4 className="font-semibold text-slate-700 dark:text-slate-200">Critérios de Avaliação</h4>
                 {media !== null && (
                   <span className={`px-2 py-1 rounded font-bold text-sm ${media >= 9 ? 'bg-green-100 text-green-700' : media >= 7 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
                     Média: {media.toFixed(1)}
@@ -1574,7 +1574,7 @@ function ModalEditarAvaliacao({ avaliacao, onClose, onSave }: any) {
               </div>
               {criteriosExistentes.map((an: any) => (
                 <div key={an.id}>
-                  <label className="block text-sm font-medium text-slate-600 mb-2">{an.criterios_avaliacao?.nome || 'Critério'}</label>
+                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">{an.criterios_avaliacao?.nome || 'Critério'}</label>
                   <NotaSelector
                     value={notasCriterios[an.criterio_id] ?? null}
                     onChange={(n) => setNotasCriterios(prev => ({...prev, [an.criterio_id]: n}))}
@@ -1584,18 +1584,18 @@ function ModalEditarAvaliacao({ avaliacao, onClose, onSave }: any) {
             </div>
           ) : (
             <div>
-              <label className="block text-sm font-semibold text-slate-700 mb-2">Nota Geral (0 a 10)</label>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">Nota Geral (0 a 10)</label>
               <NotaSelector value={notaGeral} onChange={setNotaGeral} />
             </div>
           )}
 
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Comentário (Opcional)</label>
-            <textarea value={comentario} onChange={e=>setComentario(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" rows={3}></textarea>
+            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Comentário (Opcional)</label>
+            <textarea value={comentario} onChange={e=>setComentario(e.target.value)} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" rows={3}></textarea>
           </div>
 
-          <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
-            <button type="button" onClick={onClose} className="px-4 py-2 font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">Cancelar</button>
+          <div className="flex justify-end gap-3 pt-2 border-t border-slate-100 dark:border-slate-700/60">
+            <button type="button" onClick={onClose} className="px-4 py-2 font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">Cancelar</button>
             <button type="submit" disabled={salvando} className="px-5 py-2 bg-blue-600 font-medium text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-60">
               {salvando ? 'Salvando...' : 'Salvar Alterações'}
             </button>
@@ -1638,26 +1638,26 @@ function ModalNovaIndicacao({ associadoId, statusList, onClose, onSave }: any) {
 
   return (
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-          <h3 className="font-bold text-lg text-slate-800">Nova Indicação</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700"><X className="w-5 h-5"/></button>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700/60 flex justify-between items-center bg-slate-50 dark:bg-slate-900/40">
+          <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100">Nova Indicação</h3>
+          <button onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200"><X className="w-5 h-5"/></button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Nome do Indicado *</label>
-            <input required value={nome} onChange={e=>setNome(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Nome do Indicado *</label>
+            <input required value={nome} onChange={e=>setNome(e.target.value)} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Telefone / WhatsApp *</label>
-            <input required value={telefone} onChange={e=>setTelefone(maskPhone(e.target.value))} maxLength={15} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="(00) 00000-0000" />
+            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Telefone / WhatsApp *</label>
+            <input required value={telefone} onChange={e=>setTelefone(maskPhone(e.target.value))} maxLength={15} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="(00) 00000-0000" />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Observações iniciais</label>
-            <textarea value={obs} onChange={e=>setObs(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" rows={2}></textarea>
+            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Observações iniciais</label>
+            <textarea value={obs} onChange={e=>setObs(e.target.value)} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" rows={2}></textarea>
           </div>
           <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={onClose} className="px-4 py-2 font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">Cancelar</button>
+            <button type="button" onClick={onClose} className="px-4 py-2 font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">Cancelar</button>
             <button type="submit" className="px-5 py-2 bg-blue-600 font-medium text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm">Salvar</button>
           </div>
         </form>
@@ -1701,12 +1701,12 @@ function ModalNovaReclamacao({ associadoId, avaliacao, statusList, motivosList, 
 
   return (
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-          <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700/60 flex justify-between items-center bg-slate-50 dark:bg-slate-900/40">
+          <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100 flex items-center gap-2">
             <AlertOctagon className="w-5 h-5 text-red-500" /> Nova Reclamação
           </h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700"><X className="w-5 h-5"/></button>
+          <button onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200"><X className="w-5 h-5"/></button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {avaliacao && (
@@ -1715,9 +1715,9 @@ function ModalNovaReclamacao({ associadoId, avaliacao, statusList, motivosList, 
             </div>
           )}
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Motivo *</label>
+            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Motivo *</label>
             {motivosList?.length > 0 ? (
-              <select required autoFocus value={motivoId} onChange={e => setMotivoId(e.target.value)} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+              <select required autoFocus value={motivoId} onChange={e => setMotivoId(e.target.value)} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
                 <option value="">Selecione...</option>
                 {motivosList.map((m: any) => <option key={m.id} value={m.id}>{m.nome}</option>)}
               </select>
@@ -1726,17 +1726,17 @@ function ModalNovaReclamacao({ associadoId, avaliacao, statusList, motivosList, 
             )}
           </div>
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Detalhes (opcional)</label>
+            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Detalhes (opcional)</label>
             <textarea
               value={detalhes}
               onChange={e => setDetalhes(e.target.value)}
               rows={3}
               placeholder="Algum detalhe adicional do relato do associado..."
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none"
             />
           </div>
           <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={onClose} className="px-4 py-2 font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">Cancelar</button>
+            <button type="button" onClick={onClose} className="px-4 py-2 font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">Cancelar</button>
             <button type="submit" className="px-5 py-2 bg-red-600 font-medium text-white rounded-lg hover:bg-red-700 transition-colors shadow-sm">Abrir Reclamação</button>
           </div>
         </form>

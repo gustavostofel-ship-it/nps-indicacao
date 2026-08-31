@@ -51,8 +51,16 @@ export default async function RootLayout({children}: {children: React.ReactNode}
   }
 
   return (
-    <html lang="pt-BR" className={inter.variable}>
-      <body className={`min-h-screen flex flex-col font-sans text-slate-800 ${user ? 'bg-slate-50' : 'bg-[#070f1f]'}`} suppressHydrationWarning>
+    <html lang="pt-BR" className={inter.variable} suppressHydrationWarning>
+      <body className={`min-h-screen flex flex-col font-sans text-slate-800 dark:text-slate-100 ${user ? 'bg-slate-50 dark:bg-slate-900' : 'bg-[#070f1f]'}`} suppressHydrationWarning>
+        {/* Roda antes de qualquer coisa pintar na tela, pra já aplicar o
+            tema escolhido sem um "flash" da tela clara antes de escurecer.
+            Lê localStorage direto (não dá pra saber isso no servidor). */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('girow:theme');var d=t?t==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;if(d)document.documentElement.classList.add('dark');}catch(e){}})();`,
+          }}
+        />
         <Toaster position="top-right" toastOptions={{ duration: 3000 }} />
         {!isSupabaseConfigured && (
           <div className="bg-red-600 text-white p-3 text-sm text-center font-medium">

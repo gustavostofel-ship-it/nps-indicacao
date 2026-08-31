@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* Tailwind v4 não tem mais darkMode:'class' no config JS — isso aqui é o
+   equivalente: liga a variante `dark:` quando a tag <html> tem a classe
+   "dark", em vez de só seguir o tema do sistema operacional. Sem isso,
+   o toggle claro/escuro não teria efeito nenhum. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme inline {
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
 }

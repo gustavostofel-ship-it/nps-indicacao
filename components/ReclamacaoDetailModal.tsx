@@ -73,20 +73,20 @@ export default function ReclamacaoDetailModal({
 
   return (
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-[85vw] h-[85vh] max-w-5xl flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="px-6 py-4 border-b border-slate-100 flex items-start justify-between bg-slate-50 shrink-0">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-[85vw] h-[85vh] max-w-5xl flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700/60 flex items-start justify-between bg-slate-50 dark:bg-slate-900/40 shrink-0">
           <div>
-            <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
-              <Hash className="w-4 h-4 text-slate-400" /> {rec.protocolo || '—'}
+            <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100 flex items-center gap-2">
+              <Hash className="w-4 h-4 text-slate-400 dark:text-slate-500" /> {rec.protocolo || '—'}
             </h3>
-            <p className="text-sm text-slate-500 mt-0.5">{rec.associados?.nome_completo}</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{rec.associados?.nome_completo}</p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 p-1"><X className="w-5 h-5" /></button>
+          <button onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 p-1"><X className="w-5 h-5" /></button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           <div className="flex items-start justify-between gap-4">
-            <div className="text-xs text-slate-400 uppercase font-semibold">Aberta em {new Date(rec.data_abertura).toLocaleDateString('pt-BR')} por {getNomeUsuario(rec.aberto_por)}</div>
+            <div className="text-xs text-slate-400 dark:text-slate-500 uppercase font-semibold">Aberta em {new Date(rec.data_abertura).toLocaleDateString('pt-BR')} por {getNomeUsuario(rec.aberto_por)}</div>
             {!editando && (
               <button
                 onClick={() => setEditando(true)}
@@ -104,32 +104,32 @@ export default function ReclamacaoDetailModal({
           )}
 
           {editando ? (
-            <div className="space-y-3 bg-blue-50/50 border border-blue-100 rounded-xl p-4">
+            <div className="space-y-3 bg-blue-50/50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 rounded-xl p-4">
               <div>
-                <label className="block text-xs text-slate-500 mb-1 uppercase font-semibold">Motivo</label>
+                <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1 uppercase font-semibold">Motivo</label>
                 <select
                   value={motivoId}
                   onChange={e => setMotivoId(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                 >
                   <option value="">Sem motivo definido</option>
                   {opcoesMotivo.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs text-slate-500 mb-1 uppercase font-semibold">Detalhes</label>
+                <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1 uppercase font-semibold">Detalhes</label>
                 <textarea
                   value={detalhes}
                   onChange={e => setDetalhes(e.target.value)}
                   rows={3}
-                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none text-sm"
+                  className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none text-sm"
                 />
               </div>
-              <p className="text-[11px] text-slate-400">Qualquer alteração aqui fica registrada no histórico abaixo.</p>
+              <p className="text-[11px] text-slate-400 dark:text-slate-500">Qualquer alteração aqui fica registrada no histórico abaixo.</p>
               <div className="flex justify-end gap-2">
                 <button
                   onClick={() => { setEditando(false); setMotivoId(rec.motivo_id || ''); setDetalhes(rec.descricao || ''); }}
-                  className="px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-white rounded-lg transition-colors"
+                  className="px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 rounded-lg transition-colors"
                 >
                   Cancelar
                 </button>
@@ -144,20 +144,20 @@ export default function ReclamacaoDetailModal({
             </div>
           ) : (
             <div>
-              <div className="text-xs text-slate-400 mb-1 uppercase font-semibold">Motivo</div>
-              <div className="text-sm font-semibold text-slate-800">{rec.motivo?.nome || 'Sem motivo definido'}</div>
+              <div className="text-xs text-slate-400 dark:text-slate-500 mb-1 uppercase font-semibold">Motivo</div>
+              <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">{rec.motivo?.nome || 'Sem motivo definido'}</div>
               {rec.descricao && (
                 <>
-                  <div className="text-xs text-slate-400 mb-1 mt-3 uppercase font-semibold">Detalhes</div>
-                  <p className="text-sm text-slate-600 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2 whitespace-pre-wrap">{rec.descricao}</p>
+                  <div className="text-xs text-slate-400 dark:text-slate-500 mb-1 mt-3 uppercase font-semibold">Detalhes</div>
+                  <p className="text-sm text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-700/60 rounded-lg px-3 py-2 whitespace-pre-wrap">{rec.descricao}</p>
                 </>
               )}
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-6 border-b border-slate-100">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-6 border-b border-slate-100 dark:border-slate-700/60">
             <div>
-              <div className="text-xs text-slate-400 mb-1 uppercase font-semibold">Status</div>
+              <div className="text-xs text-slate-400 dark:text-slate-500 mb-1 uppercase font-semibold">Status</div>
               <select
                 value={rec.status_id}
                 onChange={(e) => onStatusChange(rec.id, e.target.value)}
@@ -172,11 +172,11 @@ export default function ReclamacaoDetailModal({
               )}
             </div>
             <div>
-              <div className="text-xs text-slate-400 mb-1 uppercase font-semibold">Responsável atual</div>
+              <div className="text-xs text-slate-400 dark:text-slate-500 mb-1 uppercase font-semibold">Responsável atual</div>
               <select
                 value={rec.responsavel_atual_id || ''}
                 onChange={(e) => onResponsavelChange(rec.id, e.target.value)}
-                className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg bg-white w-full outline-none"
+                className="px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800 w-full outline-none"
               >
                 <option value="">Sem responsável</option>
                 {usuarios.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
@@ -185,7 +185,7 @@ export default function ReclamacaoDetailModal({
           </div>
 
           <div>
-            <div className="text-xs font-bold text-slate-500 mb-3 uppercase tracking-wide">Andamento</div>
+            <div className="text-xs font-bold text-slate-500 dark:text-slate-400 mb-3 uppercase tracking-wide">Andamento</div>
             <ReclamacaoTimeline supabase={supabase} reclamacaoId={rec.id} usuarios={usuarios} currentUserId={currentUserId} />
           </div>
         </div>

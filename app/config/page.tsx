@@ -59,22 +59,22 @@ export default function ConfigPage() {
           <Settings className="w-6 h-6" />
         </div>
         <div>
-          <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Configurações</h2>
-          <p className="text-slate-500 text-sm">Gerencie setores, status de indicação e acessos da equipe</p>
+          <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">Configurações</h2>
+          <p className="text-slate-500 dark:text-slate-400 text-sm">Gerencie setores, status de indicação e acessos da equipe</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col h-full">
+        <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/60 flex flex-col h-full">
           <SetoresManager setores={setores} onUpdate={fetchData} supabase={supabase} />
         </div>
 
-        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col h-full">
+        <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/60 flex flex-col h-full">
            <UsuariosManager usuarios={usuarios} convites={convites} onUpdate={fetchData} supabase={supabase} currentUserId={currentUserId} />
         </div>
       </div>
 
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+      <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/60">
         <StatusManager
           statusList={statusIndicacao}
           onUpdate={fetchData}
@@ -87,7 +87,7 @@ export default function ConfigPage() {
         />
       </div>
 
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+      <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/60">
         <StatusManager
           statusList={statusReclamacao}
           onUpdate={fetchData}
@@ -100,7 +100,7 @@ export default function ConfigPage() {
         />
       </div>
 
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+      <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/60">
         <MotivosReclamacaoManager motivos={motivosReclamacao} onUpdate={fetchData} supabase={supabase} />
       </div>
     </div>
@@ -162,10 +162,10 @@ function StatusManager({ statusList, onUpdate, supabase, tabela, campoFlag, rotu
   return (
     <div>
       <div className="flex items-center gap-2 mb-1">
-        <Columns3 className="w-5 h-5 text-slate-400" />
-        <h3 className="text-lg font-bold text-slate-800">{titulo}</h3>
+        <Columns3 className="w-5 h-5 text-slate-400 dark:text-slate-500" />
+        <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">{titulo}</h3>
       </div>
-      <p className="text-sm text-slate-500 mb-6">{descricao}</p>
+      <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">{descricao}</p>
 
       <form onSubmit={handleAdd} className="flex gap-3 mb-6 max-w-lg">
         <input
@@ -173,7 +173,7 @@ function StatusManager({ statusList, onUpdate, supabase, tabela, campoFlag, rotu
           placeholder="Nome do novo status"
           value={nome}
           onChange={(e) => setNome(e.target.value)}
-          className="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
+          className="flex-1 px-4 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
         />
         <button type="submit" className="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2 shadow-sm shadow-blue-200">
           <Plus className="w-4 h-4" /> Adicionar
@@ -181,14 +181,14 @@ function StatusManager({ statusList, onUpdate, supabase, tabela, campoFlag, rotu
       </form>
 
       {statusList.length === 0 ? (
-        <div className="text-center p-8 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+        <div className="text-center p-8 bg-slate-50 dark:bg-slate-900/40 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
           <Columns3 className="w-10 h-10 text-slate-300 mb-3 mx-auto" />
-          <p className="text-slate-600 font-medium">Nenhum status cadastrado</p>
+          <p className="text-slate-600 dark:text-slate-300 font-medium">Nenhum status cadastrado</p>
         </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="text-slate-500 uppercase font-semibold text-xs border-b border-slate-200">
+            <thead className="text-slate-500 dark:text-slate-400 uppercase font-semibold text-xs border-b border-slate-200 dark:border-slate-700">
               <tr>
                 <th className="py-2 pr-3 w-16">Ordem</th>
                 <th className="py-2 pr-3">Cor</th>
@@ -202,10 +202,10 @@ function StatusManager({ statusList, onUpdate, supabase, tabela, campoFlag, rotu
                 <tr key={s.id} className={!s.ativo ? 'opacity-50' : ''}>
                   <td className="py-2 pr-3">
                     <div className="flex gap-1">
-                      <button onClick={() => handleReorder(index, -1)} disabled={index === 0} className="p-1 text-slate-400 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed">
+                      <button onClick={() => handleReorder(index, -1)} disabled={index === 0} className="p-1 text-slate-400 dark:text-slate-500 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed">
                         <ArrowUp className="w-3.5 h-3.5" />
                       </button>
-                      <button onClick={() => handleReorder(index, 1)} disabled={index === statusList.length - 1} className="p-1 text-slate-400 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed">
+                      <button onClick={() => handleReorder(index, 1)} disabled={index === statusList.length - 1} className="p-1 text-slate-400 dark:text-slate-500 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed">
                         <ArrowDown className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -225,7 +225,7 @@ function StatusManager({ statusList, onUpdate, supabase, tabela, campoFlag, rotu
                     <input
                       defaultValue={s.nome}
                       onBlur={(e) => handleRename(s.id, e.target.value, s.nome)}
-                      className="px-2 py-1 border border-transparent hover:border-slate-200 focus:border-slate-300 rounded-lg outline-none font-medium text-slate-700 w-full"
+                      className="px-2 py-1 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 focus:border-slate-300 rounded-lg outline-none font-medium text-slate-700 dark:text-slate-200 w-full"
                     />
                   </td>
                   <td className="py-2 pr-3 text-center">
@@ -239,7 +239,7 @@ function StatusManager({ statusList, onUpdate, supabase, tabela, campoFlag, rotu
                   <td className="py-2 pr-3 text-center">
                     <button
                       onClick={() => handleToggle(s.id, 'ativo', s.ativo)}
-                      className={`text-xs font-semibold px-3 py-1 rounded-full transition-colors ${s.ativo ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'}`}
+                      className={`text-xs font-semibold px-3 py-1 rounded-full transition-colors ${s.ativo ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'}`}
                     >
                       {s.ativo ? 'Ativo' : 'Inativo'}
                     </button>
@@ -305,10 +305,10 @@ function MotivosReclamacaoManager({ motivos, onUpdate, supabase }: any) {
   return (
     <div>
       <div className="flex items-center gap-2 mb-1">
-        <Columns3 className="w-5 h-5 text-slate-400" />
-        <h3 className="text-lg font-bold text-slate-800">Motivos de Reclamação</h3>
+        <Columns3 className="w-5 h-5 text-slate-400 dark:text-slate-500" />
+        <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Motivos de Reclamação</h3>
       </div>
-      <p className="text-sm text-slate-500 mb-6">
+      <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
         Opções que aparecem ao abrir uma reclamação (ex: "Demora no atendimento", "Atraso de peças"). Quem abre escolhe entre eles, não digita um texto livre — assim dá pra ver no Dashboard quais são os motivos mais recorrentes.
       </p>
 
@@ -318,7 +318,7 @@ function MotivosReclamacaoManager({ motivos, onUpdate, supabase }: any) {
           placeholder="Nome do novo motivo"
           value={nome}
           onChange={(e) => setNome(e.target.value)}
-          className="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
+          className="flex-1 px-4 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
         />
         <button type="submit" className="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2 shadow-sm shadow-blue-200">
           <Plus className="w-4 h-4" /> Adicionar
@@ -326,30 +326,30 @@ function MotivosReclamacaoManager({ motivos, onUpdate, supabase }: any) {
       </form>
 
       {motivos.length === 0 ? (
-        <div className="text-center p-8 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+        <div className="text-center p-8 bg-slate-50 dark:bg-slate-900/40 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
           <Columns3 className="w-10 h-10 text-slate-300 mb-3 mx-auto" />
-          <p className="text-slate-600 font-medium">Nenhum motivo cadastrado</p>
+          <p className="text-slate-600 dark:text-slate-300 font-medium">Nenhum motivo cadastrado</p>
         </div>
       ) : (
         <div className="space-y-2">
           {motivos.map((m: any, index: number) => (
-            <div key={m.id} className={`flex items-center gap-2 p-2 bg-slate-50 border border-slate-100 rounded-lg ${!m.ativo ? 'opacity-50' : ''}`}>
+            <div key={m.id} className={`flex items-center gap-2 p-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-700/60 rounded-lg ${!m.ativo ? 'opacity-50' : ''}`}>
               <div className="flex gap-0.5">
-                <button onClick={() => handleReorder(index, -1)} disabled={index === 0} className="p-1 text-slate-400 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed">
+                <button onClick={() => handleReorder(index, -1)} disabled={index === 0} className="p-1 text-slate-400 dark:text-slate-500 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed">
                   <ArrowUp className="w-3.5 h-3.5" />
                 </button>
-                <button onClick={() => handleReorder(index, 1)} disabled={index === motivos.length - 1} className="p-1 text-slate-400 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed">
+                <button onClick={() => handleReorder(index, 1)} disabled={index === motivos.length - 1} className="p-1 text-slate-400 dark:text-slate-500 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed">
                   <ArrowDown className="w-3.5 h-3.5" />
                 </button>
               </div>
               <input
                 defaultValue={m.nome}
                 onBlur={(e) => handleRename(m.id, e.target.value, m.nome)}
-                className="flex-1 px-2 py-1 border border-transparent hover:border-slate-200 focus:border-slate-300 rounded-lg outline-none font-medium text-slate-700"
+                className="flex-1 px-2 py-1 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 focus:border-slate-300 rounded-lg outline-none font-medium text-slate-700 dark:text-slate-200"
               />
               <button
                 onClick={() => toggleAtivo(m.id, m.ativo)}
-                className={`text-xs font-semibold px-3 py-1 rounded-full transition-colors shrink-0 ${m.ativo ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'}`}
+                className={`text-xs font-semibold px-3 py-1 rounded-full transition-colors shrink-0 ${m.ativo ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'}`}
               >
                 {m.ativo ? 'Ativo' : 'Inativo'}
               </button>
@@ -399,37 +399,37 @@ function SetorItem({ setor, onUpdate, supabase }: any) {
   };
 
   return (
-    <li className="flex flex-col p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-slate-200 transition-colors">
+    <li className="flex flex-col p-4 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-100 dark:border-slate-700/60 hover:border-slate-200 dark:hover:border-slate-600 transition-colors">
       <div className="flex items-center justify-between cursor-pointer" onClick={() => setExpanded(!expanded)}>
         <div className="flex items-center gap-3">
-          {expanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-          <span className={`font-medium ${!setor.ativo ? 'text-slate-400 line-through' : 'text-slate-700'}`}>{setor.nome}</span>
+          {expanded ? <ChevronUp className="w-4 h-4 text-slate-400 dark:text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-400 dark:text-slate-500" />}
+          <span className={`font-medium ${!setor.ativo ? 'text-slate-400 dark:text-slate-500 line-through' : 'text-slate-700 dark:text-slate-200'}`}>{setor.nome}</span>
         </div>
         <button 
           onClick={(e) => { e.stopPropagation(); toggleAtivo(); }}
-          className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${setor.ativo ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'}`}
+          className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${setor.ativo ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'}`}
         >
           {setor.ativo ? 'Ativo' : 'Inativo'}
         </button>
       </div>
       
       {expanded && (
-        <div className="mt-4 pt-4 border-t border-slate-200 pl-7 space-y-3">
-          <p className="text-sm font-semibold text-slate-600 mb-2">Critérios de Avaliação</p>
+        <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700 pl-7 space-y-3">
+          <p className="text-sm font-semibold text-slate-600 dark:text-slate-300 mb-2">Critérios de Avaliação</p>
           
           <form onSubmit={handleAddCriterio} className="flex gap-2">
-            <input type="text" placeholder="Novo critério" value={novoCriterio} onChange={(e) => setNovoCriterio(e.target.value)} className="flex-1 px-3 py-1.5 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <input type="text" placeholder="Novo critério" value={novoCriterio} onChange={(e) => setNovoCriterio(e.target.value)} className="flex-1 px-3 py-1.5 text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
             <button type="submit" className="bg-slate-800 text-white px-3 py-1.5 text-sm rounded-lg hover:bg-slate-900 transition-colors">Adicionar</button>
           </form>
           
           {criterios.length === 0 ? (
-            <p className="text-xs text-slate-400 italic">Nenhum critério. O setor usará nota única.</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500 italic">Nenhum critério. O setor usará nota única.</p>
           ) : (
             <div className="space-y-2 mt-3">
               {criterios.map(c => (
-                <div key={c.id} className="flex items-center justify-between bg-white px-3 py-2 border border-slate-100 rounded-lg">
-                  <span className={`text-sm ${!c.ativo ? 'text-slate-400 line-through' : 'text-slate-600'}`}>{c.nome}</span>
-                  <button onClick={() => toggleCriterioAtivo(c.id, c.ativo)} className={`text-[10px] font-bold px-2 py-1 rounded uppercase ${c.ativo ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-400'}`}>
+                <div key={c.id} className="flex items-center justify-between bg-white dark:bg-slate-800 px-3 py-2 border border-slate-100 dark:border-slate-700/60 rounded-lg">
+                  <span className={`text-sm ${!c.ativo ? 'text-slate-400 dark:text-slate-500 line-through' : 'text-slate-600 dark:text-slate-300'}`}>{c.nome}</span>
+                  <button onClick={() => toggleCriterioAtivo(c.id, c.ativo)} className={`text-[10px] font-bold px-2 py-1 rounded uppercase ${c.ativo ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500'}`}>
                     {c.ativo ? 'Ativo' : 'Inativo'}
                   </button>
                 </div>
@@ -475,8 +475,8 @@ function SetoresManager({ setores, onUpdate, supabase }: any) {
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-2 mb-6">
-        <LayoutDashboard className="w-5 h-5 text-slate-400" />
-        <h3 className="text-lg font-bold text-slate-800">Setores de Avaliação</h3>
+        <LayoutDashboard className="w-5 h-5 text-slate-400 dark:text-slate-500" />
+        <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Setores de Avaliação</h3>
       </div>
       
       <form onSubmit={handleAdd} className="flex gap-3 mb-6">
@@ -485,7 +485,7 @@ function SetoresManager({ setores, onUpdate, supabase }: any) {
           placeholder="Nome do novo setor" 
           value={nome}
           onChange={(e) => setNome(e.target.value)}
-          className="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
+          className="flex-1 px-4 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
         />
         <button type="submit" className="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2 shadow-sm shadow-blue-200">
           <Plus className="w-4 h-4" /> Adicionar
@@ -493,10 +493,10 @@ function SetoresManager({ setores, onUpdate, supabase }: any) {
       </form>
 
       {setores.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+        <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-slate-50 dark:bg-slate-900/40 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
           <LayoutDashboard className="w-10 h-10 text-slate-300 mb-3" />
-          <p className="text-slate-600 font-medium">Nenhum setor cadastrado</p>
-          <p className="text-sm text-slate-500 mt-1">Cadastre o primeiro setor para começar a usar os cards de avaliação.</p>
+          <p className="text-slate-600 dark:text-slate-300 font-medium">Nenhum setor cadastrado</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Cadastre o primeiro setor para começar a usar os cards de avaliação.</p>
         </div>
       ) : (
         <ul className="space-y-3">
@@ -586,42 +586,42 @@ function UsuariosManager({ usuarios, convites, onUpdate, supabase, currentUserId
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2">
-          <Users className="w-5 h-5 text-slate-400" />
-          <h3 className="text-lg font-bold text-slate-800">Usuários & Convites</h3>
+          <Users className="w-5 h-5 text-slate-400 dark:text-slate-500" />
+          <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Usuários & Convites</h3>
         </div>
         <button 
           onClick={() => setShowForm(!showForm)}
-          className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-3 py-1.5 rounded-lg text-sm font-semibold flex items-center gap-1 transition-colors"
+          className="text-blue-600 hover:text-blue-800 hover:bg-blue-50 dark:hover:bg-blue-500/10 px-3 py-1.5 rounded-lg text-sm font-semibold flex items-center gap-1 transition-colors"
         >
           <Plus className="w-4 h-4" /> Novo Convite
         </button>
       </div>
 
       {showForm && (
-        <form onSubmit={handleInvite} className="mb-6 p-5 bg-blue-50 border border-blue-100 rounded-xl space-y-4 text-sm animate-in slide-in-from-top-2 duration-300">
+        <form onSubmit={handleInvite} className="mb-6 p-5 bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20 rounded-xl space-y-4 text-sm animate-in slide-in-from-top-2 duration-300">
           <div className="grid grid-cols-2 gap-4">
-            <input type="text" placeholder="Nome completo" required value={formData.nome} onChange={e => setFormData({...formData, nome: e.target.value})} className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-            <input type="email" placeholder="E-mail" required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
+            <input type="text" placeholder="Nome completo" required value={formData.nome} onChange={e => setFormData({...formData, nome: e.target.value})} className="w-full px-3 py-2 border border-blue-200 dark:border-blue-500/30 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100" />
+            <input type="email" placeholder="E-mail" required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full px-3 py-2 border border-blue-200 dark:border-blue-500/30 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100" />
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <input type="text" placeholder="Função" required value={formData.funcao} onChange={e => setFormData({...formData, funcao: e.target.value})} className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" />
-            <select value={formData.papel} onChange={e => setFormData({...formData, papel: e.target.value})} className="w-full px-3 py-2 border border-blue-200 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none font-medium">
+            <input type="text" placeholder="Função" required value={formData.funcao} onChange={e => setFormData({...formData, funcao: e.target.value})} className="w-full px-3 py-2 border border-blue-200 dark:border-blue-500/30 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100" />
+            <select value={formData.papel} onChange={e => setFormData({...formData, papel: e.target.value})} className="w-full px-3 py-2 border border-blue-200 dark:border-blue-500/30 rounded-lg bg-white dark:bg-slate-800 focus:ring-2 focus:ring-blue-500 outline-none font-medium text-slate-800 dark:text-slate-100">
               <option value="atendente">Atendente</option>
               <option value="admin">Administrador</option>
             </select>
           </div>
           <div className="flex justify-end gap-3 pt-2">
-            <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 font-medium text-slate-600 hover:bg-blue-100 rounded-lg transition-colors">Cancelar</button>
+            <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 font-medium text-slate-600 dark:text-slate-300 hover:bg-blue-100 rounded-lg transition-colors">Cancelar</button>
             <button type="submit" className="px-5 py-2 bg-blue-600 font-medium text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200">Gerar Convite</button>
           </div>
         </form>
       )}
 
       {usuarios.length === 0 && convites.filter((c:any) => c.status === 'pendente').length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+        <div className="flex-1 flex flex-col items-center justify-center text-center p-8 bg-slate-50 dark:bg-slate-900/40 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
           <Users className="w-10 h-10 text-slate-300 mb-3" />
-          <p className="text-slate-600 font-medium">Nenhuma equipe configurada</p>
-          <p className="text-sm text-slate-500 mt-1">Gere um convite para adicionar membros.</p>
+          <p className="text-slate-600 dark:text-slate-300 font-medium">Nenhuma equipe configurada</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Gere um convite para adicionar membros.</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -635,7 +635,7 @@ function UsuariosManager({ usuarios, convites, onUpdate, supabase, currentUserId
                 <p className="text-xs text-orange-700 mt-0.5">{convite.email}</p>
                 <p className="text-xs text-orange-700 mt-0.5">{convite.funcao} • {convite.papel === 'admin' ? 'Administrador' : 'Atendente'}</p>
               </div>
-              <button onClick={() => copyToClipboard(convite.token)} className="text-orange-600 bg-white hover:bg-orange-100 p-2 border border-orange-200 rounded-lg shadow-sm transition-colors flex items-center gap-2" title="Copiar Link">
+              <button onClick={() => copyToClipboard(convite.token)} className="text-orange-600 bg-white dark:bg-slate-800 hover:bg-orange-100 p-2 border border-orange-200 rounded-lg shadow-sm transition-colors flex items-center gap-2" title="Copiar Link">
                 <Copy className="w-4 h-4" />
                 <span className="text-xs font-semibold">Copiar Link</span>
               </button>
@@ -645,20 +645,20 @@ function UsuariosManager({ usuarios, convites, onUpdate, supabase, currentUserId
           {usuarios.map((usr: any) => {
             const souEu = usr.id === currentUserId;
             return (
-            <div key={usr.id} className="p-4 bg-slate-50 border border-slate-100 rounded-xl flex items-center justify-between gap-3">
+            <div key={usr.id} className="p-4 bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-700/60 rounded-xl flex items-center justify-between gap-3">
               <div>
-                <p className="font-bold text-slate-800 text-sm">{usr.nome} {souEu && <span className="text-slate-400 font-normal">(você)</span>}</p>
-                <p className="text-xs text-slate-500 mt-0.5 font-medium">{usr.funcao}</p>
+                <p className="font-bold text-slate-800 dark:text-slate-100 text-sm">{usr.nome} {souEu && <span className="text-slate-400 dark:text-slate-500 font-normal">(você)</span>}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-medium">{usr.funcao}</p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${usr.papel === 'admin' ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-600'}`}>
+                <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${usr.papel === 'admin' ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'}`}>
                   {usr.papel === 'admin' ? 'Admin' : 'Atendente'}
                 </span>
                 <button
                   onClick={() => !souEu && toggleStatusUsuario(usr)}
                   disabled={souEu}
                   title={souEu ? 'Você não pode inativar sua própria conta' : (usr.status === 'ativo' ? 'Inativar usuário' : 'Ativar usuário')}
-                  className={`text-xs font-bold px-2.5 py-1 rounded-full transition-colors ${usr.status === 'ativo' ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-slate-200 text-slate-600 hover:bg-slate-300'} disabled:opacity-60 disabled:cursor-not-allowed`}
+                  className={`text-xs font-bold px-2.5 py-1 rounded-full transition-colors ${usr.status === 'ativo' ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'} disabled:opacity-60 disabled:cursor-not-allowed`}
                 >
                   {usr.status === 'ativo' ? 'Ativo' : 'Inativo'}
                 </button>
@@ -666,7 +666,7 @@ function UsuariosManager({ usuarios, convites, onUpdate, supabase, currentUserId
                   <button
                     onClick={() => setUsuarioParaExcluir(usr)}
                     title="Excluir usuário"
-                    className="text-slate-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                    className="text-slate-400 dark:text-slate-500 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-colors"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>

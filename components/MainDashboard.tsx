@@ -403,15 +403,15 @@ export default function MainDashboard() {
     <div className="space-y-6 animate-in fade-in duration-500">
       
       {/* Header & Filters */}
-      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
         <div>
           <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Dashboard Geral</h1>
+            <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">Dashboard Geral</h1>
             <span className="flex items-center gap-1.5 text-xs font-semibold text-green-700 bg-green-50 border border-green-100 px-2.5 py-1 rounded-full">
               <Wifi className="w-3.5 h-3.5" /> Ao vivo
             </span>
           </div>
-          <p className="text-slate-500 text-sm mt-1">Acompanhe a satisfação e indicações da sua unidade.</p>
+          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Acompanhe a satisfação e indicações da sua unidade.</p>
         </div>
 
         {/* items-start (não items-end): a coluna "Período de Análise" é mais alta
@@ -420,13 +420,13 @@ export default function MainDashboard() {
             desalinhando os rótulos entre si. */}
         <div className="flex flex-col sm:flex-row gap-4 items-start">
           <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">Setor</label>
+            <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Setor</label>
             <div className="relative">
-              <Filter className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <Filter className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <select
                 value={setorFilter}
                 onChange={e => setSetorFilter(e.target.value)}
-                className="h-10 pl-7 pr-3 border border-slate-300 rounded-lg text-sm outline-none bg-white"
+                className="h-10 pl-7 pr-3 border border-slate-300 dark:border-slate-700 rounded-lg text-sm outline-none bg-white dark:bg-slate-800"
               >
                 <option value="">Todos os setores</option>
                 {setoresList.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
@@ -435,20 +435,20 @@ export default function MainDashboard() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">Período de Análise</label>
+            <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Período de Análise</label>
             <div className="flex gap-2">
               <input
                 type="date"
                 value={dateFilter.start}
                 onChange={e => setDateFilter({...dateFilter, start: e.target.value})}
-                className="h-10 px-2 border border-slate-300 rounded-lg text-sm outline-none"
+                className="h-10 px-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm outline-none bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 dark:[color-scheme:dark]"
               />
-              <span className="self-center text-slate-400">-</span>
+              <span className="self-center text-slate-400 dark:text-slate-500">-</span>
               <input
                 type="date"
                 value={dateFilter.end}
                 onChange={e => setDateFilter({...dateFilter, end: e.target.value})}
-                className="h-10 px-2 border border-slate-300 rounded-lg text-sm outline-none"
+                className="h-10 px-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm outline-none bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 dark:[color-scheme:dark]"
               />
             </div>
             <div className="flex gap-3 mt-1.5 text-xs">
@@ -464,10 +464,10 @@ export default function MainDashboard() {
                 não com o topo do bloco inteiro. */}
             <label className="hidden sm:block text-sm font-medium mb-1 invisible" aria-hidden="true">Exportar</label>
             <div className="flex gap-2">
-              <button onClick={() => exportarCSV('avaliacoes')} title="Exportar avaliações do período em CSV" className="h-10 flex items-center gap-1.5 text-xs font-semibold px-3 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors">
+              <button onClick={() => exportarCSV('avaliacoes')} title="Exportar avaliações do período em CSV" className="h-10 flex items-center gap-1.5 text-xs font-semibold px-3 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                 <Download className="w-3.5 h-3.5" /> Avaliações
               </button>
-              <button onClick={() => exportarCSV('indicacoes')} title="Exportar indicações do período em CSV" className="h-10 flex items-center gap-1.5 text-xs font-semibold px-3 border border-slate-300 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors">
+              <button onClick={() => exportarCSV('indicacoes')} title="Exportar indicações do período em CSV" className="h-10 flex items-center gap-1.5 text-xs font-semibold px-3 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                 <Download className="w-3.5 h-3.5" /> Indicações
               </button>
             </div>
@@ -479,12 +479,12 @@ export default function MainDashboard() {
         <div className="space-y-6 animate-pulse">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             {[...Array(5)].map((_, i) => (
-              <div key={i} className="bg-white p-5 rounded-2xl border border-slate-200 h-28" />
+              <div key={i} className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 h-28" />
             ))}
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {[...Array(2)].map((_, i) => (
-              <div key={i} className="bg-white p-5 rounded-2xl border border-slate-200 h-[300px]" />
+              <div key={i} className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 h-[300px]" />
             ))}
           </div>
         </div>
@@ -494,15 +494,15 @@ export default function MainDashboard() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6 gap-4">
 
             {/* Avaliações Card */}
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+            <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
               <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2 text-slate-500 font-semibold">
+                <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 font-semibold">
                   <Star className="w-5 h-5 text-blue-500" /> Total Avaliações
                 </div>
                 <DeltaBadge delta={deltaAvaliacoes} />
               </div>
-              <div className="text-3xl font-bold text-slate-800">{totalAvaliacoes}</div>
-              <div className="mt-2 text-sm text-slate-500 flex items-center gap-2 flex-wrap">
+              <div className="text-3xl font-bold text-slate-800 dark:text-slate-100">{totalAvaliacoes}</div>
+              <div className="mt-2 text-sm text-slate-500 dark:text-slate-400 flex items-center gap-2 flex-wrap">
                 <span className="font-bold text-blue-600">Nota Média: {mediaNPS}</span>
                 <DeltaBadge delta={deltaNPS} />
               </div>
@@ -516,9 +516,9 @@ export default function MainDashboard() {
             </div>
 
             {/* Classificação das Avaliações Card */}
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+            <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
               <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
-                <div className="flex items-center gap-2 text-slate-500 font-semibold shrink-0">
+                <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 font-semibold shrink-0">
                   <Users className="w-5 h-5 text-indigo-500" /> Classificação
                 </div>
                 <span
@@ -528,15 +528,15 @@ export default function MainDashboard() {
                   NPS: {npsScore}
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 mb-3">% promotores − % detratores</p>
+              <p className="text-[11px] text-slate-400 dark:text-slate-500 mb-3">% promotores − % detratores</p>
               {totalAvaliacoes > 0 ? (
-                <div className="flex h-2.5 rounded-full overflow-hidden bg-slate-100 mb-3">
+                <div className="flex h-2.5 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800 mb-3">
                   <div className="bg-green-500 h-full" style={{ width: `${(promotores / totalAvaliacoes) * 100}%` }} />
                   <div className="bg-yellow-400 h-full" style={{ width: `${(neutros / totalAvaliacoes) * 100}%` }} />
                   <div className="bg-red-500 h-full" style={{ width: `${(detratores / totalAvaliacoes) * 100}%` }} />
                 </div>
               ) : (
-                <div className="h-2.5 rounded-full bg-slate-100 mb-3" />
+                <div className="h-2.5 rounded-full bg-slate-100 dark:bg-slate-800 mb-3" />
               )}
               {/* Lista vertical, uma linha por classificação ocupando a largura toda
                   do card — evita o problema de antes, onde "Promotores"/"Neutros"/
@@ -545,30 +545,30 @@ export default function MainDashboard() {
                   própria coluna). Cada linha aqui tem o card inteiro pra si. */}
               <div className="space-y-1">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="flex items-center gap-1.5 text-slate-500"><span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />Promotores</span>
-                  <span className="font-bold text-slate-800">{promotores}</span>
+                  <span className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400"><span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />Promotores</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-100">{promotores}</span>
                 </div>
                 <div className="flex items-center justify-between text-xs">
-                  <span className="flex items-center gap-1.5 text-slate-500"><span className="w-2 h-2 rounded-full bg-yellow-400 shrink-0" />Neutros</span>
-                  <span className="font-bold text-slate-800">{neutros}</span>
+                  <span className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400"><span className="w-2 h-2 rounded-full bg-yellow-400 shrink-0" />Neutros</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-100">{neutros}</span>
                 </div>
                 <div className="flex items-center justify-between text-xs">
-                  <span className="flex items-center gap-1.5 text-slate-500"><span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />Detratores</span>
-                  <span className="font-bold text-slate-800">{detratores}</span>
+                  <span className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400"><span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />Detratores</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-100">{detratores}</span>
                 </div>
               </div>
             </div>
 
             {/* Indicações Card */}
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+            <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
               <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2 text-slate-500 font-semibold">
+                <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 font-semibold">
                   <Megaphone className="w-5 h-5 text-orange-500" /> Total Indicações
                 </div>
                 <DeltaBadge delta={deltaIndicacoes} />
               </div>
-              <div className="text-3xl font-bold text-slate-800">{totalIndicacoes}</div>
-              <div className="mt-2 text-sm text-slate-500 flex items-center gap-2">
+              <div className="text-3xl font-bold text-slate-800 dark:text-slate-100">{totalIndicacoes}</div>
+              <div className="mt-2 text-sm text-slate-500 dark:text-slate-400 flex items-center gap-2">
                 <span className="font-bold text-orange-600">Fechadas: {fechadas}</span>
               </div>
               <Link
@@ -580,47 +580,47 @@ export default function MainDashboard() {
             </div>
 
             {/* Conversão Card */}
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+            <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
               <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2 text-slate-500 font-semibold">
+                <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 font-semibold">
                   <Target className="w-5 h-5 text-green-500" /> Conversão
                 </div>
                 <DeltaBadge delta={deltaConversao} />
               </div>
-              <div className="text-3xl font-bold text-slate-800">{conversao}%</div>
-              <div className="mt-2 text-[11px] text-slate-500 uppercase font-semibold">
+              <div className="text-3xl font-bold text-slate-800 dark:text-slate-100">{conversao}%</div>
+              <div className="mt-2 text-[11px] text-slate-500 dark:text-slate-400 uppercase font-semibold">
                 Indicações transformadas em negócio
               </div>
             </div>
 
             {/* Tempo Médio de Fechamento Card */}
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+            <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
               <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2 text-slate-500 font-semibold">
+                <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 font-semibold">
                   <Clock className="w-5 h-5 text-purple-500" /> Tempo de Fechamento
                 </div>
                 <DeltaBadge delta={deltaTempoFechamento} invertido />
               </div>
-              <div className="text-3xl font-bold text-slate-800">
+              <div className="text-3xl font-bold text-slate-800 dark:text-slate-100">
                 {tempoMedioFechamentoDias !== null ? `${tempoMedioFechamentoDias.toFixed(1)}d` : '—'}
               </div>
-              <div className="mt-2 text-[11px] text-slate-500 uppercase font-semibold">
+              <div className="mt-2 text-[11px] text-slate-500 dark:text-slate-400 uppercase font-semibold">
                 Média do cadastro até o fechamento
               </div>
             </div>
 
             {/* Reclamações Card */}
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+            <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
               <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2 text-slate-500 font-semibold">
+                <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 font-semibold">
                   <AlertOctagon className="w-5 h-5 text-red-500" /> Reclamações
                 </div>
               </div>
-              <div className="text-3xl font-bold text-slate-800">{totalReclamacoes}</div>
-              <div className="mt-2 text-sm text-slate-500 flex items-center gap-2 flex-wrap">
+              <div className="text-3xl font-bold text-slate-800 dark:text-slate-100">{totalReclamacoes}</div>
+              <div className="mt-2 text-sm text-slate-500 dark:text-slate-400 flex items-center gap-2 flex-wrap">
                 <span className="font-bold text-red-600">{percentualNpsVirouReclamacao}% dos NPS viraram reclamação</span>
               </div>
-              <div className="mt-1 text-[11px] text-slate-400">{reclamacoesResolvidas} resolvida{reclamacoesResolvidas === 1 ? '' : 's'} no período</div>
+              <div className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">{reclamacoesResolvidas} resolvida{reclamacoesResolvidas === 1 ? '' : 's'} no período</div>
               <button
                 onClick={() => setShowReclamacoesModal(true)}
                 disabled={totalReclamacoes === 0}
@@ -645,10 +645,10 @@ export default function MainDashboard() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 {indicacoesEsquecidas.slice(0, 6).map(ind => (
-                  <Link href="/indicacoes" key={ind.id} className="bg-white border border-amber-100 rounded-lg px-3 py-2 hover:border-amber-300 transition-colors">
+                  <Link href="/indicacoes" key={ind.id} className="bg-white dark:bg-slate-800 border border-amber-100 rounded-lg px-3 py-2 hover:border-amber-300 transition-colors">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="font-semibold text-sm text-slate-800">{ind.nome_indicado}</div>
-                      {ind.protocolo && <div className="font-mono text-[10px] text-slate-400">{ind.protocolo}</div>}
+                      <div className="font-semibold text-sm text-slate-800 dark:text-slate-100">{ind.nome_indicado}</div>
+                      {ind.protocolo && <div className="font-mono text-[10px] text-slate-400 dark:text-slate-500">{ind.protocolo}</div>}
                     </div>
                     <div className="text-xs text-amber-700 font-medium">{Math.floor(ind.diasParado)} dias sem atualização</div>
                   </Link>
@@ -670,12 +670,12 @@ export default function MainDashboard() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 {reclamacoesEsquecidas.slice(0, 6).map(rec => (
-                  <Link href={`/atendimento?associado=${rec.associado_id}`} key={rec.id} className="bg-white border border-red-100 rounded-lg px-3 py-2 hover:border-red-300 transition-colors">
+                  <Link href={`/atendimento?associado=${rec.associado_id}`} key={rec.id} className="bg-white dark:bg-slate-800 border border-red-100 rounded-lg px-3 py-2 hover:border-red-300 transition-colors">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="font-semibold text-sm text-slate-800">{rec.associados?.nome_completo}</div>
-                      {rec.protocolo && <div className="font-mono text-[10px] text-slate-400">{rec.protocolo}</div>}
+                      <div className="font-semibold text-sm text-slate-800 dark:text-slate-100">{rec.associados?.nome_completo}</div>
+                      {rec.protocolo && <div className="font-mono text-[10px] text-slate-400 dark:text-slate-500">{rec.protocolo}</div>}
                     </div>
-                    <div className="text-xs text-slate-500">{rec.motivo?.nome || 'Sem motivo definido'}</div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400">{rec.motivo?.nome || 'Sem motivo definido'}</div>
                     <div className="text-xs text-red-700 font-medium">{Math.floor(rec.diasParado)} dias sem atualização</div>
                   </Link>
                 ))}
@@ -687,8 +687,8 @@ export default function MainDashboard() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             
             {/* NPS Evolution */}
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-              <h3 className="font-bold text-slate-700 mb-4">Evolução NPS Médio</h3>
+            <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
+              <h3 className="font-bold text-slate-700 dark:text-slate-200 mb-4">Evolução NPS Médio</h3>
               <div className="h-[250px] w-full">
                 {npsEvolutionData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
@@ -701,14 +701,14 @@ export default function MainDashboard() {
                     </LineChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="h-full flex items-center justify-center text-slate-400 text-sm">Sem dados suficientes</div>
+                  <div className="h-full flex items-center justify-center text-slate-400 dark:text-slate-500 text-sm">Sem dados suficientes</div>
                 )}
               </div>
             </div>
 
             {/* Avaliações por Setor */}
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-              <h3 className="font-bold text-slate-700 mb-4">Média NPS por Setor</h3>
+            <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
+              <h3 className="font-bold text-slate-700 dark:text-slate-200 mb-4">Média NPS por Setor</h3>
               <div className="h-[250px] w-full">
                 {setorData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
@@ -721,14 +721,14 @@ export default function MainDashboard() {
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="h-full flex items-center justify-center text-slate-400 text-sm">Sem dados suficientes</div>
+                  <div className="h-full flex items-center justify-center text-slate-400 dark:text-slate-500 text-sm">Sem dados suficientes</div>
                 )}
               </div>
             </div>
 
             {/* Promotor/Neutro/Detrator */}
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-              <h3 className="font-bold text-slate-700 mb-4">Distribuição de Clientes</h3>
+            <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
+              <h3 className="font-bold text-slate-700 dark:text-slate-200 mb-4">Distribuição de Clientes</h3>
               <div className="h-[250px] w-full">
                 {totalAvaliacoes > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
@@ -743,14 +743,14 @@ export default function MainDashboard() {
                     </PieChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="h-full flex items-center justify-center text-slate-400 text-sm">Sem dados suficientes</div>
+                  <div className="h-full flex items-center justify-center text-slate-400 dark:text-slate-500 text-sm">Sem dados suficientes</div>
                 )}
               </div>
             </div>
 
             {/* Indicações Status */}
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-              <h3 className="font-bold text-slate-700 mb-4">Status de Indicações</h3>
+            <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
+              <h3 className="font-bold text-slate-700 dark:text-slate-200 mb-4">Status de Indicações</h3>
               <div className="h-[250px] w-full">
                 {totalIndicacoes > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
@@ -767,14 +767,14 @@ export default function MainDashboard() {
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="h-full flex items-center justify-center text-slate-400 text-sm">Sem dados suficientes</div>
+                  <div className="h-full flex items-center justify-center text-slate-400 dark:text-slate-500 text-sm">Sem dados suficientes</div>
                 )}
               </div>
             </div>
 
             {/* Status de Reclamações */}
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-              <h3 className="font-bold text-slate-700 mb-4">Status de Reclamações</h3>
+            <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 lg:col-span-2">
+              <h3 className="font-bold text-slate-700 dark:text-slate-200 mb-4">Status de Reclamações</h3>
               <div className="h-[250px] w-full">
                 {totalReclamacoes > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
@@ -791,15 +791,15 @@ export default function MainDashboard() {
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="h-full flex items-center justify-center text-slate-400 text-sm">Sem dados suficientes</div>
+                  <div className="h-full flex items-center justify-center text-slate-400 dark:text-slate-500 text-sm">Sem dados suficientes</div>
                 )}
               </div>
             </div>
 
             {/* Correlação NPS -> Indicações */}
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 lg:col-span-2">
-              <h3 className="font-bold text-slate-700 mb-1">Indicações por Perfil do Cliente</h3>
-              <p className="text-xs text-slate-400 mb-4">Associados promotores (nota 9-10) indicam mais do que detratores?</p>
+            <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 lg:col-span-2">
+              <h3 className="font-bold text-slate-700 dark:text-slate-200 mb-1">Indicações por Perfil do Cliente</h3>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">Associados promotores (nota 9-10) indicam mais do que detratores?</p>
               <div className="h-[220px] w-full">
                 {totalComCorrelacao > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
@@ -816,7 +816,7 @@ export default function MainDashboard() {
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="h-full flex items-center justify-center text-slate-400 text-sm">Sem dados suficientes</div>
+                  <div className="h-full flex items-center justify-center text-slate-400 dark:text-slate-500 text-sm">Sem dados suficientes</div>
                 )}
               </div>
             </div>
@@ -826,13 +826,13 @@ export default function MainDashboard() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
             {/* Tabela Desempenho */}
-            <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
-              <div className="p-5 border-b border-slate-100">
-                <h3 className="font-bold text-slate-700">Desempenho por Colaborador</h3>
+            <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col">
+              <div className="p-5 border-b border-slate-100 dark:border-slate-700/60">
+                <h3 className="font-bold text-slate-700 dark:text-slate-200">Desempenho por Colaborador</h3>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm text-slate-600">
-                  <thead className="bg-slate-50 text-slate-500 uppercase font-semibold text-xs border-b border-slate-200">
+                <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300">
+                  <thead className="bg-slate-50 dark:bg-slate-900/40 text-slate-500 dark:text-slate-400 uppercase font-semibold text-xs border-b border-slate-200 dark:border-slate-700">
                     <tr>
                       <th className="px-5 py-3">Membro da Equipe</th>
                       <th className="px-5 py-3 text-center">Avaliações (NPS)</th>
@@ -842,19 +842,19 @@ export default function MainDashboard() {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {userPerformance.length > 0 ? userPerformance.map(u => (
-                      <tr key={u.id} className="hover:bg-slate-50">
-                        <td className="px-5 py-3 font-medium text-slate-800">{u.nome}</td>
+                      <tr key={u.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
+                        <td className="px-5 py-3 font-medium text-slate-800 dark:text-slate-100">{u.nome}</td>
                         <td className="px-5 py-3 text-center">{u.avaliacoes}</td>
                         <td className="px-5 py-3 text-center">{u.indicacoes}</td>
                         <td className="px-5 py-3 text-center">
-                          <span className={`px-2 py-1 rounded-lg text-xs font-bold ${u.sucesso >= 50 ? 'bg-green-100 text-green-700' : u.sucesso >= 20 ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-600'}`}>
+                          <span className={`px-2 py-1 rounded-lg text-xs font-bold ${u.sucesso >= 50 ? 'bg-green-100 text-green-700' : u.sucesso >= 20 ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'}`}>
                             {u.sucesso}%
                           </span>
                         </td>
                       </tr>
                     )) : (
                       <tr>
-                        <td colSpan={4} className="px-5 py-8 text-center text-slate-400">Sem dados no período</td>
+                        <td colSpan={4} className="px-5 py-8 text-center text-slate-400 dark:text-slate-500">Sem dados no período</td>
                       </tr>
                     )}
                   </tbody>
@@ -863,9 +863,9 @@ export default function MainDashboard() {
             </div>
 
             {/* Indicações em Aberto */}
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col">
-              <div className="p-5 border-b border-slate-100 flex justify-between items-center">
-                <h3 className="font-bold text-slate-700 flex items-center gap-2">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col">
+              <div className="p-5 border-b border-slate-100 dark:border-slate-700/60 flex justify-between items-center">
+                <h3 className="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 text-orange-500" /> Em Andamento
                 </h3>
                 <Link href="/indicacoes" className="text-xs font-semibold text-blue-600 hover:underline flex items-center gap-1">
@@ -874,20 +874,20 @@ export default function MainDashboard() {
               </div>
               <div className="p-2 flex-1 flex flex-col gap-1">
                 {openIndicacoes.length > 0 ? openIndicacoes.map(ind => (
-                  <Link href="/indicacoes" key={ind.id} className="block p-3 rounded-lg hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100">
+                  <Link href="/indicacoes" key={ind.id} className="block p-3 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors border border-transparent hover:border-slate-100 dark:hover:border-slate-700">
                     <div className="flex justify-between items-start mb-1">
-                      <span className="font-bold text-sm text-slate-800">{ind.nome_indicado}</span>
+                      <span className="font-bold text-sm text-slate-800 dark:text-slate-100">{ind.nome_indicado}</span>
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${corStatus(ind.status?.cor).badge}`}>
                         {ind.status?.nome || '—'}
                       </span>
                     </div>
-                    <div className="text-xs text-slate-500 flex items-center gap-1.5 flex-wrap">
-                      {ind.protocolo && <span className="font-mono text-slate-400">{ind.protocolo}</span>}
+                    <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 flex-wrap">
+                      {ind.protocolo && <span className="font-mono text-slate-400 dark:text-slate-500">{ind.protocolo}</span>}
                       <span>Cadastrado: {new Date(ind.data_indicacao).toLocaleDateString('pt-BR')}</span>
                     </div>
                   </Link>
                 )) : (
-                  <div className="h-full flex flex-col items-center justify-center p-6 text-center text-slate-400 text-sm">
+                  <div className="h-full flex flex-col items-center justify-center p-6 text-center text-slate-400 dark:text-slate-500 text-sm">
                     <CheckCircle2 className="w-8 h-8 text-slate-200 mb-2" />
                     Nenhuma indicação pendente. Ótimo trabalho!
                   </div>
@@ -961,35 +961,35 @@ function AvaliacoesModal({
 
   return (
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[85vh]">
-        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[85vh]">
+        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700/60 flex justify-between items-center bg-slate-50 dark:bg-slate-900/40 shrink-0">
           <div>
-            <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+            <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100 flex items-center gap-2">
               <Star className="w-5 h-5 text-yellow-500" /> Avaliações do período
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               {new Date(`${periodo.start}T00:00:00`).toLocaleDateString('pt-BR')} até {new Date(`${periodo.end}T00:00:00`).toLocaleDateString('pt-BR')} · {filtradas.length} avaliaç{filtradas.length === 1 ? 'ão' : 'ões'}
             </p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700"><X className="w-5 h-5" /></button>
+          <button onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200"><X className="w-5 h-5" /></button>
         </div>
 
-        <div className="px-6 py-3 border-b border-slate-100 shrink-0">
+        <div className="px-6 py-3 border-b border-slate-100 dark:border-slate-700/60 shrink-0">
           <input
             type="text"
             value={busca}
             onChange={e => { setBusca(e.target.value); setPagina(1); }}
             placeholder="Buscar por associado, setor ou comentário..."
-            className="w-full h-10 px-3 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full h-10 px-3 border border-slate-300 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100"
           />
         </div>
 
         <div className="overflow-y-auto flex-1">
           {pagina_itens.length === 0 ? (
-            <div className="p-12 text-center text-slate-400 text-sm">Nenhuma avaliação encontrada.</div>
+            <div className="p-12 text-center text-slate-400 dark:text-slate-500 text-sm">Nenhuma avaliação encontrada.</div>
           ) : (
-            <table className="w-full text-left text-sm text-slate-600">
-              <thead className="bg-slate-50 text-slate-500 uppercase font-semibold text-xs border-b border-slate-200 sticky top-0">
+            <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300">
+              <thead className="bg-slate-50 dark:bg-slate-900/40 text-slate-500 dark:text-slate-400 uppercase font-semibold text-xs border-b border-slate-200 dark:border-slate-700 sticky top-0">
                 <tr>
                   <th className="px-4 py-2.5">Data</th>
                   <th className="px-4 py-2.5">Associado</th>
@@ -1004,9 +1004,9 @@ function AvaliacoesModal({
                 {pagina_itens.map(a => {
                   const setorNome = Array.isArray(a.setor) ? a.setor[0]?.nome : a.setor?.nome;
                   return (
-                    <tr key={a.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-2.5 whitespace-nowrap text-slate-500">{new Date(a.data_avaliacao).toLocaleDateString('pt-BR')}</td>
-                      <td className="px-4 py-2.5 font-medium text-slate-800">{a.associado?.nome_completo || '—'}</td>
+                    <tr key={a.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
+                      <td className="px-4 py-2.5 whitespace-nowrap text-slate-500 dark:text-slate-400">{new Date(a.data_avaliacao).toLocaleDateString('pt-BR')}</td>
+                      <td className="px-4 py-2.5 font-medium text-slate-800 dark:text-slate-100">{a.associado?.nome_completo || '—'}</td>
                       <td className="px-4 py-2.5">{setorNome || '—'}</td>
                       <td className="px-4 py-2.5 text-center">
                         <span className={`inline-block px-2 py-0.5 rounded font-bold text-xs ${a.nota >= 9 ? 'bg-green-100 text-green-700' : a.nota >= 7 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
@@ -1014,7 +1014,7 @@ function AvaliacoesModal({
                         </span>
                       </td>
                       <td className="px-4 py-2.5 max-w-xs truncate" title={a.comentario || ''}>{a.comentario || <span className="text-slate-300 italic">—</span>}</td>
-                      <td className="px-4 py-2.5 text-slate-500">{getNomeUsuario(a.usuario_id)}</td>
+                      <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400">{getNomeUsuario(a.usuario_id)}</td>
                       <td className="px-4 py-2.5 whitespace-nowrap">
                         <Link
                           href={`/atendimento?associado=${a.associado_id}`}
@@ -1032,20 +1032,20 @@ function AvaliacoesModal({
         </div>
 
         {totalPaginas > 1 && (
-          <div className="px-6 py-3 border-t border-slate-100 flex items-center justify-between shrink-0">
-            <span className="text-xs text-slate-500">Página {paginaAtual} de {totalPaginas}</span>
+          <div className="px-6 py-3 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between shrink-0">
+            <span className="text-xs text-slate-500 dark:text-slate-400">Página {paginaAtual} de {totalPaginas}</span>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setPagina(p => Math.max(1, p - 1))}
                 disabled={paginaAtual <= 1}
-                className="px-3 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="px-3 py-1.5 text-xs font-semibold border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Anterior
               </button>
               <button
                 onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))}
                 disabled={paginaAtual >= totalPaginas}
-                className="px-3 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="px-3 py-1.5 text-xs font-semibold border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Próxima
               </button>
@@ -1093,35 +1093,35 @@ function ReclamacoesModal({
 
   return (
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[85vh]">
-        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[85vh]">
+        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700/60 flex justify-between items-center bg-slate-50 dark:bg-slate-900/40 shrink-0">
           <div>
-            <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+            <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100 flex items-center gap-2">
               <AlertOctagon className="w-5 h-5 text-red-500" /> Reclamações do período
             </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               {new Date(`${periodo.start}T00:00:00`).toLocaleDateString('pt-BR')} até {new Date(`${periodo.end}T00:00:00`).toLocaleDateString('pt-BR')} · {filtradas.length} reclamaç{filtradas.length === 1 ? 'ão' : 'ões'}
             </p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700"><X className="w-5 h-5" /></button>
+          <button onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200"><X className="w-5 h-5" /></button>
         </div>
 
-        <div className="px-6 py-3 border-b border-slate-100 shrink-0">
+        <div className="px-6 py-3 border-b border-slate-100 dark:border-slate-700/60 shrink-0">
           <input
             type="text"
             value={busca}
             onChange={e => { setBusca(e.target.value); setPagina(1); }}
             placeholder="Buscar por associado, motivo, protocolo ou status..."
-            className="w-full h-10 px-3 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full h-10 px-3 border border-slate-300 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100"
           />
         </div>
 
         <div className="overflow-y-auto flex-1">
           {pagina_itens.length === 0 ? (
-            <div className="p-12 text-center text-slate-400 text-sm">Nenhuma reclamação encontrada.</div>
+            <div className="p-12 text-center text-slate-400 dark:text-slate-500 text-sm">Nenhuma reclamação encontrada.</div>
           ) : (
-            <table className="w-full text-left text-sm text-slate-600">
-              <thead className="bg-slate-50 text-slate-500 uppercase font-semibold text-xs border-b border-slate-200 sticky top-0">
+            <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300">
+              <thead className="bg-slate-50 dark:bg-slate-900/40 text-slate-500 dark:text-slate-400 uppercase font-semibold text-xs border-b border-slate-200 dark:border-slate-700 sticky top-0">
                 <tr>
                   <th className="px-4 py-2.5">Protocolo / Data</th>
                   <th className="px-4 py-2.5">Associado</th>
@@ -1132,12 +1132,12 @@ function ReclamacoesModal({
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {pagina_itens.map(r => (
-                  <tr key={r.id} className="hover:bg-slate-50">
+                  <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-800">
                     <td className="px-4 py-2.5 whitespace-nowrap">
-                      <div className="font-mono text-xs font-bold text-slate-500">{r.protocolo || '—'}</div>
-                      <div className="text-slate-500 mt-0.5">{new Date(r.data_abertura).toLocaleDateString('pt-BR')}</div>
+                      <div className="font-mono text-xs font-bold text-slate-500 dark:text-slate-400">{r.protocolo || '—'}</div>
+                      <div className="text-slate-500 dark:text-slate-400 mt-0.5">{new Date(r.data_abertura).toLocaleDateString('pt-BR')}</div>
                     </td>
-                    <td className="px-4 py-2.5 font-medium text-slate-800">{r.associados?.nome_completo || '—'}</td>
+                    <td className="px-4 py-2.5 font-medium text-slate-800 dark:text-slate-100">{r.associados?.nome_completo || '—'}</td>
                     <td className="px-4 py-2.5">{r.motivo?.nome || <span className="text-slate-300 italic">Sem motivo definido</span>}</td>
                     <td className="px-4 py-2.5">
                       <span className={`inline-block px-2 py-0.5 rounded font-bold text-xs ${corStatus(r.status?.cor).badge}`}>
@@ -1160,20 +1160,20 @@ function ReclamacoesModal({
         </div>
 
         {totalPaginas > 1 && (
-          <div className="px-6 py-3 border-t border-slate-100 flex items-center justify-between shrink-0">
-            <span className="text-xs text-slate-500">Página {paginaAtual} de {totalPaginas}</span>
+          <div className="px-6 py-3 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between shrink-0">
+            <span className="text-xs text-slate-500 dark:text-slate-400">Página {paginaAtual} de {totalPaginas}</span>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setPagina(p => Math.max(1, p - 1))}
                 disabled={paginaAtual <= 1}
-                className="px-3 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="px-3 py-1.5 text-xs font-semibold border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Anterior
               </button>
               <button
                 onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))}
                 disabled={paginaAtual >= totalPaginas}
-                className="px-3 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="px-3 py-1.5 text-xs font-semibold border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Próxima
               </button>

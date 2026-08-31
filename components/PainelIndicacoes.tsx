@@ -244,13 +244,13 @@ export default function PainelIndicacoes() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <Megaphone className="h-8 w-8 text-orange-500" />
-          <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Painel de Indicações</h1>
+          <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">Painel de Indicações</h1>
         </div>
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1.5 text-xs font-semibold text-green-700 bg-green-50 border border-green-100 px-3 py-1.5 rounded-full">
             <Wifi className="w-3.5 h-3.5" /> Atualização em tempo real
           </span>
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
+          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
             {([
               { key: 'lista' as const, label: 'Lista', Icon: List },
               { key: 'card' as const, label: 'Card', Icon: LayoutGrid },
@@ -259,7 +259,7 @@ export default function PainelIndicacoes() {
               <button
                 key={key}
                 onClick={() => { setViewMode(key); setPage(1); }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${viewMode === key ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${viewMode === key ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
               >
                 <Icon className="w-3.5 h-3.5" /> {label}
               </button>
@@ -269,29 +269,29 @@ export default function PainelIndicacoes() {
       </div>
 
       {/* Filtros */}
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-        <div className="flex items-center gap-2 mb-4 text-slate-700 font-semibold">
+      <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
+        <div className="flex items-center gap-2 mb-4 text-slate-700 dark:text-slate-200 font-semibold">
           <Filter className="h-5 w-5" /> Filtros
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">Buscar</label>
+            <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Buscar</label>
             <input
               type="text"
               placeholder="Nome, associado ou protocolo..."
               value={searchInput}
               onChange={e => setSearchInput(e.target.value)}
-              className="h-10 w-full px-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
+              className="h-10 w-full px-3 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">Status</label>
+            <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Status</label>
             <select
               value={filtros.status}
               onChange={e => atualizarFiltro({ status: e.target.value })}
-              className="h-10 w-full px-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
+              className="h-10 w-full px-3 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100"
             >
               <option value="">Todos</option>
               {statusTodos.map(s => (
@@ -301,11 +301,11 @@ export default function PainelIndicacoes() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">Responsável</label>
+            <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Responsável</label>
             <select
               value={filtros.responsavel_id}
               onChange={e => atualizarFiltro({ responsavel_id: e.target.value })}
-              className="h-10 w-full px-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none"
+              className="h-10 w-full px-3 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100"
             >
               <option value="">Todos</option>
               <option value="unassigned">Sem Responsável (Apenas Criador)</option>
@@ -316,27 +316,27 @@ export default function PainelIndicacoes() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">Período de Análise</label>
+            <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Período de Análise</label>
             <div className="flex flex-col sm:flex-row gap-2">
               <input
                 type="date"
                 value={filtros.data_inicio}
                 onChange={e => atualizarFiltro({ data_inicio: e.target.value })}
-                className="h-10 w-full min-w-0 px-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                className="h-10 w-full min-w-0 px-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 dark:[color-scheme:dark]"
               />
-              <span className="hidden sm:inline self-center text-slate-400">-</span>
+              <span className="hidden sm:inline self-center text-slate-400 dark:text-slate-500">-</span>
               <input
                 type="date"
                 value={filtros.data_fim}
                 onChange={e => atualizarFiltro({ data_fim: e.target.value })}
-                className="h-10 w-full min-w-0 px-2 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                className="h-10 w-full min-w-0 px-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 dark:[color-scheme:dark]"
               />
             </div>
             <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-xs">
               <button onClick={() => applyDateShortcut('hoje')} className="text-blue-600 font-medium hover:underline">Hoje</button>
               <button onClick={() => applyDateShortcut('7dias')} className="text-blue-600 font-medium hover:underline">7 Dias</button>
               <button onClick={() => applyDateShortcut('mes')} className="text-blue-600 font-medium hover:underline">Este Mês</button>
-              <button onClick={() => atualizarFiltro({ data_inicio: '', data_fim: '' })} className="text-slate-500 hover:underline">Limpar</button>
+              <button onClick={() => atualizarFiltro({ data_inicio: '', data_fim: '' })} className="text-slate-500 dark:text-slate-400 hover:underline">Limpar</button>
             </div>
           </div>
         </div>
@@ -349,18 +349,18 @@ export default function PainelIndicacoes() {
         </div>
       )}
 
-      <p className="text-xs text-slate-400 -mb-4">Clique numa indicação pra ver os detalhes completos e o histórico.</p>
+      <p className="text-xs text-slate-400 dark:text-slate-500 -mb-4">Clique numa indicação pra ver os detalhes completos e o histórico.</p>
 
       {/* Lista */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
         {loading ? (
           <div className="p-6 space-y-3 animate-pulse">
             {[...Array(5)].map((_, i) => (
-              <div key={i} className="h-14 bg-slate-100 rounded-xl" />
+              <div key={i} className="h-14 bg-slate-100 dark:bg-slate-800 rounded-xl" />
             ))}
           </div>
         ) : indicacoes.length === 0 ? (
-          <div className="p-12 text-center text-slate-500">
+          <div className="p-12 text-center text-slate-500 dark:text-slate-400">
             Nenhuma indicação encontrada com os filtros atuais.
           </div>
         ) : viewMode === 'kanban' ? (
@@ -375,29 +375,29 @@ export default function PainelIndicacoes() {
               <button
                 key={ind.id}
                 onClick={() => setDetalheAbertoId(ind.id)}
-                className="text-left border border-slate-200 rounded-xl p-4 space-y-3 hover:border-blue-300 hover:shadow-md transition-all"
+                className="text-left border border-slate-200 dark:border-slate-700 rounded-xl p-4 space-y-3 hover:border-blue-300 dark:hover:border-blue-500/50 hover:shadow-md transition-all"
               >
                 <div className="flex justify-between items-start gap-2">
-                  <div className="font-bold text-slate-800">{ind.nome_indicado}</div>
+                  <div className="font-bold text-slate-800 dark:text-slate-100">{ind.nome_indicado}</div>
                   {ind.protocolo && (
-                    <span className="flex items-center gap-1 text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded font-mono shrink-0">
+                    <span className="flex items-center gap-1 text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded font-mono shrink-0">
                       <Hash className="w-2.5 h-2.5" />{ind.protocolo}
                     </span>
                   )}
                 </div>
-                <div className="text-sm text-slate-500">{ind.associados?.nome_completo}</div>
+                <div className="text-sm text-slate-500 dark:text-slate-400">{ind.associados?.nome_completo}</div>
                 <DiasParadoBadge ind={ind} />
-                <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-700/60">
                   <span className={`text-xs font-bold px-2 py-1 rounded ${corStatus(ind.status?.cor).badge}`}>{ind.status?.nome || '—'}</span>
-                  <span className="text-xs text-slate-400 truncate">{ind.responsavel_id ? getNomeUsuario(ind.responsavel_id) : 'Sem responsável'}</span>
+                  <span className="text-xs text-slate-400 dark:text-slate-500 truncate">{ind.responsavel_id ? getNomeUsuario(ind.responsavel_id) : 'Sem responsável'}</span>
                 </div>
               </button>
             ))}
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-slate-600">
-              <thead className="bg-slate-50 text-slate-500 uppercase font-semibold text-xs border-b border-slate-200">
+            <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300">
+              <thead className="bg-slate-50 dark:bg-slate-900/40 text-slate-500 dark:text-slate-400 uppercase font-semibold text-xs border-b border-slate-200 dark:border-slate-700">
                 <tr>
                   <th className="px-4 py-3">Protocolo / Data</th>
                   <th className="px-4 py-3">Indicado / Telefone</th>
@@ -411,27 +411,27 @@ export default function PainelIndicacoes() {
                   <tr
                     key={ind.id}
                     onClick={() => setDetalheAbertoId(ind.id)}
-                    className="hover:bg-slate-50 transition-colors cursor-pointer"
+                    className="hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                   >
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <div className="flex items-center gap-1 font-mono text-xs font-bold text-slate-500">
+                      <div className="flex items-center gap-1 font-mono text-xs font-bold text-slate-500 dark:text-slate-400">
                         <Hash className="w-3 h-3" />{ind.protocolo || '—'}
                       </div>
-                      <div className="text-slate-500 mt-0.5">{new Date(ind.data_indicacao).toLocaleDateString('pt-BR')}</div>
+                      <div className="text-slate-500 dark:text-slate-400 mt-0.5">{new Date(ind.data_indicacao).toLocaleDateString('pt-BR')}</div>
                       <DiasParadoBadge ind={ind} />
                     </td>
                     <td className="px-4 py-3">
-                      <div className="font-bold text-slate-800">{ind.nome_indicado}</div>
-                      <div className="text-slate-500">{ind.telefone_indicado}</div>
+                      <div className="font-bold text-slate-800 dark:text-slate-100">{ind.nome_indicado}</div>
+                      <div className="text-slate-500 dark:text-slate-400">{ind.telefone_indicado}</div>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="font-medium text-slate-700">{ind.associados?.nome_completo}</div>
+                      <div className="font-medium text-slate-700 dark:text-slate-200">{ind.associados?.nome_completo}</div>
                     </td>
                     <td className="px-4 py-3">
                       <span className={`text-xs font-bold px-2 py-1 rounded ${corStatus(ind.status?.cor).badge}`}>{ind.status?.nome || '—'}</span>
                     </td>
                     <td className="px-4 py-3">
-                      {ind.responsavel_id ? getNomeUsuario(ind.responsavel_id) : <span className="text-slate-400">Sem responsável</span>}
+                      {ind.responsavel_id ? getNomeUsuario(ind.responsavel_id) : <span className="text-slate-400 dark:text-slate-500">Sem responsável</span>}
                     </td>
                   </tr>
                 ))}
@@ -442,25 +442,25 @@ export default function PainelIndicacoes() {
       </div>
 
       {viewMode !== 'kanban' && totalCount > PAGE_SIZE && (
-        <div className="flex items-center justify-between bg-white px-5 py-3 rounded-xl border border-slate-200 shadow-sm">
-          <span className="text-sm text-slate-500">
+        <div className="flex items-center justify-between bg-white dark:bg-slate-800 px-5 py-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+          <span className="text-sm text-slate-500 dark:text-slate-400">
             Mostrando {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, totalCount)} de {totalCount}
           </span>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setPage(p => Math.max(1, p - 1))}
               disabled={page <= 1}
-              className="p-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <span className="text-sm font-medium text-slate-700 px-2">
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-200 px-2">
               Página {page} de {Math.max(1, Math.ceil(totalCount / PAGE_SIZE))}
             </span>
             <button
               onClick={() => setPage(p => p + 1)}
               disabled={page * PAGE_SIZE >= totalCount}
-              className="p-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="p-2 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -498,38 +498,38 @@ function KanbanBoard({
 
   return (
     <div className="p-4">
-      <p className="text-xs text-slate-400 mb-3">Clique num card pra ver os detalhes e mudar o status/responsável.</p>
+      <p className="text-xs text-slate-400 dark:text-slate-500 mb-3">Clique num card pra ver os detalhes e mudar o status/responsável.</p>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         {colunas.map(col => {
           const items = indicacoes.filter(i => i.status_id === col.id);
           const cor = corStatus(col.cor);
           return (
-            <div key={col.id} className="rounded-xl p-3 flex flex-col gap-2 min-h-[160px] bg-slate-50">
+            <div key={col.id} className="rounded-xl p-3 flex flex-col gap-2 min-h-[160px] bg-slate-50 dark:bg-slate-900/40">
               <div className="flex items-center justify-between px-1">
-                <span className="flex items-center gap-1.5 text-xs font-bold uppercase text-slate-500">
+                <span className="flex items-center gap-1.5 text-xs font-bold uppercase text-slate-500 dark:text-slate-400">
                   <span className={`w-2 h-2 rounded-full ${cor.dot}`} />
                   {col.nome}{!col.ativo && ' (inativo)'}
                 </span>
-                <span className="text-xs font-bold text-slate-400 bg-white px-2 py-0.5 rounded-full">{items.length}</span>
+                <span className="text-xs font-bold text-slate-400 dark:text-slate-500 bg-white dark:bg-slate-800 px-2 py-0.5 rounded-full">{items.length}</span>
               </div>
 
               {items.map(ind => (
                 <button
                   key={ind.id}
                   onClick={() => onOpenDetalhe(ind.id)}
-                  className="text-left bg-white border border-slate-200 rounded-lg p-3 shadow-sm hover:border-blue-300 transition-colors"
+                  className="text-left bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 shadow-sm hover:border-blue-300 dark:hover:border-blue-500/50 transition-colors"
                 >
                   <div className="flex items-center justify-between gap-1 mb-1">
-                    <span className="font-mono text-[10px] text-slate-400">{ind.protocolo || '—'}</span>
+                    <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500">{ind.protocolo || '—'}</span>
                     <DiasParadoBadge ind={ind} />
                   </div>
-                  <div className="font-bold text-sm text-slate-800">{ind.nome_indicado}</div>
-                  <div className="text-xs text-slate-500">{ind.associados?.nome_completo}</div>
+                  <div className="font-bold text-sm text-slate-800 dark:text-slate-100">{ind.nome_indicado}</div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400">{ind.associados?.nome_completo}</div>
                 </button>
               ))}
 
               {items.length === 0 && (
-                <p className="text-xs text-slate-400 italic text-center py-6">Nenhuma indicação</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500 italic text-center py-6">Nenhuma indicação</p>
               )}
             </div>
           );
