@@ -715,7 +715,7 @@ export default function Dashboard() {
                         <span className="font-bold text-slate-800 dark:text-slate-100">{v.placa}</span>
                         <span className="text-slate-500 dark:text-slate-400 text-xs">{v.modelo}</span>
                       </div>
-                      <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex flex-col gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                         <button onClick={() => setVeiculoEditando(v)} title="Editar veículo" className="text-slate-400 dark:text-slate-500 hover:text-blue-600">
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
@@ -825,10 +825,10 @@ export default function Dashboard() {
                                             <span className={`font-bold px-2 py-0.5 rounded ${av.nota >= 9 ? 'bg-green-100 text-green-700' : av.nota >= 7 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
                                               {temNotasCriterios ? 'Média' : 'Nota'}: {av.nota}
                                             </span>
-                                            <button onClick={() => setEditandoAvaliacao(av)} title="Editar avaliação" className="text-slate-300 hover:text-blue-600 opacity-0 group-hover/av:opacity-100 transition-opacity">
+                                            <button onClick={() => setEditandoAvaliacao(av)} title="Editar avaliação" className="text-slate-300 hover:text-blue-600 opacity-100 sm:opacity-0 sm:group-hover/av:opacity-100 transition-opacity">
                                               <Edit2 className="w-3.5 h-3.5" />
                                             </button>
-                                            <button onClick={() => setAvaliacaoParaExcluir(av)} title="Excluir avaliação" className="text-slate-300 hover:text-red-600 opacity-0 group-hover/av:opacity-100 transition-opacity">
+                                            <button onClick={() => setAvaliacaoParaExcluir(av)} title="Excluir avaliação" className="text-slate-300 hover:text-red-600 opacity-100 sm:opacity-0 sm:group-hover/av:opacity-100 transition-opacity">
                                               <Trash2 className="w-3.5 h-3.5" />
                                             </button>
                                           </div>
