@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, Legend } from 'recharts';
 import { startOfMonth, format, subDays, isAfter, isBefore } from 'date-fns';
-import { ArrowRight, Star, Megaphone, Users, Target, CheckCircle2, AlertCircle, ArrowUpRight, ArrowDownRight, Clock, AlertTriangle, Download, Filter, Wifi, X, AlertOctagon } from 'lucide-react';
+import { ArrowRight, Star, Megaphone, Users, Target, CheckCircle2, AlertCircle, ArrowUpRight, ArrowDownRight, Clock, AlertTriangle, Download, Filter, Wifi, X, AlertOctagon, ChevronDown, ChevronUp } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { buscarStatusIndicacao, corStatus, normalizarStatusEmbutido, DIAS_LIMITE_PARADA, StatusIndicacao } from '@/lib/indicacoes';
@@ -77,6 +77,9 @@ export default function MainDashboard() {
     end: format(new Date(), 'yyyy-MM-dd')
   });
   const [setorFilter, setSetorFilter] = useState('');
+  // Só importa no celular — do lg pra cima os filtros ficam sempre
+  // visíveis (o CSS força isso independente desse estado).
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
 
   // Modais de consulta: listam avaliações/reclamações do período/setor
   // filtrado — hoje não existe nenhuma tela que mostre isso de forma
@@ -423,21 +426,32 @@ export default function MainDashboard() {
       
       {/* Header & Filters */}
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
-        <div>
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">Dashboard Geral</h1>
-            <span className="flex items-center gap-1.5 text-xs font-semibold text-green-700 bg-green-50 border border-green-100 px-2.5 py-1 rounded-full">
-              <Wifi className="w-3.5 h-3.5" /> Ao vivo
-            </span>
+        <div className="flex items-center justify-between gap-3 lg:block">
+          <div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 tracking-tight">Dashboard Geral</h1>
+              <span className="flex items-center gap-1.5 text-xs font-semibold text-green-700 bg-green-50 border border-green-100 px-2.5 py-1 rounded-full">
+                <Wifi className="w-3.5 h-3.5" /> Ao vivo
+              </span>
+            </div>
+            <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Acompanhe a satisfação e indicações da sua unidade.</p>
           </div>
-          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Acompanhe a satisfação e indicações da sua unidade.</p>
+          {/* Só existe no celular — do lg pra cima os filtros já ficam
+              sempre visíveis ao lado, esse botão nem aparece. */}
+          <button
+            onClick={() => setFiltrosAbertos(v => !v)}
+            className="lg:hidden shrink-0 flex items-center gap-1.5 text-sm font-semibold text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-2"
+          >
+            <Filter className="w-4 h-4" /> Filtros
+            {filtrosAbertos ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
         </div>
 
         {/* items-start (não items-end): a coluna "Período de Análise" é mais alta
             (tem a linha extra de atalhos Hoje/7 Dias/Este Mês) — com items-end as
             outras colunas ficavam empurradas pra baixo pra encostar no rodapé dela,
             desalinhando os rótulos entre si. */}
-        <div className="flex flex-col sm:flex-row gap-4 items-start">
+        <div className={`${filtrosAbertos ? 'flex' : 'hidden'} lg:flex flex-col sm:flex-row gap-4 items-start w-full lg:w-auto`}>
           <div>
             <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Setor</label>
             <div className="relative">

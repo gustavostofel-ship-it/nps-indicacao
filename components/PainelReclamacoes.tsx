@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { AlertOctagon, Filter, ChevronLeft, ChevronRight, Hash, Clock, Wifi, List, LayoutGrid, Columns3, AlertTriangle, Star } from 'lucide-react';
+import { AlertOctagon, Filter, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Hash, Clock, Wifi, List, LayoutGrid, Columns3, AlertTriangle, Star } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { subDays, startOfMonth, format } from 'date-fns';
 import { diasDesde } from '@/lib/utils';
@@ -43,6 +43,9 @@ export default function PainelReclamacoes() {
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
   const [page, setPage] = useState(1);
+  // Só importa no celular — do md pra cima os filtros ficam sempre
+  // visíveis (o CSS força isso independente desse estado).
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
 
   const VIEW_MODE_KEY = 'girow:reclamacoes:viewMode';
   const [viewMode, setViewModeState] = useState<ViewMode>(() => {
@@ -279,13 +282,21 @@ export default function PainelReclamacoes() {
         </div>
       </div>
 
-      {/* Filtros */}
+      {/* Filtros — colapsado por padrão no celular (ver PainelIndicacoes) */}
       <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
-        <div className="flex items-center gap-2 mb-4 text-slate-700 dark:text-slate-200 font-semibold">
-          <Filter className="h-5 w-5" /> Filtros
-        </div>
+        <button
+          onClick={() => setFiltrosAbertos(v => !v)}
+          className="w-full flex items-center justify-between mb-4 md:cursor-default text-slate-700 dark:text-slate-200 font-semibold"
+        >
+          <span className="flex items-center gap-2">
+            <Filter className="h-5 w-5" /> Filtros
+          </span>
+          <span className="md:hidden text-slate-400 dark:text-slate-500">
+            {filtrosAbertos ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+          </span>
+        </button>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className={`${filtrosAbertos ? 'grid' : 'hidden'} md:grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4`}>
           <div>
             <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1">Buscar</label>
             <input
