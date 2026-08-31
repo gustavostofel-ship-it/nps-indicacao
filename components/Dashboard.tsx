@@ -562,7 +562,7 @@ export default function Dashboard() {
           </div>
           
           {/* Header Info */}
-          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/60 flex justify-between items-start">
+          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/60 flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
             {editAssociado ? (
               <div className="flex-1 max-w-lg space-y-3">
                 <input value={editNome} onChange={e=>setEditNome(e.target.value)} className="w-full text-xl font-bold px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Nome Completo" />
@@ -574,7 +574,7 @@ export default function Dashboard() {
                 </div>
               </div>
             ) : (
-              <div className="w-full">
+              <div className="min-w-0 flex-1">
                 <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 flex items-start gap-2">
                   <span className="break-words">{associado.nome_completo}</span>
                   <button onClick={() => setEditAssociado(true)} className="text-slate-400 dark:text-slate-500 hover:text-blue-600 transition-colors p-1 mt-0.5 shrink-0" title="Editar dados">
@@ -583,12 +583,12 @@ export default function Dashboard() {
                 </h2>
                 <p className="text-slate-500 dark:text-slate-400 mt-1 font-medium">CPF: {associado.cpf}</p>
                 {associado.telefone ? (
-                  <div className="flex items-center gap-3 mt-1.5">
-                    <a href={`tel:${associado.telefone.replace(/\D/g, '')}`} className="flex items-center gap-1.5 text-sm font-semibold text-blue-600 hover:underline">
-                      <Phone className="w-4 h-4" /> {associado.telefone}
+                  <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                    <a href={`tel:${associado.telefone.replace(/\D/g, '')}`} className="flex items-center gap-1.5 text-sm font-semibold text-blue-600 hover:underline whitespace-nowrap">
+                      <Phone className="w-4 h-4 shrink-0" /> {associado.telefone}
                     </a>
-                    <a href={`https://wa.me/55${associado.telefone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-sm font-semibold text-green-600 hover:underline">
-                      <MessageCircle className="w-4 h-4" /> WhatsApp
+                    <a href={`https://wa.me/55${associado.telefone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-sm font-semibold text-green-600 hover:underline whitespace-nowrap">
+                      <MessageCircle className="w-4 h-4 shrink-0" /> WhatsApp
                     </a>
                   </div>
                 ) : (
@@ -597,7 +597,7 @@ export default function Dashboard() {
               </div>
             )}
             {!editAssociado && (
-              <div className="flex items-center gap-4 shrink-0 ml-4">
+              <div className="flex items-center gap-4 shrink-0 sm:ml-4">
                 <button
                   onClick={() => setShowHistoricoAssociado(v => !v)}
                   className="text-slate-400 dark:text-slate-500 hover:text-blue-600 transition-colors flex items-center gap-1 text-xs font-semibold"
