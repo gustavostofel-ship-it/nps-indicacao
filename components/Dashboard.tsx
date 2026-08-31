@@ -479,23 +479,25 @@ export default function Dashboard() {
                       </p>
                     )}
                   </div>
-                  <div className="flex items-center gap-3 mt-2 border-t border-slate-100 dark:border-slate-700/60 pt-3 flex-wrap">
-                    <span className="flex items-center gap-1.5 text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2.5 py-1 rounded-lg">
-                      <Car className="w-4 h-4 text-slate-400 dark:text-slate-500" /> {assoc.veiculos?.length || 0} veículos
-                    </span>
-                    <span className="flex items-center gap-1.5 text-xs font-semibold bg-blue-50 text-blue-600 px-2.5 py-1 rounded-lg">
-                      <Star className="w-4 h-4 text-blue-400" /> {assoc.avaliacoes?.length || 0} avaliações
-                    </span>
-                    <span className="flex items-center gap-1.5 text-xs font-semibold bg-orange-50 text-orange-600 px-2.5 py-1 rounded-lg">
-                      <Megaphone className="w-4 h-4 text-orange-400" /> {assoc.indicacoes?.length || 0} indicações
-                    </span>
-                    <span className="flex items-center gap-1.5 text-xs font-semibold bg-red-50 text-red-600 px-2.5 py-1 rounded-lg">
-                      <AlertOctagon className="w-4 h-4 text-red-400" /> {reclamacoesAssoc.length} reclamações
-                    </span>
+                  <div className="mt-2 border-t border-slate-100 dark:border-slate-700/60 pt-3 flex flex-col gap-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      <span className="flex items-center justify-center gap-1.5 text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2.5 py-1.5 rounded-lg">
+                        <Car className="w-4 h-4 text-slate-400 dark:text-slate-500 shrink-0" /> {assoc.veiculos?.length || 0} veículos
+                      </span>
+                      <span className="flex items-center justify-center gap-1.5 text-xs font-semibold bg-blue-50 text-blue-600 px-2.5 py-1.5 rounded-lg">
+                        <Star className="w-4 h-4 text-blue-400 shrink-0" /> {assoc.avaliacoes?.length || 0} avaliações
+                      </span>
+                      <span className="flex items-center justify-center gap-1.5 text-xs font-semibold bg-orange-50 text-orange-600 px-2.5 py-1.5 rounded-lg">
+                        <Megaphone className="w-4 h-4 text-orange-400 shrink-0" /> {assoc.indicacoes?.length || 0} indicações
+                      </span>
+                      <span className="flex items-center justify-center gap-1.5 text-xs font-semibold bg-red-50 text-red-600 px-2.5 py-1.5 rounded-lg">
+                        <AlertOctagon className="w-4 h-4 text-red-400 shrink-0" /> {reclamacoesAssoc.length} reclamações
+                      </span>
+                    </div>
                     {mostrarArquivados && (
                       <button
                         onClick={(e) => { e.stopPropagation(); handleRestaurarAssociado(assoc.id); }}
-                        className="ml-auto flex items-center gap-1.5 text-xs font-semibold bg-green-50 text-green-700 hover:bg-green-100 px-2.5 py-1 rounded-lg transition-colors"
+                        className="self-end flex items-center gap-1.5 text-xs font-semibold bg-green-50 text-green-700 hover:bg-green-100 px-2.5 py-1 rounded-lg transition-colors"
                       >
                         <ArchiveRestore className="w-4 h-4" /> Restaurar
                       </button>
@@ -573,9 +575,9 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="w-full">
-                <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-3">
-                  {associado.nome_completo}
-                  <button onClick={() => setEditAssociado(true)} className="text-slate-400 dark:text-slate-500 hover:text-blue-600 transition-colors p-1" title="Editar dados">
+                <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 flex items-start gap-2">
+                  <span className="break-words">{associado.nome_completo}</span>
+                  <button onClick={() => setEditAssociado(true)} className="text-slate-400 dark:text-slate-500 hover:text-blue-600 transition-colors p-1 mt-0.5 shrink-0" title="Editar dados">
                     <Edit2 className="h-4 w-4" />
                   </button>
                 </h2>
@@ -620,18 +622,18 @@ export default function Dashboard() {
               repetido aqui pra não precisar voltar pra lista só pra ver os
               números gerais do associado. */}
           <div className="bg-white dark:bg-slate-800 px-6 py-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/60 -mt-2 flex flex-col gap-3">
-            <div className="flex items-center gap-3 flex-wrap">
-              <span className="flex items-center gap-1.5 text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2.5 py-1 rounded-lg">
-                <Car className="w-4 h-4 text-slate-400 dark:text-slate-500" /> {veiculos.length} veículos
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <span className="flex items-center justify-center gap-1.5 text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2.5 py-1.5 rounded-lg">
+                <Car className="w-4 h-4 text-slate-400 dark:text-slate-500 shrink-0" /> {veiculos.length} veículos
               </span>
-              <span className="flex items-center gap-1.5 text-xs font-semibold bg-blue-50 text-blue-600 px-2.5 py-1 rounded-lg">
-                <Star className="w-4 h-4 text-blue-400" /> {avaliacoes.length} avaliações
+              <span className="flex items-center justify-center gap-1.5 text-xs font-semibold bg-blue-50 text-blue-600 px-2.5 py-1.5 rounded-lg">
+                <Star className="w-4 h-4 text-blue-400 shrink-0" /> {avaliacoes.length} avaliações
               </span>
-              <span className="flex items-center gap-1.5 text-xs font-semibold bg-orange-50 text-orange-600 px-2.5 py-1 rounded-lg">
-                <Megaphone className="w-4 h-4 text-orange-400" /> {indicacoes.length} indicações
+              <span className="flex items-center justify-center gap-1.5 text-xs font-semibold bg-orange-50 text-orange-600 px-2.5 py-1.5 rounded-lg">
+                <Megaphone className="w-4 h-4 text-orange-400 shrink-0" /> {indicacoes.length} indicações
               </span>
-              <span className="flex items-center gap-1.5 text-xs font-semibold bg-red-50 text-red-600 px-2.5 py-1 rounded-lg">
-                <AlertOctagon className="w-4 h-4 text-red-400" /> {reclamacoes.length} reclamações
+              <span className="flex items-center justify-center gap-1.5 text-xs font-semibold bg-red-50 text-red-600 px-2.5 py-1.5 rounded-lg">
+                <AlertOctagon className="w-4 h-4 text-red-400 shrink-0" /> {reclamacoes.length} reclamações
               </span>
             </div>
             {(avaliacoes.length > 0 || reclamacoes.length > 0) && (
