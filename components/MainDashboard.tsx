@@ -16,7 +16,7 @@ type StatusEmbutido = { id: string, nome: string, cor: string, conta_como_fechad
 type StatusReclamacaoEmbutido = { id: string, nome: string, cor: string, conta_como_resolvido: boolean } | null;
 type Avaliacao = { id: string, nota: number, data_avaliacao: string, setor: any, setor_id: string, usuario_id: string, associado_id: string, comentario: string | null, classificacao: string | null, associado: any };
 type Indicacao = { id: string, status_id: string, status: StatusEmbutido, data_indicacao: string, updated_at: string, data_fechamento: string | null, usuario_id: string, nome_indicado: string, responsavel_id: string | null, associado_id: string, protocolo: string | null };
-type Reclamacao = { id: string, status_id: string, status: StatusReclamacaoEmbutido, avaliacao_id: string | null, data_abertura: string, motivo: any };
+type Reclamacao = { id: string, protocolo: string | null, status_id: string, status: StatusReclamacaoEmbutido, avaliacao_id: string | null, avaliacao: any, data_abertura: string, updated_at: string, motivo: any, associados: any, associado_id: string };
 type Usuario = { id: string, nome: string };
 type Setor = { id: string, nome: string };
 
@@ -59,9 +59,11 @@ export default function MainDashboard() {
   });
   const [setorFilter, setSetorFilter] = useState('');
 
-  // Modal de consulta: lista as avaliações do período/setor filtrado — hoje
-  // não existe nenhuma tela que mostre isso de forma direta, só agregados.
+  // Modais de consulta: listam avaliações/reclamações do período/setor
+  // filtrado — hoje não existe nenhuma tela que mostre isso de forma
+  // direta, só agregados.
   const [showAvaliacoesModal, setShowAvaliacoesModal] = useState(false);
+  const [showReclamacoesModal, setShowReclamacoesModal] = useState(false);
 
   const carregarDados = async () => {
     setLoading(true);
@@ -69,7 +71,19 @@ export default function MainDashboard() {
     // Base Queries (período atual)
     let queryAval = supabase.from('avaliacoes').select('id, nota, data_avaliacao, usuario_id, associado_id, setor_id, comentario, classificacao, setor:setores(nome), associado:associados(nome_completo)').order('data_avaliacao', { ascending: true });
     let queryInd = supabase.from('indicacoes').select('id, status_id, status:indicacao_status(id, nome, cor, conta_como_fechado), data_indicacao, updated_at, data_fechamento, usuario_id, nome_indicado, responsavel_id, associado_id, protocolo').order('data_indicacao', { ascending: true });
-    let queryRec = supabase.from('reclamacoes').select('id, status_id, status:reclamacao_status(id, nome, cor, conta_como_resolvido), avaliacao_id, data_abertura, motivo:reclamacao_motivo(nome)').order('data_abertura', { ascending: true });
+    // Reclamação não tem setor_id direto — o setor vem da avaliação de
+    // origem (quando existe). Pra filtrar por setor precisamos de um INNER
+    // JOIN nesse embed (senão o Postgres/PostgREST não aceita filtrar pela
+    // coluna de uma tabela embutida); sem filtro de setor, LEFT JOIN normal
+    // (senão reclamações avulsas, sem avaliação, sumiriam da lista).
+    let queryRec = supabase.from('reclamacoes').select(`
+      id, protocolo, status_id, avaliacao_id, associado_id, data_abertura, updated_at,
+      status:reclamacao_status(id, nome, cor, conta_como_resolvido),
+      motivo:reclamacao_motivo(nome),
+      associados(nome_completo),
+      avaliacao:avaliacoes${setorFilter ? '!inner' : ''}(nota, setor_id, setor:setores(nome))
+    `).order('data_abertura', { ascending: true });
+    if (setorFilter) queryRec = queryRec.eq('avaliacao.setor_id', setorFilter);
 
     if (dateFilter.start) {
       const start = new Date(`${dateFilter.start}T00:00:00`).toISOString();
@@ -296,6 +310,19 @@ export default function MainDashboard() {
     .sort((a, b) => b.diasParado - a.diasParado),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [indicacoes]);
+
+  // ---- Reclamações paradas (mesmo critério, mas sem estar resolvida) ----
+  const reclamacoesEsquecidas = useMemo(() => reclamacoes
+    .filter(r => !r.status?.conta_como_resolvido)
+    .map(r => {
+      const referencia = new Date(r.updated_at || r.data_abertura);
+      const diasParado = (agora.getTime() - referencia.getTime()) / (1000 * 60 * 60 * 24);
+      return { ...r, diasParado };
+    })
+    .filter(r => r.diasParado >= DIAS_LIMITE_ESQUECIDA)
+    .sort((a, b) => b.diasParado - a.diasParado),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [reclamacoes]);
 
   // ---- Correlação NPS -> Indicações: associados com nota alta indicam mais? ----
   const correlacaoData = useMemo(() => {
@@ -594,12 +621,13 @@ export default function MainDashboard() {
                 <span className="font-bold text-red-600">{percentualNpsVirouReclamacao}% dos NPS viraram reclamação</span>
               </div>
               <div className="mt-1 text-[11px] text-slate-400">{reclamacoesResolvidas} resolvida{reclamacoesResolvidas === 1 ? '' : 's'} no período</div>
-              <Link
-                href={`/reclamacoes?inicio=${dateFilter.start}&fim=${dateFilter.end}`}
-                className={`mt-3 inline-block text-xs font-semibold hover:underline ${totalReclamacoes === 0 ? 'text-slate-300 pointer-events-none' : 'text-blue-600'}`}
+              <button
+                onClick={() => setShowReclamacoesModal(true)}
+                disabled={totalReclamacoes === 0}
+                className="mt-3 text-xs font-semibold text-blue-600 hover:underline disabled:text-slate-300 disabled:no-underline disabled:cursor-not-allowed"
               >
                 Ver lista do período →
-              </Link>
+              </button>
             </div>
 
           </div>
@@ -623,6 +651,32 @@ export default function MainDashboard() {
                       {ind.protocolo && <div className="font-mono text-[10px] text-slate-400">{ind.protocolo}</div>}
                     </div>
                     <div className="text-xs text-amber-700 font-medium">{Math.floor(ind.diasParado)} dias sem atualização</div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Alerta: Reclamações Paradas */}
+          {reclamacoesEsquecidas.length > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-2xl p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-bold text-red-800 flex items-center gap-2">
+                  <AlertOctagon className="w-5 h-5" /> {reclamacoesEsquecidas.length} reclamação(ões) parada(s) há mais de {DIAS_LIMITE_ESQUECIDA} dias
+                </h3>
+                <Link href="/reclamacoes" className="text-xs font-semibold text-red-700 hover:underline flex items-center gap-1">
+                  Ver Todas <ArrowRight className="w-3 h-3" />
+                </Link>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {reclamacoesEsquecidas.slice(0, 6).map(rec => (
+                  <Link href={`/atendimento?associado=${rec.associado_id}`} key={rec.id} className="bg-white border border-red-100 rounded-lg px-3 py-2 hover:border-red-300 transition-colors">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="font-semibold text-sm text-slate-800">{rec.associados?.nome_completo}</div>
+                      {rec.protocolo && <div className="font-mono text-[10px] text-slate-400">{rec.protocolo}</div>}
+                    </div>
+                    <div className="text-xs text-slate-500">{rec.motivo?.nome || 'Sem motivo definido'}</div>
+                    <div className="text-xs text-red-700 font-medium">{Math.floor(rec.diasParado)} dias sem atualização</div>
                   </Link>
                 ))}
               </div>
@@ -853,6 +907,14 @@ export default function MainDashboard() {
           onClose={() => setShowAvaliacoesModal(false)}
         />
       )}
+
+      {showReclamacoesModal && (
+        <ReclamacoesModal
+          reclamacoes={reclamacoes}
+          periodo={dateFilter}
+          onClose={() => setShowReclamacoesModal(false)}
+        />
+      )}
     </div>
   );
 }
@@ -964,6 +1026,134 @@ function AvaliacoesModal({
                     </tr>
                   );
                 })}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {totalPaginas > 1 && (
+          <div className="px-6 py-3 border-t border-slate-100 flex items-center justify-between shrink-0">
+            <span className="text-xs text-slate-500">Página {paginaAtual} de {totalPaginas}</span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPagina(p => Math.max(1, p - 1))}
+                disabled={paginaAtual <= 1}
+                className="px-3 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Anterior
+              </button>
+              <button
+                onClick={() => setPagina(p => Math.min(totalPaginas, p + 1))}
+                disabled={paginaAtual >= totalPaginas}
+                className="px-3 py-1.5 text-xs font-semibold border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Próxima
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+// ================= MODAL: RECLAMAÇÕES DO PERÍODO =================
+// Mesmo padrão do AvaliacoesModal acima — consulta rápida sem sair do
+// Dashboard, com link pra abrir a ficha completa do associado (onde dá pra
+// mudar status/responsável e ver o histórico da reclamação).
+
+const REC_MODAL_PAGE_SIZE = 15;
+
+function ReclamacoesModal({
+  reclamacoes,
+  periodo,
+  onClose,
+}: {
+  reclamacoes: Reclamacao[];
+  periodo: { start: string; end: string };
+  onClose: () => void;
+}) {
+  const [busca, setBusca] = useState('');
+  const [pagina, setPagina] = useState(1);
+
+  const filtradas = useMemo(() => {
+    const ordenadas = [...reclamacoes].sort((a, b) => new Date(b.data_abertura).getTime() - new Date(a.data_abertura).getTime());
+    if (!busca) return ordenadas;
+    const termo = busca.toLowerCase();
+    return ordenadas.filter(r =>
+      r.associados?.nome_completo?.toLowerCase().includes(termo) ||
+      r.motivo?.nome?.toLowerCase().includes(termo) ||
+      r.protocolo?.toLowerCase().includes(termo) ||
+      r.status?.nome?.toLowerCase().includes(termo)
+    );
+  }, [reclamacoes, busca]);
+
+  const totalPaginas = Math.max(1, Math.ceil(filtradas.length / REC_MODAL_PAGE_SIZE));
+  const paginaAtual = Math.min(pagina, totalPaginas);
+  const pagina_itens = filtradas.slice((paginaAtual - 1) * REC_MODAL_PAGE_SIZE, paginaAtual * REC_MODAL_PAGE_SIZE);
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[85vh]">
+        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+          <div>
+            <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+              <AlertOctagon className="w-5 h-5 text-red-500" /> Reclamações do período
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {new Date(`${periodo.start}T00:00:00`).toLocaleDateString('pt-BR')} até {new Date(`${periodo.end}T00:00:00`).toLocaleDateString('pt-BR')} · {filtradas.length} reclamaç{filtradas.length === 1 ? 'ão' : 'ões'}
+            </p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700"><X className="w-5 h-5" /></button>
+        </div>
+
+        <div className="px-6 py-3 border-b border-slate-100 shrink-0">
+          <input
+            type="text"
+            value={busca}
+            onChange={e => { setBusca(e.target.value); setPagina(1); }}
+            placeholder="Buscar por associado, motivo, protocolo ou status..."
+            className="w-full h-10 px-3 border border-slate-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <div className="overflow-y-auto flex-1">
+          {pagina_itens.length === 0 ? (
+            <div className="p-12 text-center text-slate-400 text-sm">Nenhuma reclamação encontrada.</div>
+          ) : (
+            <table className="w-full text-left text-sm text-slate-600">
+              <thead className="bg-slate-50 text-slate-500 uppercase font-semibold text-xs border-b border-slate-200 sticky top-0">
+                <tr>
+                  <th className="px-4 py-2.5">Protocolo / Data</th>
+                  <th className="px-4 py-2.5">Associado</th>
+                  <th className="px-4 py-2.5">Motivo</th>
+                  <th className="px-4 py-2.5">Status</th>
+                  <th className="px-4 py-2.5"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {pagina_itens.map(r => (
+                  <tr key={r.id} className="hover:bg-slate-50">
+                    <td className="px-4 py-2.5 whitespace-nowrap">
+                      <div className="font-mono text-xs font-bold text-slate-500">{r.protocolo || '—'}</div>
+                      <div className="text-slate-500 mt-0.5">{new Date(r.data_abertura).toLocaleDateString('pt-BR')}</div>
+                    </td>
+                    <td className="px-4 py-2.5 font-medium text-slate-800">{r.associados?.nome_completo || '—'}</td>
+                    <td className="px-4 py-2.5">{r.motivo?.nome || <span className="text-slate-300 italic">Sem motivo definido</span>}</td>
+                    <td className="px-4 py-2.5">
+                      <span className={`inline-block px-2 py-0.5 rounded font-bold text-xs ${corStatus(r.status?.cor).badge}`}>
+                        {r.status?.nome || '—'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2.5 whitespace-nowrap">
+                      <Link
+                        href={`/atendimento?associado=${r.associado_id}`}
+                        className="text-xs font-semibold text-blue-600 hover:underline flex items-center gap-1"
+                      >
+                        Ver associado <ArrowRight className="w-3 h-3" />
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           )}
