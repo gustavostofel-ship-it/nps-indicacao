@@ -980,7 +980,7 @@ function AvaliacoesModal({
 
   return (
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[85vh]">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[85dvh]">
         <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700/60 flex justify-between items-center bg-slate-50 dark:bg-slate-900/40 shrink-0">
           <div>
             <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100 flex items-center gap-2">
@@ -1003,7 +1003,7 @@ function AvaliacoesModal({
           />
         </div>
 
-        <div className="overflow-y-auto flex-1">
+        <div className="overflow-y-auto overflow-x-auto flex-1">
           {pagina_itens.length === 0 ? (
             <div className="p-12 text-center text-slate-400 dark:text-slate-500 text-sm">Nenhuma avaliação encontrada.</div>
           ) : (
@@ -1112,7 +1112,7 @@ function ReclamacoesModal({
 
   return (
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[85vh]">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[85dvh]">
         <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700/60 flex justify-between items-center bg-slate-50 dark:bg-slate-900/40 shrink-0">
           <div>
             <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100 flex items-center gap-2">
@@ -1135,7 +1135,7 @@ function ReclamacoesModal({
           />
         </div>
 
-        <div className="overflow-y-auto flex-1">
+        <div className="overflow-y-auto overflow-x-auto flex-1">
           {pagina_itens.length === 0 ? (
             <div className="p-12 text-center text-slate-400 dark:text-slate-500 text-sm">Nenhuma reclamação encontrada.</div>
           ) : (

@@ -349,8 +349,6 @@ export default function PainelIndicacoes() {
         </div>
       )}
 
-      <p className="text-xs text-slate-400 dark:text-slate-500 -mb-4">Clique numa indicação pra ver os detalhes completos e o histórico.</p>
-
       {/* Lista */}
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
         {loading ? (
@@ -498,7 +496,6 @@ function KanbanBoard({
 
   return (
     <div className="p-4">
-      <p className="text-xs text-slate-400 dark:text-slate-500 mb-3">Clique num card pra ver os detalhes e mudar o status/responsável.</p>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         {colunas.map(col => {
           const items = indicacoes.filter(i => i.status_id === col.id);

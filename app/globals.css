@@ -9,3 +9,14 @@
 @theme inline {
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
+
+/* Rede de segurança pro celular: se algum elemento em algum canto do app
+   acabar mais largo que a tela (uma tabela sem overflow-x-auto, um badge
+   que não quebra linha, etc.), isso trava a rolagem lateral da PÁGINA
+   inteira em vez de deixar o usuário arrastar o site inteiro pros lados.
+   O conteúdo específico que precisar rolar (tabelas largas) continua
+   rolando normalmente dentro do seu próprio container. */
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}

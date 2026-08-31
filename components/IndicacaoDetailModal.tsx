@@ -41,8 +41,8 @@ export default function IndicacaoDetailModal({
 
   return (
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in" onClick={onClose}>
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-[85vw] h-[85vh] max-w-5xl flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700/60 flex items-start justify-between bg-slate-50 dark:bg-slate-900/40 shrink-0">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-[94vw] sm:w-[85vw] h-[90dvh] sm:h-[85dvh] max-w-5xl flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="px-4 sm:px-6 py-4 border-b border-slate-100 dark:border-slate-700/60 flex items-start justify-between bg-slate-50 dark:bg-slate-900/40 shrink-0">
           <div>
             <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100 flex items-center gap-2">
               <Hash className="w-4 h-4 text-slate-400 dark:text-slate-500" /> {ind.protocolo || '—'}
@@ -52,7 +52,7 @@ export default function IndicacaoDetailModal({
           <button onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 p-1"><X className="w-5 h-5" /></button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <div className="text-xs text-slate-400 dark:text-slate-500 mb-1 uppercase font-semibold">Indicado por</div>

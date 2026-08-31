@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, LayoutDashboard, Users, Megaphone, AlertOctagon, Settings } from 'lucide-react';
 import { LogoutButton } from '@/components/LogoutButton';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
@@ -12,11 +12,11 @@ export function Navbar({ isAdmin, userName }: { isAdmin: boolean, userName: stri
   const pathname = usePathname();
 
   const links = [
-    { href: '/', label: 'Dashboard' },
-    { href: '/atendimento', label: 'Atendimento' },
-    { href: '/indicacoes', label: 'Indicações' },
-    { href: '/reclamacoes', label: 'Reclamações' },
-    ...(isAdmin ? [{ href: '/config', label: 'Configurações' }] : []),
+    { href: '/', label: 'Dashboard', Icon: LayoutDashboard },
+    { href: '/atendimento', label: 'Atendimento', Icon: Users },
+    { href: '/indicacoes', label: 'Indicações', Icon: Megaphone },
+    { href: '/reclamacoes', label: 'Reclamações', Icon: AlertOctagon },
+    ...(isAdmin ? [{ href: '/config', label: 'Configurações', Icon: Settings }] : []),
   ];
 
   // "/" só é considerado ativo em página exata, senão ficaria sempre aceso
@@ -60,19 +60,20 @@ export function Navbar({ isAdmin, userName }: { isAdmin: boolean, userName: stri
       </div>
 
       {open && (
-        <nav className="md:hidden border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 space-y-1">
-          {links.map(link => (
+        <nav className="md:hidden border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 space-y-1 animate-in slide-in-from-top-2 fade-in duration-200 max-h-[calc(100vh-4rem)] overflow-y-auto">
+          {links.map(({ href, label, Icon }) => (
             <Link
-              key={link.href}
-              href={link.href}
+              key={href}
+              href={href}
               onClick={() => setOpen(false)}
-              className={`block px-3 py-2.5 rounded-lg font-medium transition-colors ${isAtivo(link.href) ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-blue-600 dark:hover:text-blue-400'}`}
+              className={`flex items-center gap-3 px-3 py-3 rounded-lg font-medium transition-colors ${isAtivo(href) ? 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-blue-600 dark:hover:text-blue-400'}`}
             >
-              {link.label}
+              <Icon className="w-5 h-5 shrink-0" />
+              {label}
             </Link>
           ))}
-          <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between px-3">
-            <span className="text-sm text-slate-500 dark:text-slate-400 font-medium">Olá, {userName}</span>
+          <div className="pt-3 mt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between px-3">
+            <span className="text-sm text-slate-500 dark:text-slate-400 font-medium truncate">Olá, {userName}</span>
             <LogoutButton />
           </div>
         </nav>

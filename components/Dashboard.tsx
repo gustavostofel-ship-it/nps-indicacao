@@ -1235,7 +1235,7 @@ function ModalNovoAssociado({ setores, onClose, onSave }: any) {
           {step === 2 && (
             <div className="space-y-4 animate-in slide-in-from-right-4">
               <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 mb-3 flex items-center gap-2"><Car className="w-4 h-4 text-slate-400 dark:text-slate-500"/> Primeiro Veículo (Opcional)</h4>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Placa</label>
                   <input value={placa} onChange={e=>setPlaca(maskPlaca(e.target.value))} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none uppercase" placeholder="ABC1D23" maxLength={8} />
@@ -1478,7 +1478,7 @@ function ModalNovaAvaliacao({ associadoId, veiculos, setorPreSelecionado, setore
           <button type="button" onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200"><X className="w-5 h-5"/></button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-5 overflow-y-auto">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Setor</label>
               <select required value={setorId} onChange={e=>setSetorId(e.target.value)} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
