@@ -96,7 +96,7 @@ export default function Dashboard() {
   // página passam sempre por aqui, evitando carregar a base inteira de uma vez.
   const carregarListaAssociados = async (termo = '', pagina = 1, arquivados = mostrarArquivados) => {
     let query = supabase.from('associados')
-      .select('id, nome_completo, cpf, telefone, ativo, veiculos(id), avaliacoes(nota, data_avaliacao), indicacoes(id)', { count: 'exact' })
+      .select('id, nome_completo, cpf, telefone, ativo, veiculos(id), avaliacoes(nota, data_avaliacao), indicacoes(id), reclamacoes(id, avaliacao_id, status:reclamacao_status(conta_como_resolvido))', { count: 'exact' })
       .eq('ativo', !arquivados)
       .order('nome_completo', { ascending: true });
 
@@ -175,10 +175,15 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Recebe o termo por parâmetro em vez de ler direto do estado `busca` —
+  // chamar isso logo depois de um setBusca(x) leria o valor ANTIGO (o
+  // setState só reflete no próximo render), causando o bug de precisar
+  // clicar duas vezes num card pra ele realmente abrir. Card e modal de
+  // novo associado chamam isso diretamente com o CPF certo; o formulário
+  // de busca (handleSearch) só repassa o estado atual.
+  const buscarAssociadoPorTermo = async (termo: string) => {
     setAssociado(null);
-    if (!busca) {
+    if (!termo) {
       setAssocSearchTerm('');
       setAssocPage(1);
       await carregarListaAssociados('', 1);
@@ -191,8 +196,8 @@ export default function Dashboard() {
     // sequenciais ao banco antes de cair na busca combinada) — reduz a
     // espera no caso mais comum de digitar um CPF ou placa completos.
     const [cpfRes, placaRes] = await Promise.all([
-      supabase.from('associados').select('*').eq('cpf', busca).maybeSingle(),
-      supabase.from('veiculos').select('associado_id').ilike('placa', busca).eq('ativo', true).maybeSingle(),
+      supabase.from('associados').select('*').eq('cpf', termo).maybeSingle(),
+      supabase.from('veiculos').select('associado_id').ilike('placa', termo).eq('ativo', true).maybeSingle(),
     ]);
 
     if (cpfRes.data) {
@@ -210,10 +215,15 @@ export default function Dashboard() {
       }
     }
 
-    setAssocSearchTerm(busca);
+    setAssocSearchTerm(termo);
     setAssocPage(1);
-    await carregarListaAssociados(busca, 1);
+    await carregarListaAssociados(termo, 1);
     setLoading(false);
+  };
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await buscarAssociadoPorTermo(busca);
   };
 
   const carregarDadosAssociado = async (assocData: any) => {
@@ -388,7 +398,7 @@ export default function Dashboard() {
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               placeholder="Buscar por CPF ou Nome do associado..."
-              className="block w-full pl-11 pr-4 py-3 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white focus:outline-none transition-all shadow-sm"
+              className="block w-full pl-11 pr-4 py-3 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:bg-white dark:focus:bg-slate-900 focus:outline-none transition-all shadow-sm text-slate-800 dark:text-slate-100"
             />
           </div>
           <button
@@ -441,10 +451,15 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {listaAssociados.map((assoc) => {
                 const classe = classificarUltimaAvaliacao(assoc.avaliacoes);
+                const totalAvaliacoesAssoc = assoc.avaliacoes?.length || 0;
+                const reclamacoesAssoc = assoc.reclamacoes || [];
+                const reclamacoesResolvidasAssoc = reclamacoesAssoc.filter((r: any) => r.status?.conta_como_resolvido).length;
+                const avaliacoesComReclamacaoAssoc = new Set(reclamacoesAssoc.filter((r: any) => r.avaliacao_id).map((r: any) => r.avaliacao_id)).size;
+                const percentualReclamacaoAssoc = totalAvaliacoesAssoc > 0 ? Math.round((avaliacoesComReclamacaoAssoc / totalAvaliacoesAssoc) * 100) : 0;
                 return (
                 <div
                   key={assoc.id}
-                  onClick={() => { setBusca(assoc.cpf); handleSearch({preventDefault: () => null} as any); }}
+                  onClick={() => { setBusca(assoc.cpf); buscarAssociadoPorTermo(assoc.cpf); }}
                   className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/60 hover:border-blue-300 dark:hover:border-blue-500/50 hover:shadow-md transition-all cursor-pointer flex flex-col gap-3 group"
                 >
                   <div>
@@ -474,6 +489,9 @@ export default function Dashboard() {
                     <span className="flex items-center gap-1.5 text-xs font-semibold bg-orange-50 text-orange-600 px-2.5 py-1 rounded-lg">
                       <Megaphone className="w-4 h-4 text-orange-400" /> {assoc.indicacoes?.length || 0} indicações
                     </span>
+                    <span className="flex items-center gap-1.5 text-xs font-semibold bg-red-50 text-red-600 px-2.5 py-1 rounded-lg">
+                      <AlertOctagon className="w-4 h-4 text-red-400" /> {reclamacoesAssoc.length} reclamações
+                    </span>
                     {mostrarArquivados && (
                       <button
                         onClick={(e) => { e.stopPropagation(); handleRestaurarAssociado(assoc.id); }}
@@ -483,6 +501,16 @@ export default function Dashboard() {
                       </button>
                     )}
                   </div>
+                  {(totalAvaliacoesAssoc > 0 || reclamacoesAssoc.length > 0) && (
+                    <div className="flex items-center gap-3 flex-wrap text-[11px] text-slate-400 dark:text-slate-500 -mt-1">
+                      {totalAvaliacoesAssoc > 0 && (
+                        <span>{percentualReclamacaoAssoc}% dos NPS viraram reclamação</span>
+                      )}
+                      {reclamacoesAssoc.length > 0 && (
+                        <span>{reclamacoesResolvidasAssoc}/{reclamacoesAssoc.length} reclamações resolvidas</span>
+                      )}
+                    </div>
+                  )}
                 </div>
                 );
               })}
@@ -986,7 +1014,7 @@ export default function Dashboard() {
       )}
 
       {/* Modals go here */}
-      {showNovoAssociado && <ModalNovoAssociado setores={setores} onClose={() => setShowNovoAssociado(false)} onSave={(assoc: any) => { setBusca(assoc.cpf); handleSearch({preventDefault:()=>null} as any); }} />}
+      {showNovoAssociado && <ModalNovoAssociado setores={setores} onClose={() => setShowNovoAssociado(false)} onSave={(assoc: any) => { setBusca(assoc.cpf); buscarAssociadoPorTermo(assoc.cpf); }} />}
       {showNovaPlaca && <ModalNovaPlaca associadoId={associado?.id} onClose={() => setShowNovaPlaca(false)} onSave={() => handleSearch({preventDefault:()=>null} as any)} />}
       {veiculoEditando && <ModalEditarVeiculo veiculo={veiculoEditando} onClose={() => setVeiculoEditando(null)} onSave={(atualizado: any) => { setVeiculos(veiculos.map(v => v.id === atualizado.id ? atualizado : v)); setVeiculoEditando(null); }} />}
       {showNovaAvaliacao.aberto && <ModalNovaAvaliacao associadoId={associado?.id} veiculos={veiculos} setorPreSelecionado={showNovaAvaliacao.setorId} setores={setores} onClose={() => setShowNovaAvaliacao({aberto: false, setorId: null})} onSave={() => handleSearch({preventDefault:()=>null} as any)} />}
