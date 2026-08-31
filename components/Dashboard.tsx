@@ -616,6 +616,38 @@ export default function Dashboard() {
             )}
           </div>
 
+          {/* Mini-dashboard: mesmo resumo que já aparece no card da lista,
+              repetido aqui pra não precisar voltar pra lista só pra ver os
+              números gerais do associado. */}
+          <div className="bg-white dark:bg-slate-800 px-6 py-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/60 -mt-2 flex flex-col gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="flex items-center gap-1.5 text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2.5 py-1 rounded-lg">
+                <Car className="w-4 h-4 text-slate-400 dark:text-slate-500" /> {veiculos.length} veículos
+              </span>
+              <span className="flex items-center gap-1.5 text-xs font-semibold bg-blue-50 text-blue-600 px-2.5 py-1 rounded-lg">
+                <Star className="w-4 h-4 text-blue-400" /> {avaliacoes.length} avaliações
+              </span>
+              <span className="flex items-center gap-1.5 text-xs font-semibold bg-orange-50 text-orange-600 px-2.5 py-1 rounded-lg">
+                <Megaphone className="w-4 h-4 text-orange-400" /> {indicacoes.length} indicações
+              </span>
+              <span className="flex items-center gap-1.5 text-xs font-semibold bg-red-50 text-red-600 px-2.5 py-1 rounded-lg">
+                <AlertOctagon className="w-4 h-4 text-red-400" /> {reclamacoes.length} reclamações
+              </span>
+            </div>
+            {(avaliacoes.length > 0 || reclamacoes.length > 0) && (
+              <div className="flex items-center gap-3 flex-wrap text-[11px] text-slate-400 dark:text-slate-500">
+                {avaliacoes.length > 0 && (
+                  <span>
+                    {Math.round((new Set(reclamacoes.filter(r => r.avaliacao_id).map(r => r.avaliacao_id)).size / avaliacoes.length) * 100)}% dos NPS viraram reclamação
+                  </span>
+                )}
+                {reclamacoes.length > 0 && (
+                  <span>{reclamacoes.filter(r => r.status?.conta_como_resolvido).length}/{reclamacoes.length} reclamações resolvidas</span>
+                )}
+              </div>
+            )}
+          </div>
+
           {associado.ativo === false && (
             <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm font-medium px-4 py-3 rounded-xl -mt-2 flex items-center gap-2">
               <Archive className="w-4 h-4 shrink-0" /> Este associado está arquivado — não aparece nas listas e buscas normais.
