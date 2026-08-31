@@ -43,8 +43,8 @@ export default function ResetPasswordPage() {
     e.preventDefault();
     setError(null);
 
-    if (password.length < 6) {
-      setError('A senha precisa ter pelo menos 6 caracteres.');
+    if (password.length < 8) {
+      setError('A senha precisa ter pelo menos 8 caracteres.');
       return;
     }
     if (password !== confirmarSenha) {
@@ -143,7 +143,7 @@ export default function ResetPasswordPage() {
                   <input
                     type={showPassword ? 'text' : 'password'}
                     required
-                    minLength={6}
+                    minLength={8}
                     autoComplete="new-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -168,7 +168,7 @@ export default function ResetPasswordPage() {
                   <input
                     type={showPassword ? 'text' : 'password'}
                     required
-                    minLength={6}
+                    minLength={8}
                     autoComplete="new-password"
                     value={confirmarSenha}
                     onChange={(e) => setConfirmarSenha(e.target.value)}

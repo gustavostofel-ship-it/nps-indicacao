@@ -117,7 +117,10 @@ export default function PainelReclamacoes() {
         .ilike('nome_completo', `%${searchTerm}%`);
       const assocIds = (assocMatches || []).map((a: any) => a.id);
 
-      let orClause = `protocolo.ilike.%${searchTerm}%,descricao.ilike.%${searchTerm}%`;
+      // vírgula e parênteses têm significado estrutural na sintaxe de filtro
+      // do PostgREST — tira antes de colar o termo digitado no filtro.
+      const termoSeguro = searchTerm.replace(/[,()]/g, '');
+      let orClause = `protocolo.ilike.%${termoSeguro}%,descricao.ilike.%${termoSeguro}%`;
       if (assocIds.length > 0) orClause += `,associado_id.in.(${assocIds.join(',')})`;
       query = query.or(orClause);
     }

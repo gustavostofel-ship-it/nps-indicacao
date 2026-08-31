@@ -274,8 +274,11 @@ ON setores FOR ALL TO authenticated USING (is_admin());
 CREATE POLICY "Admins podem gerenciar convites"
 ON convites FOR ALL TO authenticated USING (is_admin());
 
-CREATE POLICY "Visitantes podem ler convites pelo token"
-ON convites FOR SELECT TO anon USING (true);
+-- NUNCA liberar SELECT geral pra anon aqui (ex: USING (true)) — isso deixaria
+-- a tabela inteira de convites listável por qualquer visitante não-logado,
+-- token de verdade incluído. Quem não está logado só pode consultar UM
+-- convite por vez, sabendo o token, via a função buscar_convite_por_token()
+-- (SECURITY DEFINER, mais abaixo) — nunca via SELECT direto na tabela.
 
 -- Sem isso, o próprio convidado (que ainda não é admin) não conseguia
 -- marcar seu convite como aceito ao concluir o cadastro em /invite/[token]
@@ -746,3 +749,57 @@ WHERE NOT EXISTS (SELECT 1 FROM reclamacao_motivo);
 
 ALTER TABLE reclamacoes ADD COLUMN IF NOT EXISTS motivo_id UUID REFERENCES reclamacao_motivo(id);
 ALTER TABLE reclamacoes ALTER COLUMN descricao DROP NOT NULL;
+
+-- ============================================================================
+-- Segurança do fluxo de convite/cadastro (ver supabase_migration_seguranca_
+-- convites.sql pro contexto completo do porquê disso existir)
+-- ============================================================================
+
+-- Visitante não-logado consulta UM convite pelo token (nunca a tabela
+-- inteira) — usado pela tela /invite/[token] antes da pessoa ter conta.
+CREATE OR REPLACE FUNCTION buscar_convite_por_token(p_token TEXT)
+RETURNS TABLE (id UUID, nome TEXT, email TEXT, funcao TEXT)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT id, nome, email, funcao
+  FROM convites
+  WHERE token = p_token AND status = 'pendente';
+$$;
+
+GRANT EXECUTE ON FUNCTION buscar_convite_por_token(TEXT) TO anon, authenticated;
+
+-- Bloqueia qualquer criação de conta (auth.signUp) que não venha de um
+-- convite pendente válido com o e-mail batendo — sem isso, dava pra criar
+-- conta direto pela API do Supabase, sem aprovação de admin nenhuma.
+CREATE OR REPLACE FUNCTION validar_signup_convite() RETURNS TRIGGER AS $$
+DECLARE
+  v_convite_id UUID;
+  v_email_convite TEXT;
+BEGIN
+  v_convite_id := (NEW.raw_user_meta_data->>'convite_id')::UUID;
+
+  IF v_convite_id IS NULL THEN
+    RAISE EXCEPTION 'Cadastro permitido apenas por convite. Peça um convite a um administrador.';
+  END IF;
+
+  SELECT email INTO v_email_convite
+  FROM convites
+  WHERE id = v_convite_id AND status = 'pendente';
+
+  IF v_email_convite IS NULL THEN
+    RAISE EXCEPTION 'Convite inválido, expirado ou já utilizado.';
+  END IF;
+
+  IF v_email_convite IS DISTINCT FROM NEW.email THEN
+    RAISE EXCEPTION 'O e-mail não corresponde ao convite.';
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+CREATE TRIGGER trg_validar_signup_convite
+BEFORE INSERT ON auth.users
+FOR EACH ROW EXECUTE FUNCTION validar_signup_convite();

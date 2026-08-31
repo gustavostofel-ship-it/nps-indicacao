@@ -19,13 +19,14 @@ export default function InvitePage() {
 
   useEffect(() => {
     const fetchInvite = async () => {
+      // Chama uma função do banco (não a tabela direto) — ela só devolve
+      // dados de UM convite, e só se a gente já souber o token exato. Isso
+      // evita que a tabela de convites fique listável por qualquer visitante
+      // não-logado (ver supabase_migration_seguranca_convites.sql).
       const { data, error } = await supabase
-        .from('convites')
-        .select('*')
-        .eq('token', token)
-        .eq('status', 'pendente')
-        .single();
-      
+        .rpc('buscar_convite_por_token', { p_token: token })
+        .maybeSingle();
+
       if (error || !data) {
         setError('Convite inválido, expirado ou já utilizado.');
       } else if (!data.email) {
@@ -45,8 +46,8 @@ export default function InvitePage() {
     e.preventDefault();
     setError(null);
 
-    if (password.length < 6) {
-      setError('A senha precisa ter pelo menos 6 caracteres.');
+    if (password.length < 8) {
+      setError('A senha precisa ter pelo menos 8 caracteres.');
       return;
     }
     if (password !== confirmarSenha) {
@@ -115,7 +116,7 @@ export default function InvitePage() {
               <input
                 type={showPassword ? 'text' : 'password'}
                 required
-                minLength={6}
+                minLength={8}
                 autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -136,7 +137,7 @@ export default function InvitePage() {
             <input
               type={showPassword ? 'text' : 'password'}
               required
-              minLength={6}
+              minLength={8}
               autoComplete="new-password"
               value={confirmarSenha}
               onChange={(e) => setConfirmarSenha(e.target.value)}

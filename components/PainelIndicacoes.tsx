@@ -144,7 +144,12 @@ export default function PainelIndicacoes() {
         .ilike('nome_completo', `%${searchTerm}%`);
       const assocIds = (assocMatches || []).map((a: any) => a.id);
 
-      let orClause = `nome_indicado.ilike.%${searchTerm}%,protocolo.ilike.%${searchTerm}%`;
+      // vírgula e parênteses têm significado estrutural na sintaxe de filtro
+      // do PostgREST (.or('a.eq.b,c.eq.d')) — sem tirar isso, um termo de
+      // busca com esses caracteres poderia adulterar o filtro montado abaixo
+      // em vez de só ser buscado como texto.
+      const termoSeguro = searchTerm.replace(/[,()]/g, '');
+      let orClause = `nome_indicado.ilike.%${termoSeguro}%,protocolo.ilike.%${termoSeguro}%`;
       if (assocIds.length > 0) orClause += `,associado_id.in.(${assocIds.join(',')})`;
       query = query.or(orClause);
     }
