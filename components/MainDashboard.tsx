@@ -4,16 +4,19 @@ import { useState, useEffect, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, Legend } from 'recharts';
 import { startOfMonth, format, subDays, isAfter, isBefore } from 'date-fns';
-import { ArrowRight, Star, Megaphone, Users, Target, CheckCircle2, AlertCircle, ArrowUpRight, ArrowDownRight, Clock, AlertTriangle, Download, Filter, Wifi, X } from 'lucide-react';
+import { ArrowRight, Star, Megaphone, Users, Target, CheckCircle2, AlertCircle, ArrowUpRight, ArrowDownRight, Clock, AlertTriangle, Download, Filter, Wifi, X, AlertOctagon } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { buscarStatusIndicacao, corStatus, normalizarStatusEmbutido, DIAS_LIMITE_PARADA, StatusIndicacao } from '@/lib/indicacoes';
+import { buscarStatusReclamacao, StatusReclamacao } from '@/lib/reclamacoes';
 
 const supabase = createClient();
 
 type StatusEmbutido = { id: string, nome: string, cor: string, conta_como_fechado: boolean } | null;
+type StatusReclamacaoEmbutido = { id: string, nome: string, cor: string, conta_como_resolvido: boolean } | null;
 type Avaliacao = { id: string, nota: number, data_avaliacao: string, setor: any, setor_id: string, usuario_id: string, associado_id: string, comentario: string | null, classificacao: string | null, associado: any };
 type Indicacao = { id: string, status_id: string, status: StatusEmbutido, data_indicacao: string, updated_at: string, data_fechamento: string | null, usuario_id: string, nome_indicado: string, responsavel_id: string | null, associado_id: string, protocolo: string | null };
+type Reclamacao = { id: string, status_id: string, status: StatusReclamacaoEmbutido, avaliacao_id: string | null, data_abertura: string, motivo: any };
 type Usuario = { id: string, nome: string };
 type Setor = { id: string, nome: string };
 
@@ -38,11 +41,13 @@ function DeltaBadge({ delta, invertido = false }: { delta: number | null, invert
 export default function MainDashboard() {
   const [avaliacoes, setAvaliacoes] = useState<Avaliacao[]>([]);
   const [indicacoes, setIndicacoes] = useState<Indicacao[]>([]);
+  const [reclamacoes, setReclamacoes] = useState<Reclamacao[]>([]);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [setoresList, setSetoresList] = useState<Setor[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [statusList, setStatusList] = useState<StatusIndicacao[]>([]);
+  const [statusReclamacaoList, setStatusReclamacaoList] = useState<StatusReclamacao[]>([]);
 
   // Dados do período anterior, usados só para calcular a variação percentual (comparação)
   const [avaliacoesPrev, setAvaliacoesPrev] = useState<{ nota: number }[]>([]);
@@ -64,16 +69,19 @@ export default function MainDashboard() {
     // Base Queries (período atual)
     let queryAval = supabase.from('avaliacoes').select('id, nota, data_avaliacao, usuario_id, associado_id, setor_id, comentario, classificacao, setor:setores(nome), associado:associados(nome_completo)').order('data_avaliacao', { ascending: true });
     let queryInd = supabase.from('indicacoes').select('id, status_id, status:indicacao_status(id, nome, cor, conta_como_fechado), data_indicacao, updated_at, data_fechamento, usuario_id, nome_indicado, responsavel_id, associado_id, protocolo').order('data_indicacao', { ascending: true });
+    let queryRec = supabase.from('reclamacoes').select('id, status_id, status:reclamacao_status(id, nome, cor, conta_como_resolvido), avaliacao_id, data_abertura, motivo:reclamacao_motivo(nome)').order('data_abertura', { ascending: true });
 
     if (dateFilter.start) {
       const start = new Date(`${dateFilter.start}T00:00:00`).toISOString();
       queryAval = queryAval.gte('data_avaliacao', start);
       queryInd = queryInd.gte('data_indicacao', start);
+      queryRec = queryRec.gte('data_abertura', start);
     }
     if (dateFilter.end) {
       const end = new Date(`${dateFilter.end}T23:59:59.999`).toISOString();
       queryAval = queryAval.lte('data_avaliacao', end);
       queryInd = queryInd.lte('data_indicacao', end);
+      queryRec = queryRec.lte('data_abertura', end);
     }
     if (setorFilter) {
       queryAval = queryAval.eq('setor_id', setorFilter);
@@ -96,9 +104,10 @@ export default function MainDashboard() {
       queryIndPrev = supabase.from('indicacoes').select('status:indicacao_status(conta_como_fechado), data_indicacao, data_fechamento').gte('data_indicacao', prevStart.toISOString()).lte('data_indicacao', prevEnd.toISOString());
     }
 
-    const [resAval, resInd, resUser, resSetores, resAvalPrev, resIndPrev] = await Promise.all([
+    const [resAval, resInd, resRec, resUser, resSetores, resAvalPrev, resIndPrev] = await Promise.all([
       queryAval,
       queryInd,
+      queryRec,
       supabase.from('perfis_usuarios').select('id, nome'),
       supabase.from('setores').select('id, nome').eq('ativo', true).order('ordem', { ascending: true }),
       queryAvalPrev,
@@ -113,11 +122,16 @@ export default function MainDashboard() {
       console.error('Erro ao carregar indicações:', resInd.error);
       toast.error('Erro ao carregar indicações: ' + resInd.error.message);
     }
+    if (resRec.error) {
+      console.error('Erro ao carregar reclamações:', resRec.error);
+      toast.error('Erro ao carregar reclamações: ' + resRec.error.message);
+    }
     if (resUser.error) console.error('Erro ao carregar usuários:', resUser.error);
     if (resSetores.error) console.error('Erro ao carregar setores:', resSetores.error);
 
     setAvaliacoes(resAval.data || []);
     setIndicacoes((resInd.data || []).map(normalizarStatusEmbutido));
+    setReclamacoes((resRec.data || []).map(normalizarStatusEmbutido));
     setUsuarios(resUser.data || []);
     setSetoresList(resSetores.data || []);
     setAvaliacoesPrev(resAvalPrev.data || []);
@@ -132,15 +146,17 @@ export default function MainDashboard() {
 
   useEffect(() => {
     buscarStatusIndicacao(supabase).then(setStatusList);
+    buscarStatusReclamacao(supabase).then(setStatusReclamacaoList);
   }, []);
 
-  // Tempo real: qualquer criação/alteração em avaliações ou indicações feita
-  // por outra pessoa atualiza este dashboard sozinho.
+  // Tempo real: qualquer criação/alteração em avaliações, indicações ou
+  // reclamações feita por outra pessoa atualiza este dashboard sozinho.
   useEffect(() => {
     const channel = supabase
       .channel('dashboard-geral')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'indicacoes' }, () => carregarDados())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'avaliacoes' }, () => carregarDados())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reclamacoes' }, () => carregarDados())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -172,6 +188,25 @@ export default function MainDashboard() {
     value: indicacoes.filter(i => i.status_id === s.id).length,
     fill: corStatus(s.cor).hex,
   })), [indicacoes, statusList]);
+
+  // ---- Reclamações ----
+  const totalReclamacoes = reclamacoes.length;
+  const reclamacoesResolvidas = reclamacoes.filter(r => r.status?.conta_como_resolvido).length;
+  // % de avaliações do período que viraram reclamação — usa avaliação
+  // distintas (avaliacao_id), pra não contar duas vezes se por acaso uma
+  // avaliação tivesse mais de uma reclamação vinculada.
+  const avaliacoesComReclamacao = useMemo(
+    () => new Set(reclamacoes.filter(r => r.avaliacao_id).map(r => r.avaliacao_id)).size,
+    [reclamacoes]
+  );
+  const percentualNpsVirouReclamacao = totalAvaliacoes > 0 ? Math.round((avaliacoesComReclamacao / totalAvaliacoes) * 100) : 0;
+  // Uma coluna por status configurado — quantas reclamações do período estão
+  // em cada uma (Aberta, Em Análise, Encaminhada à Liderança, etc.).
+  const statusReclamacaoData = useMemo(() => statusReclamacaoList.map(s => ({
+    name: s.nome,
+    value: reclamacoes.filter(r => r.status_id === s.id).length,
+    fill: corStatus(s.cor).hex,
+  })), [reclamacoes, statusReclamacaoList]);
 
   // Charts Logic
   // 1. NPS Evolution (Daily)
@@ -429,8 +464,8 @@ export default function MainDashboard() {
       ) : (
         <>
           {/* Top Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+
             {/* Avaliações Card */}
             <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
               <div className="flex items-center justify-between mb-2">
@@ -547,6 +582,26 @@ export default function MainDashboard() {
               </div>
             </div>
 
+            {/* Reclamações Card */}
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2 text-slate-500 font-semibold">
+                  <AlertOctagon className="w-5 h-5 text-red-500" /> Reclamações
+                </div>
+              </div>
+              <div className="text-3xl font-bold text-slate-800">{totalReclamacoes}</div>
+              <div className="mt-2 text-sm text-slate-500 flex items-center gap-2 flex-wrap">
+                <span className="font-bold text-red-600">{percentualNpsVirouReclamacao}% dos NPS viraram reclamação</span>
+              </div>
+              <div className="mt-1 text-[11px] text-slate-400">{reclamacoesResolvidas} resolvida{reclamacoesResolvidas === 1 ? '' : 's'} no período</div>
+              <Link
+                href={`/reclamacoes?inicio=${dateFilter.start}&fim=${dateFilter.end}`}
+                className={`mt-3 inline-block text-xs font-semibold hover:underline ${totalReclamacoes === 0 ? 'text-slate-300 pointer-events-none' : 'text-blue-600'}`}
+              >
+                Ver lista do período →
+              </Link>
+            </div>
+
           </div>
 
           {/* Alerta: Indicações Esquecidas */}
@@ -652,6 +707,30 @@ export default function MainDashboard() {
                       <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
                       <Bar dataKey="value" name="Quantidade" radius={[4, 4, 0, 0]} barSize={40}>
                         {statusData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.fill} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-slate-400 text-sm">Sem dados suficientes</div>
+                )}
+              </div>
+            </div>
+
+            {/* Status de Reclamações */}
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+              <h3 className="font-bold text-slate-700 mb-4">Status de Reclamações</h3>
+              <div className="h-[250px] w-full">
+                {totalReclamacoes > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={statusReclamacaoData}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                      <XAxis dataKey="name" tick={{fontSize: 11, fill: '#64748b'}} tickLine={false} axisLine={false} interval={0} angle={-15} textAnchor="end" height={50} />
+                      <YAxis allowDecimals={false} tick={{fontSize: 12, fill: '#64748b'}} tickLine={false} axisLine={false} />
+                      <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                      <Bar dataKey="value" name="Quantidade" radius={[4, 4, 0, 0]} barSize={40}>
+                        {statusReclamacaoData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.fill} />
                         ))}
                       </Bar>
