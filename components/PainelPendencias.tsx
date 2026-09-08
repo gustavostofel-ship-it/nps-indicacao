@@ -725,28 +725,56 @@ function ModalImportarCSV({ setores, situacoes, onClose, onImportado }: any) {
     const { data: { user } } = await supabase.auth.getUser();
     const loteId = crypto.randomUUID();
 
-    const rows = novos.map(g => ({
-      origem: 'assistencia_24h',
-      setor_id: setorId,
-      associado_id: g.veiculoMatch?.associado_id || null,
-      veiculo_id: g.veiculoMatch?.id || null,
-      nome_beneficiario: g.nome_beneficiario,
-      nome_solicitante: g.nome_solicitante,
-      placa: g.placa,
-      telefone_principal: g.telefones[0] || null,
-      telefones_adicionais: g.telefones.slice(1),
-      data_atendimento: dataBrParaISO(g.data_atendimento),
-      motivo_texto: g.motivo_texto,
-      situacao_origem: g.situacao_origem,
-      atendente_origem: g.atendente_origem,
-      produto_origem: g.produto_origem,
-      servico_origem: g.servico_origem,
-      representante_origem: g.representante_origem,
-      linhas_agrupadas: g.linhas_agrupadas,
-      chave_dedup: g.chave_dedup,
-      lote_importacao_id: loteId,
-      criado_por: user?.id,
-    }));
+    // Cadastra automaticamente associado + veículo pras placas sem match,
+    // usando nome/placa/telefone que a própria planilha já trouxe (CPF fica
+    // em branco — ver supabase_migration_cpf_opcional.sql). Isso evita ter
+    // que clicar em "Vincular associado" um por um; só fica de fora quem
+    // não tem placa em formato válido (mantém disponível pra vínculo
+    // manual). Dedup por placa dentro do próprio lote, pra não tentar criar
+    // o mesmo veículo duas vezes se ele aparecer em dois grupos diferentes
+    // (ex: mesma placa em dois dias distintos).
+    toast.loading('Cadastrando associados novos...', { id: tid });
+    const semMatch = novos.filter(g => !g.veiculoMatch && validarPlaca(g.placa));
+    const placasUnicas = Array.from(new Map(semMatch.map(g => [g.placa, g])).values());
+    const criadosPorPlaca = new Map<string, { associado_id: string, veiculo_id: string }>();
+    for (const g of placasUnicas) {
+      const { data: assocData, error: assocError } = await supabase.from('associados')
+        .insert({ nome_completo: g.nome_beneficiario || `Associado ${g.placa}`, telefone: g.telefones[0] || null })
+        .select().single();
+      if (assocError) { console.error('Erro ao criar associado automaticamente', g.placa, assocError); continue; }
+      const { data: veiculoData, error: veiculoError } = await supabase.from('veiculos')
+        .insert({ associado_id: assocData.id, placa: g.placa, modelo: 'Não informado' })
+        .select().single();
+      if (veiculoError) { console.error('Erro ao criar veículo automaticamente', g.placa, veiculoError); continue; }
+      criadosPorPlaca.set(g.placa, { associado_id: assocData.id, veiculo_id: veiculoData.id });
+    }
+
+    toast.loading(`Importando ${novos.length} atendimento(s)...`, { id: tid });
+    const rows = novos.map(g => {
+      const criado = criadosPorPlaca.get(g.placa);
+      return {
+        origem: 'assistencia_24h',
+        setor_id: setorId,
+        associado_id: g.veiculoMatch?.associado_id || criado?.associado_id || null,
+        veiculo_id: g.veiculoMatch?.id || criado?.veiculo_id || null,
+        nome_beneficiario: g.nome_beneficiario,
+        nome_solicitante: g.nome_solicitante,
+        placa: g.placa,
+        telefone_principal: g.telefones[0] || null,
+        telefones_adicionais: g.telefones.slice(1),
+        data_atendimento: dataBrParaISO(g.data_atendimento),
+        motivo_texto: g.motivo_texto,
+        situacao_origem: g.situacao_origem,
+        atendente_origem: g.atendente_origem,
+        produto_origem: g.produto_origem,
+        servico_origem: g.servico_origem,
+        representante_origem: g.representante_origem,
+        linhas_agrupadas: g.linhas_agrupadas,
+        chave_dedup: g.chave_dedup,
+        lote_importacao_id: loteId,
+        criado_por: user?.id,
+      };
+    });
 
     const { error } = await supabase.from('avaliacao_pendencias').upsert(rows, { onConflict: 'chave_dedup', ignoreDuplicates: true });
     setImportando(false);
@@ -755,9 +783,12 @@ function ModalImportarCSV({ setores, situacoes, onClose, onImportado }: any) {
     onImportado();
   };
 
-  const comMatch = preview?.grupos.filter(g => g.veiculoMatch).length ?? 0;
   const duplicados = preview?.grupos.filter(g => g.jaExiste).length ?? 0;
-  const novosCount = (preview?.grupos.length ?? 0) - duplicados;
+  const gruposNovos = preview?.grupos.filter(g => !g.jaExiste) ?? [];
+  const novosCount = gruposNovos.length;
+  const comMatch = gruposNovos.filter(g => g.veiculoMatch).length;
+  const seraoCriados = gruposNovos.filter(g => !g.veiculoMatch && validarPlaca(g.placa)).length;
+  const semPlacaValida = gruposNovos.filter(g => !g.veiculoMatch && !validarPlaca(g.placa)).length;
 
   return (
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
@@ -782,7 +813,7 @@ function ModalImportarCSV({ setores, situacoes, onClose, onImportado }: any) {
             </label>
           ) : (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-center">
                 <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl">
                   <div className="text-xl font-bold text-slate-800 dark:text-slate-100">{preview.totalLinhas}</div>
                   <div className="text-[11px] text-slate-500 dark:text-slate-400">linhas lidas</div>
@@ -791,26 +822,41 @@ function ModalImportarCSV({ setores, situacoes, onClose, onImportado }: any) {
                   <div className="text-xl font-bold text-slate-800 dark:text-slate-100">{preview.grupos.length}</div>
                   <div className="text-[11px] text-slate-500 dark:text-slate-400">elegíveis (agrupado)</div>
                 </div>
-                <div className="p-3 bg-green-50 rounded-xl">
-                  <div className="text-xl font-bold text-green-700">{comMatch}</div>
-                  <div className="text-[11px] text-green-700">com placa reconhecida</div>
-                </div>
                 <div className="p-3 bg-amber-50 rounded-xl">
                   <div className="text-xl font-bold text-amber-700">{duplicados}</div>
                   <div className="text-[11px] text-amber-700">já importados antes</div>
                 </div>
+                <div className="p-3 bg-green-50 rounded-xl">
+                  <div className="text-xl font-bold text-green-700">{comMatch}</div>
+                  <div className="text-[11px] text-green-700">associado já existia</div>
+                </div>
+                <div className="p-3 bg-blue-50 rounded-xl">
+                  <div className="text-xl font-bold text-blue-700">{seraoCriados}</div>
+                  <div className="text-[11px] text-blue-700">serão cadastrados automaticamente</div>
+                </div>
+                {semPlacaValida > 0 && (
+                  <div className="p-3 bg-red-50 rounded-xl">
+                    <div className="text-xl font-bold text-red-700">{semPlacaValida}</div>
+                    <div className="text-[11px] text-red-700">sem placa válida — vincular manualmente</div>
+                  </div>
+                )}
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 {preview.naoElegiveis} atendimento(s) da planilha não estão numa situação elegível pra avaliação (ajustável em Configurações) e não entram na fila.
-                Vão ser adicionadas <strong>{novosCount}</strong> pendência(s) novas.
+                Vão ser adicionadas <strong>{novosCount}</strong> pendência(s) novas — {seraoCriados > 0 && <>as <strong>{seraoCriados}</strong> sem associado já vão nascer cadastradas automaticamente (nome/placa/telefone da própria planilha, CPF em branco).</>}
               </p>
               <div className="max-h-56 overflow-y-auto border border-slate-100 dark:border-slate-700/60 rounded-lg divide-y divide-slate-100 dark:divide-slate-700/60">
-                {preview.grupos.slice(0, 50).map(g => (
-                  <div key={g.chave_dedup} className={`p-2.5 text-xs flex items-center justify-between gap-2 ${g.jaExiste ? 'opacity-40' : ''}`}>
-                    <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">{g.nome_beneficiario} <span className="text-slate-400 dark:text-slate-500 font-normal">{g.placa}</span></span>
-                    <span className={`shrink-0 font-bold ${g.veiculoMatch ? 'text-green-600' : 'text-slate-400'}`}>{g.veiculoMatch ? 'associado encontrado' : 'sem match'}</span>
-                  </div>
-                ))}
+                {preview.grupos.slice(0, 50).map(g => {
+                  const vaiCriar = !g.jaExiste && !g.veiculoMatch && validarPlaca(g.placa);
+                  const rotulo = g.jaExiste ? 'já importado' : g.veiculoMatch ? 'associado encontrado' : vaiCriar ? 'será cadastrado' : 'placa inválida — vincular à mão';
+                  const cor = g.jaExiste ? 'text-slate-400' : g.veiculoMatch ? 'text-green-600' : vaiCriar ? 'text-blue-600' : 'text-red-600';
+                  return (
+                    <div key={g.chave_dedup} className={`p-2.5 text-xs flex items-center justify-between gap-2 ${g.jaExiste ? 'opacity-40' : ''}`}>
+                      <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">{g.nome_beneficiario} <span className="text-slate-400 dark:text-slate-500 font-normal">{g.placa}</span></span>
+                      <span className={`shrink-0 font-bold ${cor}`}>{rotulo}</span>
+                    </div>
+                  );
+                })}
               </div>
               <button onClick={() => setPreview(null)} className="text-xs font-semibold text-blue-600 hover:underline">Escolher outro arquivo</button>
             </div>
