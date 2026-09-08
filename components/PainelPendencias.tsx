@@ -15,7 +15,7 @@ import { createClient } from '@/lib/supabase/client';
 import toast from 'react-hot-toast';
 import {
   Upload, ClipboardList, PhoneCall, PhoneOff, UserPlus, UserCheck, Star, XCircle,
-  CheckCircle2, AlertTriangle, Filter, X, Search, Car, Inbox, MessageSquare, UserCog,
+  CheckCircle2, AlertTriangle, Filter, X, Search, Car, Inbox, MessageSquare, UserCog, Building2, Tag,
 } from 'lucide-react';
 import { ModalNovaAvaliacao, ResultadoAvaliacao } from '@/components/AvaliacaoModal';
 import { ModalNovaReclamacao } from '@/components/ReclamacaoModal';
@@ -58,6 +58,18 @@ type Pendencia = {
 };
 
 const STATUS_ATIVOS: StatusPendencia[] = ['pendente', 'contatado', 'sem_retorno'];
+
+// Cor por status — mesmo espírito de CORES_STATUS (lib/indicacoes.ts), só
+// que fixo (o status da pendência não é configurável, ao contrário de
+// indicação/reclamação) e usado nos badges da lista e do modal de detalhe.
+const COR_STATUS_PENDENCIA: Record<StatusPendencia, string> = {
+  pendente: 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200',
+  contatado: 'bg-blue-100 text-blue-700',
+  avaliado: 'bg-green-100 text-green-700',
+  recusado: 'bg-orange-100 text-orange-700',
+  sem_retorno: 'bg-red-100 text-red-700',
+  descartado: 'bg-slate-200 text-slate-500 dark:bg-slate-800 dark:text-slate-500',
+};
 
 export default function PainelPendencias() {
   const [setores, setSetores] = useState<any[]>([]);
@@ -420,7 +432,10 @@ function LinhaPendencia({ p, onAvaliar, onSemRetorno, onDescartar, onVincular, o
   const parado = dias !== null && dias >= 3 && p.status !== 'avaliado' && p.status !== 'recusado' && p.status !== 'descartado';
   const nome = p.associado?.nome_completo || p.nome_beneficiario || 'Sem nome';
   const telefone = p.associado?.telefone || p.telefone_principal;
-  const contexto = [p.motivo?.nome, p.motivo_texto, p.servico_origem].filter(Boolean).join(' · ');
+  // O motivo/tipo de atendimento é a informação mais importante pra dar
+  // contexto antes de ligar — merece destaque de badge, não texto solto. O
+  // serviço prestado (ex: "Reboque Moto") é só detalhe secundário.
+  const tipoAtendimento = p.motivo?.nome || p.motivo_texto || null;
 
   return (
     <li
@@ -431,21 +446,29 @@ function LinhaPendencia({ p, onAvaliar, onSemRetorno, onDescartar, onVincular, o
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-bold text-slate-800 dark:text-slate-100">{nome}</span>
-          {p.status !== 'pendente' && (
-            <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300">{ROTULO_STATUS_PENDENCIA[p.status]}</span>
-          )}
+          <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${COR_STATUS_PENDENCIA[p.status]}`}>{ROTULO_STATUS_PENDENCIA[p.status]}</span>
           {parado && (
             <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> {dias}d na fila</span>
           )}
           {p.tentativas > 0 && <span className="text-[10px] text-slate-400 dark:text-slate-500">{p.tentativas} tentativa(s)</span>}
         </div>
-        <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-2 flex-wrap">
-          {p.setor?.nome && <span className="font-semibold text-slate-600 dark:text-slate-300">{p.setor.nome}</span>}
-          {p.veiculo?.placa && <span className="flex items-center gap-1"><Car className="w-3 h-3" /> {p.veiculo.placa}</span>}
-          {!p.veiculo?.placa && p.placa && <span className="flex items-center gap-1"><Car className="w-3 h-3" /> {p.placa} (não vinculado)</span>}
-          {contexto && <span className="truncate max-w-xs">{contexto}</span>}
+        <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+          {p.setor?.nome && (
+            <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">
+              <Building2 className="w-3 h-3" /> {p.setor.nome}
+            </span>
+          )}
+          {tipoAtendimento && (
+            <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-slate-700 text-white dark:bg-slate-600">
+              <Tag className="w-3 h-3" /> {tipoAtendimento}
+            </span>
+          )}
+          <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+            <Car className="w-3 h-3" /> {p.veiculo?.placa || p.placa || '—'}{!p.veiculo?.placa && p.placa && ' (não vinculado)'}
+          </span>
+          {p.servico_origem && <span className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-[10rem]">{p.servico_origem}</span>}
           {p.nome_solicitante && p.nome_solicitante.toUpperCase() !== nome.toUpperCase() && (
-            <span className="italic">solicitado por {p.nome_solicitante}</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400 italic">solicitado por {p.nome_solicitante}</span>
           )}
         </div>
       </div>
@@ -555,14 +578,22 @@ function ModalDetalhePendencia({ pendencia, usuarios, currentUserId, onClose, on
   return (
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
-        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700/60 flex justify-between items-center bg-slate-50 dark:bg-slate-900/40">
-          <div>
+        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900/40">
+          <div className="flex justify-between items-start gap-3">
             <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100">{nome}</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              {pendencia.setor?.nome} {pendencia.veiculo?.placa || pendencia.placa ? `· ${pendencia.veiculo?.placa || pendencia.placa}` : ''} · {ROTULO_STATUS_PENDENCIA[pendencia.status]}
-            </p>
+            <button onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 shrink-0"><X className="w-5 h-5" /></button>
           </div>
-          <button onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200"><X className="w-5 h-5" /></button>
+          <div className="flex items-center gap-1.5 flex-wrap mt-2">
+            {pendencia.setor?.nome && (
+              <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-md bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">
+                <Building2 className="w-3.5 h-3.5" /> {pendencia.setor.nome}
+              </span>
+            )}
+            <span className={`text-xs font-bold px-2.5 py-1 rounded-md ${COR_STATUS_PENDENCIA[pendencia.status]}`}>{ROTULO_STATUS_PENDENCIA[pendencia.status]}</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+              <Car className="w-3.5 h-3.5" /> {pendencia.veiculo?.placa || pendencia.placa || '—'}
+            </span>
+          </div>
         </div>
 
         <div className="p-6 space-y-5 overflow-y-auto">
@@ -572,10 +603,17 @@ function ModalDetalhePendencia({ pendencia, usuarios, currentUserId, onClose, on
             </a>
           )}
 
-          {[pendencia.motivo?.nome, pendencia.motivo_texto, pendencia.servico_origem].filter(Boolean).length > 0 && (
-            <p className="text-sm text-slate-600 dark:text-slate-300">
-              {[pendencia.motivo?.nome, pendencia.motivo_texto, pendencia.servico_origem].filter(Boolean).join(' · ')}
-            </p>
+          {/* Tipo de atendimento em destaque — é a informação mais importante
+              pra saber do que se trata antes de ligar. Serviço prestado (ex:
+              "Reboque Moto") fica como detalhe secundário logo abaixo. */}
+          {(pendencia.motivo?.nome || pendencia.motivo_texto) && (
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500 mb-1.5">Tipo de atendimento</p>
+              <span className="inline-flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded-lg bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900">
+                <Tag className="w-4 h-4" /> {pendencia.motivo?.nome || pendencia.motivo_texto}
+              </span>
+              {pendencia.servico_origem && <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5">{pendencia.servico_origem}</p>}
+            </div>
           )}
 
           {/* Responsável */}
