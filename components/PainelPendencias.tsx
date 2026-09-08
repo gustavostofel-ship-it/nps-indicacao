@@ -85,6 +85,7 @@ export default function PainelPendencias() {
 
   const [filtroSetor, setFiltroSetor] = useState('');
   const [filtroStatus, setFiltroStatus] = useState<'ativas' | 'todas' | StatusPendencia>('ativas');
+  const [filtroResponsavel, setFiltroResponsavel] = useState<'todos' | 'meus'>('todos');
 
   const [showImportar, setShowImportar] = useState(false);
   const [showNovoManual, setShowNovoManual] = useState(false);
@@ -133,6 +134,7 @@ export default function PainelPendencias() {
     if (filtroSetor) q = q.eq('setor_id', filtroSetor);
     if (filtroStatus === 'ativas') q = q.in('status', STATUS_ATIVOS);
     else if (filtroStatus !== 'todas') q = q.eq('status', filtroStatus);
+    if (filtroResponsavel === 'meus' && currentUserId) q = q.eq('responsavel_id', currentUserId);
 
     const { data, error } = await q;
     if (error) {
@@ -144,7 +146,7 @@ export default function PainelPendencias() {
   };
 
   useEffect(() => { fetchListas(); fetchContagens(); }, []);
-  useEffect(() => { fetchPendencias(); }, [filtroSetor, filtroStatus]);
+  useEffect(() => { fetchPendencias(); }, [filtroSetor, filtroStatus, filtroResponsavel, currentUserId]);
 
   useEffect(() => {
     const channel = supabase
@@ -153,7 +155,7 @@ export default function PainelPendencias() {
       .subscribe();
     return () => { supabase.removeChannel(channel); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtroSetor, filtroStatus]);
+  }, [filtroSetor, filtroStatus, filtroResponsavel]);
 
   const atualizarPendencia = async (id: string, patch: Record<string, any>) => {
     const { error } = await supabase.from('avaliacao_pendencias').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id);
@@ -219,16 +221,25 @@ export default function PainelPendencias() {
     setVinculando(null);
   };
 
-  // "Pegar pra mim": assume a responsabilidade pelo caso — se ainda estava
-  // pendente, também marca como "contatado" (alguém já está tratando).
-  const handlePegarProMim = async (p: Pendencia) => {
+  // Ponto único pra "Pegar pra mim" (novoResponsavelId = meu id), "Largar o
+  // caso" (novoResponsavelId = null) e "Transferir" (novoResponsavelId =
+  // outro colaborador) — pensando já num setor onde uma pessoa só distribui
+  // casos pros outros, sem nunca ser ela mesma a responsável. Assumir
+  // (não largar) também marca "contatado" se ainda estava pendente; largar
+  // devolve pra "pendente" se estava só "contatado" por causa disso (sem
+  // mexer se já foi além, tipo sem_retorno).
+  const handleAlterarResponsavel = async (p: Pendencia, novoResponsavelId: string | null) => {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    const meuNome = usuarios.find(u => u.id === user.id)?.nome || 'Você';
+    const novoNome = novoResponsavelId
+      ? (novoResponsavelId === user?.id ? 'Você' : usuarios.find(u => u.id === novoResponsavelId)?.nome || 'Alguém da equipe')
+      : null;
+    const novoStatus = novoResponsavelId
+      ? (p.status === 'pendente' ? 'contatado' : p.status)
+      : (p.status === 'contatado' ? 'pendente' : p.status);
     await Promise.all([
-      atualizarPendencia(p.id, { responsavel_id: user.id, status: p.status === 'pendente' ? 'contatado' : p.status }),
+      atualizarPendencia(p.id, { responsavel_id: novoResponsavelId, status: novoStatus }),
       supabase.from('avaliacao_pendencia_eventos').insert({
-        pendencia_id: p.id, tipo: 'responsavel_alterado', autor_id: user.id, valor_novo: meuNome,
+        pendencia_id: p.id, tipo: 'responsavel_alterado', autor_id: user?.id, valor_novo: novoNome,
       }),
     ]);
   };
@@ -286,6 +297,20 @@ export default function PainelPendencias() {
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/60">
         <div className="p-4 border-b border-slate-100 dark:border-slate-700/60 flex items-center gap-3 flex-wrap">
           <Filter className="w-4 h-4 text-slate-400 dark:text-slate-500 shrink-0" />
+          <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden shrink-0">
+            <button
+              onClick={() => setFiltroResponsavel('meus')}
+              className={`px-3 py-1.5 text-sm font-semibold transition-colors ${filtroResponsavel === 'meus' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+            >
+              Meus
+            </button>
+            <button
+              onClick={() => setFiltroResponsavel('todos')}
+              className={`px-3 py-1.5 text-sm font-semibold transition-colors border-l border-slate-200 dark:border-slate-700 ${filtroResponsavel === 'todos' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+            >
+              Todos
+            </button>
+          </div>
           <select value={filtroSetor} onChange={e => setFiltroSetor(e.target.value)} className="px-3 py-1.5 text-sm bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg outline-none">
             <option value="">Todos os setores</option>
             {setores.map(s => <option key={s.id} value={s.id}>{s.nome}</option>)}
@@ -409,7 +434,7 @@ export default function PainelPendencias() {
           usuarios={usuarios}
           currentUserId={currentUserId}
           onClose={() => setDetalhando(null)}
-          onPegarProMim={() => handlePegarProMim(detalhando)}
+          onAlterarResponsavel={(novoId) => handleAlterarResponsavel(detalhando, novoId)}
           onAvaliar={() => { setDetalhando(null); handleAbrirAvaliar(detalhando); }}
           onSemRetorno={() => handleSemRetorno(detalhando)}
           onVincular={() => { setDetalhando(null); setVinculando(detalhando); }}
@@ -531,12 +556,12 @@ function LinhaPendencia({ p, usuarios, onAvaliar, onSemRetorno, onDescartar, onV
 // ReclamacaoTimeline, só que embutida num modal em vez de expandir inline,
 // porque a fila já é uma lista longa e não cabe expandir cada linha nela.
 // ---------------------------------------------------------------------------
-function ModalDetalhePendencia({ pendencia, usuarios, currentUserId, onClose, onPegarProMim, onAvaliar, onSemRetorno, onVincular, onDescartar, onAtualizado }: {
+function ModalDetalhePendencia({ pendencia, usuarios, currentUserId, onClose, onAlterarResponsavel, onAvaliar, onSemRetorno, onVincular, onDescartar, onAtualizado }: {
   pendencia: Pendencia;
   usuarios: { id: string, nome: string }[];
   currentUserId: string | undefined;
   onClose: () => void;
-  onPegarProMim: () => void;
+  onAlterarResponsavel: (novoResponsavelId: string | null) => void;
   onAvaliar: () => void;
   onSemRetorno: () => void;
   onVincular: () => void;
@@ -547,7 +572,8 @@ function ModalDetalhePendencia({ pendencia, usuarios, currentUserId, onClose, on
   const [carregandoEventos, setCarregandoEventos] = useState(true);
   const [observacao, setObservacao] = useState('');
   const [salvandoObs, setSalvandoObs] = useState(false);
-  const [pegando, setPegando] = useState(false);
+  const [alterandoResponsavel, setAlterandoResponsavel] = useState(false);
+  const [transferirParaId, setTransferirParaId] = useState('');
 
   const carregarEventos = async () => {
     setCarregandoEventos(true);
@@ -559,21 +585,26 @@ function ModalDetalhePendencia({ pendencia, usuarios, currentUserId, onClose, on
 
   const nome = pendencia.associado?.nome_completo || pendencia.nome_beneficiario || 'Sem nome';
   const telefone = pendencia.associado?.telefone || pendencia.telefone_principal;
-  // Estado local pra refletir "Pegar pra mim" na hora — a pendência recebida
-  // por prop é um retrato de quando a linha foi clicada, e só atualiza de
-  // verdade quando a fila por trás recarrega (o modal já estará fechado
-  // nessa hora).
+  // Estado local pra refletir a mudança de responsável na hora — a
+  // pendência recebida por prop é um retrato de quando a linha foi clicada,
+  // e só atualiza de verdade quando a fila por trás recarrega (o modal já
+  // estará fechado nessa hora).
   const [responsavelIdLocal, setResponsavelIdLocal] = useState(pendencia.responsavel_id);
   const responsavelNome = responsavelIdLocal ? (usuarios.find(u => u.id === responsavelIdLocal)?.nome || 'Alguém da equipe') : null;
   const souEuOResponsavel = responsavelIdLocal === currentUserId;
 
-  const handlePegar = async () => {
-    setPegando(true);
-    await onPegarProMim();
-    if (currentUserId) setResponsavelIdLocal(currentUserId);
+  const aplicarMudancaResponsavel = async (novoId: string | null) => {
+    setAlterandoResponsavel(true);
+    await onAlterarResponsavel(novoId);
+    setResponsavelIdLocal(novoId);
+    setTransferirParaId('');
     await carregarEventos();
-    setPegando(false);
+    setAlterandoResponsavel(false);
   };
+
+  const handlePegar = () => aplicarMudancaResponsavel(currentUserId || null);
+  const handleLargar = () => aplicarMudancaResponsavel(null);
+  const handleTransferir = () => { if (transferirParaId) aplicarMudancaResponsavel(transferirParaId); };
 
   const handleSalvarObservacao = async () => {
     if (!observacao.trim()) return;
@@ -631,23 +662,46 @@ function ModalDetalhePendencia({ pendencia, usuarios, currentUserId, onClose, on
             </div>
           )}
 
-          {/* Responsável */}
-          <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/40 rounded-lg border border-slate-100 dark:border-slate-700/60">
-            <div className="flex items-center gap-2 text-sm">
-              <UserCog className="w-4 h-4 text-slate-400 dark:text-slate-500" />
-              {responsavelNome ? (
-                <span className="text-slate-700 dark:text-slate-200 font-medium">
-                  Responsável: {souEuOResponsavel ? 'Você' : (responsavelNome ? nomeComInicial(responsavelNome) : '')}
-                </span>
+          {/* Responsável — pegar/largar/transferir. O transferir fica
+              disponível pra qualquer um, pensando num setor onde alguém só
+              distribui casos pros outros sem nunca ser o responsável final. */}
+          <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-lg border border-slate-100 dark:border-slate-700/60 space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-sm min-w-0">
+                <UserCog className="w-4 h-4 text-slate-400 dark:text-slate-500 shrink-0" />
+                {responsavelNome ? (
+                  <span className="text-slate-700 dark:text-slate-200 font-medium truncate">
+                    Responsável: {souEuOResponsavel ? 'Você' : nomeComInicial(responsavelNome)}
+                  </span>
+                ) : (
+                  <span className="text-slate-500 dark:text-slate-400">Ninguém assumiu esse caso ainda</span>
+                )}
+              </div>
+              {souEuOResponsavel ? (
+                <button onClick={handleLargar} disabled={alterandoResponsavel} className="text-xs font-semibold text-red-600 hover:underline disabled:opacity-50 shrink-0">
+                  Largar o caso
+                </button>
               ) : (
-                <span className="text-slate-500 dark:text-slate-400">Ninguém assumiu esse caso ainda</span>
+                <button onClick={handlePegar} disabled={alterandoResponsavel} className="text-xs font-semibold text-blue-600 hover:underline disabled:opacity-50 shrink-0">
+                  Pegar pra mim
+                </button>
               )}
             </div>
-            {!souEuOResponsavel && (
-              <button onClick={handlePegar} disabled={pegando} className="text-xs font-semibold text-blue-600 hover:underline disabled:opacity-50">
-                Pegar pra mim
+            <div className="flex items-center gap-2">
+              <select
+                value={transferirParaId}
+                onChange={e => setTransferirParaId(e.target.value)}
+                className="flex-1 min-w-0 px-2 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none"
+              >
+                <option value="">Transferir para...</option>
+                {usuarios.filter(u => u.id !== responsavelIdLocal).map(u => (
+                  <option key={u.id} value={u.id}>{u.nome}</option>
+                ))}
+              </select>
+              <button onClick={handleTransferir} disabled={!transferirParaId || alterandoResponsavel} className="text-xs font-bold bg-slate-800 text-white px-3 py-1.5 rounded-lg hover:bg-slate-900 disabled:opacity-40 shrink-0">
+                Transferir
               </button>
-            )}
+            </div>
           </div>
 
           {/* Ações rápidas — as mesmas da fila, disponíveis aqui também */}
