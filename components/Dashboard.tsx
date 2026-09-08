@@ -230,7 +230,7 @@ export default function Dashboard() {
   const carregarDadosAssociado = async (assocData: any) => {
     setAssociado(assocData);
     setEditNome(assocData.nome_completo);
-    setEditCpf(assocData.cpf);
+    setEditCpf(assocData.cpf || '');
     setEditTelefone(assocData.telefone || '');
     setShowHistoricoAssociado(false);
     
@@ -248,12 +248,15 @@ export default function Dashboard() {
   };
 
   const handleSaveAssociado = async () => {
-    if (!editNome || !editCpf) return;
-    if (!validarCPF(editCpf)) return toast.error('CPF inválido. Confira os números digitados.');
+    if (!editNome) return toast.error('Preencha o nome');
+    // CPF é opcional (associados vindos da Fila NPS podem não ter, ver
+    // supabase_migration_cpf_opcional.sql) — só valida se algo foi digitado.
+    if (editCpf && !validarCPF(editCpf)) return toast.error('CPF inválido. Confira os números digitados.');
 
     const tid = toast.loading('Salvando...');
+    const cpfFinal = editCpf ? editCpf.trim() || null : null;
     const { error } = await supabase.from('associados')
-      .update({ nome_completo: editNome, cpf: editCpf, telefone: editTelefone || null })
+      .update({ nome_completo: editNome, cpf: cpfFinal, telefone: editTelefone || null })
       .eq('id', associado.id);
 
     if (error) {
@@ -264,7 +267,7 @@ export default function Dashboard() {
       }
     } else {
       toast.success('Salvo!', { id: tid });
-      setAssociado({...associado, nome_completo: editNome, cpf: editCpf, telefone: editTelefone || null});
+      setAssociado({...associado, nome_completo: editNome, cpf: cpfFinal, telefone: editTelefone || null});
       setEditAssociado(false);
     }
   };
@@ -460,7 +463,11 @@ export default function Dashboard() {
                 return (
                 <div
                   key={assoc.id}
-                  onClick={() => { setBusca(assoc.cpf); buscarAssociadoPorTermo(assoc.cpf); }}
+                  // Usa os dados já carregados na lista em vez de buscar de novo por
+                  // CPF — além de evitar uma ida a mais ao banco, funciona também
+                  // pros associados sem CPF (cadastrados a partir da Fila NPS, onde
+                  // isso é opcional), que uma busca por CPF nunca encontraria.
+                  onClick={() => { setBusca(assoc.cpf || ''); carregarDadosAssociado(assoc); }}
                   className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/60 hover:border-blue-300 dark:hover:border-blue-500/50 hover:shadow-md transition-all cursor-pointer flex flex-col gap-3 group"
                 >
                   <div>
@@ -473,7 +480,7 @@ export default function Dashboard() {
                       )}
                       <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100 group-hover:text-blue-600 transition-colors">{assoc.nome_completo}</h3>
                     </div>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">CPF: {assoc.cpf}</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">CPF: {assoc.cpf || '—'}</p>
                     {assoc.telefone && (
                       <p className="text-sm text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1.5 mt-0.5">
                         <Phone className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" /> {assoc.telefone}
@@ -567,11 +574,11 @@ export default function Dashboard() {
             {editAssociado ? (
               <div className="flex-1 max-w-lg space-y-3">
                 <input value={editNome} onChange={e=>setEditNome(e.target.value)} className="w-full text-xl font-bold px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Nome Completo" />
-                <input value={editCpf} onChange={e=>setEditCpf(maskCPF(e.target.value))} maxLength={14} className="w-full text-slate-600 dark:text-slate-300 px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="CPF" />
+                <input value={editCpf} onChange={e=>setEditCpf(maskCPF(e.target.value))} maxLength={14} className="w-full text-slate-600 dark:text-slate-300 px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="CPF (opcional)" />
                 <input value={editTelefone} onChange={e=>setEditTelefone(maskPhone(e.target.value))} maxLength={15} className="w-full text-slate-600 dark:text-slate-300 px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Telefone (opcional)" />
                 <div className="flex gap-2">
                   <button onClick={handleSaveAssociado} className="px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700">Salvar</button>
-                  <button onClick={() => {setEditAssociado(false); setEditNome(associado.nome_completo); setEditCpf(associado.cpf); setEditTelefone(associado.telefone || '');}} className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm font-semibold rounded-lg hover:bg-slate-200">Cancelar</button>
+                  <button onClick={() => {setEditAssociado(false); setEditNome(associado.nome_completo); setEditCpf(associado.cpf || ''); setEditTelefone(associado.telefone || '');}} className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm font-semibold rounded-lg hover:bg-slate-200">Cancelar</button>
                 </div>
               </div>
             ) : (
@@ -582,7 +589,7 @@ export default function Dashboard() {
                     <Edit2 className="h-4 w-4" />
                   </button>
                 </h2>
-                <p className="text-slate-500 dark:text-slate-400 mt-1 font-medium">CPF: {associado.cpf}</p>
+                <p className="text-slate-500 dark:text-slate-400 mt-1 font-medium">CPF: {associado.cpf || '—'}</p>
                 {associado.telefone ? (
                   <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                     <a href={`tel:${associado.telefone.replace(/\D/g, '')}`} className="flex items-center gap-1.5 text-sm font-semibold text-blue-600 hover:underline whitespace-nowrap">

@@ -437,15 +437,19 @@ function BuscarOuCriarAssociado({ sugestaoNome, sugestaoTelefone, sugestaoPlaca,
 
   const handleCadastrarNovo = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nome.trim() || !cpf.trim()) return toast.error('Preencha nome e CPF');
-    if (!validarCPF(cpf)) return toast.error('CPF inválido. Confira os números digitados.');
+    if (!nome.trim()) return toast.error('Preencha o nome');
+    // CPF é opcional aqui de propósito: a planilha da Assistência 24h não
+    // traz CPF, só nome/placa/telefone — e a placa (já UNIQUE) é identidade
+    // suficiente pra não duplicar cadastro. Se foi digitado, ainda assim
+    // precisa ser um CPF válido.
+    if (cpf.trim() && !validarCPF(cpf)) return toast.error('CPF inválido. Confira os números digitados.');
     if (!validarPlaca(placa)) return toast.error('Placa inválida. Use o formato ABC1234 ou ABC1D23.');
     if (!modelo.trim()) return toast.error('Informe o modelo do veículo');
 
     setSalvandoCadastro(true);
     const tid = toast.loading('Cadastrando associado...');
     const { data: assocData, error: assocError } = await supabase.from('associados')
-      .insert({ nome_completo: nome.trim(), cpf, telefone: telefone || null }).select().single();
+      .insert({ nome_completo: nome.trim(), cpf: cpf.trim() || null, telefone: telefone || null }).select().single();
     if (assocError) {
       setSalvandoCadastro(false);
       if (assocError.code === '23505') return toast.error('Já existe um associado cadastrado com esse CPF.', { id: tid });
@@ -469,8 +473,8 @@ function BuscarOuCriarAssociado({ sugestaoNome, sugestaoTelefone, sugestaoPlaca,
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">CPF *</label>
-            <input required value={cpf} onChange={e => setCpf(maskCPF(e.target.value))} maxLength={14} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="000.000.000-00" />
+            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">CPF (opcional)</label>
+            <input value={cpf} onChange={e => setCpf(maskCPF(e.target.value))} maxLength={14} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="000.000.000-00 (se souber)" />
           </div>
           <div>
             <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Telefone</label>
