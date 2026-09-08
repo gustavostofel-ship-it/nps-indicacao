@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Menu, X, LayoutDashboard, Users, Megaphone, AlertOctagon, Settings } from 'lucide-react';
+import { Menu, X, LayoutDashboard, Users, Megaphone, AlertOctagon, Settings, ClipboardList } from 'lucide-react';
 import { LogoutButton } from '@/components/LogoutButton';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
@@ -14,6 +14,7 @@ export function Navbar({ isAdmin, userName }: { isAdmin: boolean, userName: stri
   const links = [
     { href: '/', label: 'Dashboard', Icon: LayoutDashboard },
     { href: '/atendimento', label: 'Atendimento', Icon: Users },
+    { href: '/pendencias', label: 'Fila NPS', Icon: ClipboardList },
     { href: '/indicacoes', label: 'Indicações', Icon: Megaphone },
     { href: '/reclamacoes', label: 'Reclamações', Icon: AlertOctagon },
     ...(isAdmin ? [{ href: '/config', label: 'Configurações', Icon: Settings }] : []),

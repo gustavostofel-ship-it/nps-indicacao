@@ -13,6 +13,8 @@ export default function ConfigPage() {
   const [statusIndicacao, setStatusIndicacao] = useState<any[]>([]);
   const [statusReclamacao, setStatusReclamacao] = useState<any[]>([]);
   const [motivosReclamacao, setMotivosReclamacao] = useState<any[]>([]);
+  const [situacoesAtendimento, setSituacoesAtendimento] = useState<any[]>([]);
+  const [motivosAtendimento, setMotivosAtendimento] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
 
@@ -20,13 +22,15 @@ export default function ConfigPage() {
 
   const fetchData = async () => {
     setLoading(true);
-    const [setoresRes, usuariosRes, convitesRes, statusRes, statusReclRes, motivosRes, userRes] = await Promise.all([
+    const [setoresRes, usuariosRes, convitesRes, statusRes, statusReclRes, motivosRes, situacoesAtendRes, motivosAtendRes, userRes] = await Promise.all([
       supabase.from('setores').select('*').order('ordem', { ascending: true }),
       supabase.from('perfis_usuarios').select('*').order('created_at', { ascending: false }),
       supabase.from('convites').select('*').order('created_at', { ascending: false }),
       supabase.from('indicacao_status').select('*').order('ordem', { ascending: true }),
       supabase.from('reclamacao_status').select('*').order('ordem', { ascending: true }),
       supabase.from('reclamacao_motivo').select('*').order('ordem', { ascending: true }),
+      supabase.from('atendimento_situacao').select('*').order('ordem', { ascending: true }),
+      supabase.from('atendimento_motivo').select('*').order('ordem', { ascending: true }),
       supabase.auth.getUser(),
     ]);
 
@@ -36,6 +40,8 @@ export default function ConfigPage() {
     if (statusRes.data) setStatusIndicacao(statusRes.data);
     if (statusReclRes.data) setStatusReclamacao(statusReclRes.data);
     if (motivosRes.data) setMotivosReclamacao(motivosRes.data);
+    if (situacoesAtendRes.data) setSituacoesAtendimento(situacoesAtendRes.data);
+    if (motivosAtendRes.data) setMotivosAtendimento(motivosAtendRes.data);
     setCurrentUserId(userRes.data.user?.id);
     setLoading(false);
   };
@@ -102,6 +108,23 @@ export default function ConfigPage() {
 
       <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/60">
         <MotivosReclamacaoManager motivos={motivosReclamacao} onUpdate={fetchData} supabase={supabase} />
+      </div>
+
+      <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/60">
+        <StatusManager
+          statusList={situacoesAtendimento}
+          onUpdate={fetchData}
+          supabase={supabase}
+          tabela="atendimento_situacao"
+          campoFlag="conta_como_elegivel"
+          rotuloFlag="Elegível p/ avaliação"
+          titulo="Situações de Atendimento (Assistência 24h)"
+          descricao={'As "Situação" que vêm na planilha de atendimentos, ao importar na Fila de Avaliações Pendentes. "Elegível p/ avaliação" define quais situações viram pendência — normalmente só quem já foi atendido de verdade (ex: Finalizado).'}
+        />
+      </div>
+
+      <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/60">
+        <MotivosAtendimentoManager motivos={motivosAtendimento} onUpdate={fetchData} supabase={supabase} />
       </div>
     </div>
   );
@@ -310,6 +333,114 @@ function MotivosReclamacaoManager({ motivos, onUpdate, supabase }: any) {
       </div>
       <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
         Opções que aparecem ao abrir uma reclamação (ex: "Demora no atendimento", "Atraso de peças"). Quem abre escolhe entre eles, não digita um texto livre — assim dá pra ver no Dashboard quais são os motivos mais recorrentes.
+      </p>
+
+      <form onSubmit={handleAdd} className="flex gap-3 mb-6 max-w-lg">
+        <input
+          type="text"
+          placeholder="Nome do novo motivo"
+          value={nome}
+          onChange={(e) => setNome(e.target.value)}
+          className="flex-1 px-4 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
+        />
+        <button type="submit" className="bg-blue-600 text-white px-5 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2 shadow-sm shadow-blue-200">
+          <Plus className="w-4 h-4" /> Adicionar
+        </button>
+      </form>
+
+      {motivos.length === 0 ? (
+        <div className="text-center p-8 bg-slate-50 dark:bg-slate-900/40 border border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
+          <Columns3 className="w-10 h-10 text-slate-300 mb-3 mx-auto" />
+          <p className="text-slate-600 dark:text-slate-300 font-medium">Nenhum motivo cadastrado</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {motivos.map((m: any, index: number) => (
+            <div key={m.id} className={`flex items-center gap-2 p-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-700/60 rounded-lg ${!m.ativo ? 'opacity-50' : ''}`}>
+              <div className="flex gap-0.5">
+                <button onClick={() => handleReorder(index, -1)} disabled={index === 0} className="p-1 text-slate-400 dark:text-slate-500 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed">
+                  <ArrowUp className="w-3.5 h-3.5" />
+                </button>
+                <button onClick={() => handleReorder(index, 1)} disabled={index === motivos.length - 1} className="p-1 text-slate-400 dark:text-slate-500 hover:text-blue-600 disabled:opacity-30 disabled:cursor-not-allowed">
+                  <ArrowDown className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <input
+                defaultValue={m.nome}
+                onBlur={(e) => handleRename(m.id, e.target.value, m.nome)}
+                className="flex-1 px-2 py-1 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 focus:border-slate-300 rounded-lg outline-none font-medium text-slate-700 dark:text-slate-200"
+              />
+              <button
+                onClick={() => toggleAtivo(m.id, m.ativo)}
+                className={`text-xs font-semibold px-3 py-1 rounded-full transition-colors shrink-0 ${m.ativo ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'}`}
+              >
+                {m.ativo ? 'Ativo' : 'Inativo'}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Lista de motivos usada no lançamento manual de atendimento do setor de
+// Eventos (ex: "Casamento", "Evento Corporativo"), na Fila de Avaliações
+// Pendentes — mesma estrutura de MotivosReclamacaoManager, só apontando pra
+// atendimento_motivo. A Assistência 24h não usa essa lista: o motivo dela
+// vem solto da própria planilha importada.
+function MotivosAtendimentoManager({ motivos, onUpdate, supabase }: any) {
+  const [nome, setNome] = useState('');
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!nome.trim()) return;
+    const toastId = toast.loading('Adicionando motivo...');
+    const { error } = await supabase.from('atendimento_motivo').insert({ nome: nome.trim(), ordem: motivos.length });
+    if (error) {
+      toast.error('Erro ao adicionar motivo', { id: toastId });
+    } else {
+      toast.success('Motivo adicionado!', { id: toastId });
+      setNome('');
+      onUpdate();
+    }
+  };
+
+  const handleRename = async (id: string, novoNome: string, nomeAtual: string) => {
+    if (!novoNome.trim() || novoNome === nomeAtual) return;
+    const { error } = await supabase.from('atendimento_motivo').update({ nome: novoNome.trim() }).eq('id', id);
+    if (error) toast.error('Erro ao renomear');
+    else onUpdate();
+  };
+
+  const toggleAtivo = async (id: string, ativo: boolean) => {
+    const toastId = toast.loading('Atualizando...');
+    const { error } = await supabase.from('atendimento_motivo').update({ ativo: !ativo }).eq('id', id);
+    if (error) toast.error('Erro', { id: toastId });
+    else { toast.success('Atualizado', { id: toastId }); onUpdate(); }
+  };
+
+  const handleReorder = async (index: number, direcao: -1 | 1) => {
+    const outro = motivos[index + direcao];
+    const atual = motivos[index];
+    if (!outro) return;
+    const toastId = toast.loading('Reordenando...');
+    const [r1, r2] = await Promise.all([
+      supabase.from('atendimento_motivo').update({ ordem: outro.ordem }).eq('id', atual.id),
+      supabase.from('atendimento_motivo').update({ ordem: atual.ordem }).eq('id', outro.id),
+    ]);
+    if (r1.error || r2.error) toast.error('Erro ao reordenar', { id: toastId });
+    else { toast.success('Reordenado', { id: toastId }); onUpdate(); }
+  };
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-1">
+        <Columns3 className="w-5 h-5 text-slate-400 dark:text-slate-500" />
+        <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Motivos de Atendimento (Eventos)</h3>
+      </div>
+      <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+        Tipos de evento que aparecem ao lançar um atendimento manualmente na Fila de Avaliações Pendentes (ex: "Casamento", "Evento Corporativo"). Ajuste essa lista pros tipos de evento reais do seu setor.
       </p>
 
       <form onSubmit={handleAdd} className="flex gap-3 mb-6 max-w-lg">
