@@ -1114,9 +1114,14 @@ function ModalNovoAssociado({ setores, onClose, onSave }: any) {
 
   // Critérios do setor selecionado — mesmo comportamento de ModalNovaAvaliacao:
   // se o setor tiver critérios cadastrados (ex: atendimento/reparação/qualidade),
-  // avalia por critério; senão, usa uma nota geral única.
+  // avalia por critério; senão, usa uma nota geral única. O colaborador pode
+  // ainda assim forçar nota única com avaliacaoGeralAtiva (avaliação geral do
+  // atendimento), ou marcar que o cliente se recusou a avaliar (recusaAtiva).
   const [criterios, setCriterios] = useState<any[]>([]);
   const [notasCriterios, setNotasCriterios] = useState<Record<string, number>>({});
+  const [avaliacaoGeralAtiva, setAvaliacaoGeralAtiva] = useState(false);
+  const [recusaAtiva, setRecusaAtiva] = useState(false);
+  const [motivoRecusa, setMotivoRecusa] = useState('');
 
   useEffect(() => {
     if (!setorId || step !== 3) return;
@@ -1124,10 +1129,12 @@ function ModalNovoAssociado({ setores, onClose, onSave }: any) {
       setCriterios(data || []);
       setNotasCriterios({});
       setNotaGeral(null);
+      setAvaliacaoGeralAtiva(false);
     });
   }, [setorId, step]);
 
   const temCriterios = criterios.length > 0;
+  const usarNotaGeral = !temCriterios || avaliacaoGeralAtiva;
   const mediaCriterios = (() => {
     const preenchidas = Object.values(notasCriterios);
     if (preenchidas.length === 0) return null;
@@ -1150,8 +1157,11 @@ function ModalNovoAssociado({ setores, onClose, onSave }: any) {
 
     // Passo 3: se tem critérios e alguns já foram preenchidos, exige todos —
     // evita salvar uma avaliação pela metade.
-    if (temCriterios && Object.keys(notasCriterios).length > 0 && Object.keys(notasCriterios).length < criterios.length) {
+    if (!recusaAtiva && !usarNotaGeral && Object.keys(notasCriterios).length > 0 && Object.keys(notasCriterios).length < criterios.length) {
       return toast.error('Preencha as notas de todos os critérios, ou deixe todas em branco.');
+    }
+    if (recusaAtiva && !motivoRecusa.trim()) {
+      return toast.error('Descreva o motivo da recusa');
     }
 
     const tid = toast.loading('Cadastrando...');
@@ -1182,25 +1192,35 @@ function ModalNovoAssociado({ setores, onClose, onSave }: any) {
       if (veiculoData) veiculoId = veiculoData.id;
     }
 
-    const notaFinal = temCriterios ? mediaCriterios : notaGeral;
-
-    if (notaFinal !== null && veiculoId && setorId) {
-      const { data: avaliacaoData } = await supabase.from('avaliacoes').insert({
+    if (recusaAtiva && veiculoId && setorId) {
+      await supabase.from('avaliacoes_recusas').insert({
         associado_id: assocData.id,
         veiculo_id: veiculoId,
         setor_id: setorId,
-        nota: notaFinal,
-        comentario,
-        usuario_id: user?.id
-      }).select().single();
+        motivo: motivoRecusa.trim(),
+        usuario_id: user?.id,
+      });
+    } else {
+      const notaFinal = usarNotaGeral ? notaGeral : mediaCriterios;
 
-      if (temCriterios && avaliacaoData) {
-        const notasParaSalvar = Object.entries(notasCriterios).map(([criterio_id, nota_valor]) => ({
-          avaliacao_id: avaliacaoData.id,
-          criterio_id,
-          nota: nota_valor
-        }));
-        await supabase.from('avaliacao_notas').insert(notasParaSalvar);
+      if (notaFinal !== null && veiculoId && setorId) {
+        const { data: avaliacaoData } = await supabase.from('avaliacoes').insert({
+          associado_id: assocData.id,
+          veiculo_id: veiculoId,
+          setor_id: setorId,
+          nota: notaFinal,
+          comentario,
+          usuario_id: user?.id
+        }).select().single();
+
+        if (!usarNotaGeral && avaliacaoData) {
+          const notasParaSalvar = Object.entries(notasCriterios).map(([criterio_id, nota_valor]) => ({
+            avaliacao_id: avaliacaoData.id,
+            criterio_id,
+            nota: nota_valor
+          }));
+          await supabase.from('avaliacao_notas').insert(notasParaSalvar);
+        }
       }
     }
 
@@ -1265,37 +1285,72 @@ function ModalNovoAssociado({ setores, onClose, onSave }: any) {
                     </select>
                   </div>
 
-                  {temCriterios ? (
-                    <div className="space-y-4 pt-1">
-                      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-2">
-                        <h5 className="font-semibold text-slate-700 dark:text-slate-200 text-sm">Critérios de Avaliação</h5>
-                        {mediaCriterios !== null && (
-                          <span className={`px-2 py-1 rounded font-bold text-sm ${mediaCriterios >= 9 ? 'bg-green-100 text-green-700' : mediaCriterios >= 7 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
-                            Média: {mediaCriterios.toFixed(1)}
-                          </span>
-                        )}
-                      </div>
-                      {criterios.map(c => (
-                        <div key={c.id}>
-                          <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">{c.nome}</label>
-                          <NotaSelector
-                            value={notasCriterios[c.id] ?? null}
-                            onChange={(n) => setNotasCriterios(prev => ({...prev, [c.id]: n}))}
-                          />
-                        </div>
-                      ))}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {temCriterios && !recusaAtiva && (
+                      <button
+                        type="button"
+                        onClick={() => { setAvaliacaoGeralAtiva(v => !v); setNotasCriterios({}); setNotaGeral(null); }}
+                        className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${avaliacaoGeralAtiva ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
+                      >
+                        Avaliação geral (sem critérios): {avaliacaoGeralAtiva ? 'Ativada' : 'Desativada'}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setRecusaAtiva(v => !v)}
+                      className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${recusaAtiva ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
+                    >
+                      Cliente não quer avaliar
+                    </button>
+                  </div>
+
+                  {recusaAtiva ? (
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Motivo da recusa *</label>
+                      <textarea
+                        required
+                        value={motivoRecusa}
+                        onChange={e=>setMotivoRecusa(e.target.value)}
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                        rows={2}
+                        placeholder="Ex: cliente com pressa, não quis dar nota"
+                      ></textarea>
                     </div>
                   ) : (
-                    <div>
-                      <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">Nota (0 a 10)</label>
-                      <NotaSelector value={notaGeral} onChange={setNotaGeral} />
-                    </div>
-                  )}
+                    <>
+                      {!usarNotaGeral ? (
+                        <div className="space-y-4 pt-1">
+                          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-2">
+                            <h5 className="font-semibold text-slate-700 dark:text-slate-200 text-sm">Critérios de Avaliação</h5>
+                            {mediaCriterios !== null && (
+                              <span className={`px-2 py-1 rounded font-bold text-sm ${mediaCriterios >= 9 ? 'bg-green-100 text-green-700' : mediaCriterios >= 7 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                                Média: {mediaCriterios.toFixed(1)}
+                              </span>
+                            )}
+                          </div>
+                          {criterios.map(c => (
+                            <div key={c.id}>
+                              <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">{c.nome}</label>
+                              <NotaSelector
+                                value={notasCriterios[c.id] ?? null}
+                                onChange={(n) => setNotasCriterios(prev => ({...prev, [c.id]: n}))}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div>
+                          <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">Nota (0 a 10)</label>
+                          <NotaSelector value={notaGeral} onChange={setNotaGeral} />
+                        </div>
+                      )}
 
-                  <div>
-                    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Comentário (Opcional)</label>
-                    <textarea value={comentario} onChange={e=>setComentario(e.target.value)} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" rows={2}></textarea>
-                  </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Comentário (Opcional)</label>
+                        <textarea value={comentario} onChange={e=>setComentario(e.target.value)} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" rows={2}></textarea>
+                      </div>
+                    </>
+                  )}
                 </>
               )}
             </div>
@@ -1397,13 +1452,22 @@ function ModalEditarVeiculo({ veiculo, onClose, onSave }: any) {
 function ModalNovaAvaliacao({ associadoId, veiculos, setorPreSelecionado, setores, onClose, onSave }: any) {
   const [setorId, setSetorId] = useState(setorPreSelecionado || (setores[0]?.id || ''));
   const [veiculoId, setVeiculoId] = useState(veiculos[0]?.id || '');
-  
+
   const [criterios, setCriterios] = useState<any[]>([]);
   const [notasCriterios, setNotasCriterios] = useState<Record<string, number>>({});
   const [notaGeral, setNotaGeral] = useState<number | null>(null);
-  
+  // Permite lançar uma nota única mesmo quando o setor tem critérios
+  // cadastrados — pro caso do cliente não ter uma avaliação item a item, só
+  // uma impressão geral do atendimento do início ao fim.
+  const [avaliacaoGeralAtiva, setAvaliacaoGeralAtiva] = useState(false);
+
+  // Cliente se recusou a avaliar: em vez de nota, registra o motivo (vai pra
+  // avaliacoes_recusas, não pra avaliacoes — não conta como NPS).
+  const [recusaAtiva, setRecusaAtiva] = useState(false);
+  const [motivoRecusa, setMotivoRecusa] = useState('');
+
   const [comentario, setComentario] = useState('');
-  
+
   useEffect(() => {
     if (!setorId) return;
     const fetchCriterios = async () => {
@@ -1411,14 +1475,18 @@ function ModalNovaAvaliacao({ associadoId, veiculos, setorPreSelecionado, setore
       setCriterios(data || []);
       setNotasCriterios({});
       setNotaGeral(null);
+      setAvaliacaoGeralAtiva(false);
     };
     fetchCriterios();
   }, [setorId]);
 
   const temCriterios = criterios.length > 0;
+  // Usa nota única sempre que o setor não tem critérios, ou quando o
+  // colaborador ativou manualmente a avaliação geral.
+  const usarNotaGeral = !temCriterios || avaliacaoGeralAtiva;
 
   const getMediaCalculada = () => {
-    if (!temCriterios) return notaGeral;
+    if (usarNotaGeral) return notaGeral;
     const preenchidas = Object.values(notasCriterios);
     if (preenchidas.length === 0) return null;
     const sum = preenchidas.reduce((a, b) => a + b, 0);
@@ -1430,8 +1498,28 @@ function ModalNovaAvaliacao({ associadoId, veiculos, setorPreSelecionado, setore
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!veiculoId) return toast.error('Nenhum veículo selecionado');
-    
-    if (temCriterios) {
+
+    if (recusaAtiva) {
+      if (!motivoRecusa.trim()) return toast.error('Descreva o motivo da recusa');
+
+      const tid = toast.loading('Registrando recusa...');
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error } = await supabase.from('avaliacoes_recusas').insert({
+        associado_id: associadoId,
+        veiculo_id: veiculoId,
+        setor_id: setorId,
+        motivo: motivoRecusa.trim(),
+        usuario_id: user?.id,
+      });
+      if (error) return toast.error('Erro ao registrar: ' + error.message, { id: tid });
+
+      toast.success('Recusa registrada.', { id: tid });
+      onSave();
+      onClose();
+      return;
+    }
+
+    if (!usarNotaGeral) {
       if (Object.keys(notasCriterios).length < criterios.length) {
         return toast.error('Preencha as notas de todos os critérios');
       }
@@ -1439,26 +1527,26 @@ function ModalNovaAvaliacao({ associadoId, veiculos, setorPreSelecionado, setore
       if (notaGeral === null) return toast.error('Selecione uma nota');
     }
 
-    const notaFinal = temCriterios ? media : notaGeral;
+    const notaFinal = usarNotaGeral ? notaGeral : media;
     if (notaFinal === null) return;
 
     const tid = toast.loading('Salvando avaliação...');
     const { data: { user } } = await supabase.auth.getUser();
-    
-    const { data: avaliacaoData, error } = await supabase.from('avaliacoes').insert({ 
-      associado_id: associadoId, 
-      veiculo_id: veiculoId, 
+
+    const { data: avaliacaoData, error } = await supabase.from('avaliacoes').insert({
+      associado_id: associadoId,
+      veiculo_id: veiculoId,
       setor_id: setorId,
       nota: notaFinal,
       comentario,
       usuario_id: user?.id
     }).select().single();
-    
-    if (error) { 
-      return toast.error('Erro ao salvar: ' + error.message, { id: tid }); 
+
+    if (error) {
+      return toast.error('Erro ao salvar: ' + error.message, { id: tid });
     }
 
-    if (temCriterios && avaliacaoData) {
+    if (!usarNotaGeral && avaliacaoData) {
       const notasParaSalvar = Object.entries(notasCriterios).map(([criterio_id, nota_valor]) => ({
         avaliacao_id: avaliacaoData.id,
         criterio_id: criterio_id,
@@ -1466,9 +1554,9 @@ function ModalNovaAvaliacao({ associadoId, veiculos, setorPreSelecionado, setore
       }));
       await supabase.from('avaliacao_notas').insert(notasParaSalvar);
     }
-    
-    toast.success('Avaliação registrada!', { id: tid }); 
-    onSave(); 
+
+    toast.success('Avaliação registrada!', { id: tid });
+    onSave();
     onClose();
   };
 
@@ -1495,42 +1583,84 @@ function ModalNovaAvaliacao({ associadoId, veiculos, setorPreSelecionado, setore
               </select>
             </div>
           </div>
-          
-          {temCriterios ? (
-            <div className="space-y-4 pt-2">
-              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-2">
-                <h4 className="font-semibold text-slate-700 dark:text-slate-200">Critérios de Avaliação</h4>
-                {media !== null && (
-                  <span className={`px-2 py-1 rounded font-bold text-sm ${media >= 9 ? 'bg-green-100 text-green-700' : media >= 7 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
-                    Média: {media.toFixed(1)}
-                  </span>
-                )}
-              </div>
-              {criterios.map(c => (
-                <div key={c.id}>
-                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">{c.nome}</label>
-                  <NotaSelector 
-                    value={notasCriterios[c.id] ?? null} 
-                    onChange={(n) => setNotasCriterios(prev => ({...prev, [c.id]: n}))} 
-                  />
-                </div>
-              ))}
+
+          {/* Alternância de modo: por critério (padrão, quando o setor tem
+              critérios) / avaliação geral (nota única) / cliente recusou.
+              Os dois botões somem um no lugar do outro com a recusa porque
+              não faz sentido escolher "avaliação geral" depois de já ter
+              marcado que o cliente não quer avaliar. */}
+          <div className="flex flex-wrap items-center gap-2">
+            {temCriterios && !recusaAtiva && (
+              <button
+                type="button"
+                onClick={() => { setAvaliacaoGeralAtiva(v => !v); setNotasCriterios({}); setNotaGeral(null); }}
+                className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${avaliacaoGeralAtiva ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
+              >
+                Avaliação geral (sem critérios): {avaliacaoGeralAtiva ? 'Ativada' : 'Desativada'}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setRecusaAtiva(v => !v)}
+              className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${recusaAtiva ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'}`}
+            >
+              Cliente não quer avaliar
+            </button>
+          </div>
+
+          {recusaAtiva ? (
+            <div>
+              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Motivo da recusa *</label>
+              <textarea
+                required
+                value={motivoRecusa}
+                onChange={e=>setMotivoRecusa(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                rows={3}
+                placeholder="Ex: cliente com pressa, não quis dar nota"
+              ></textarea>
             </div>
           ) : (
-            <div>
-              <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">Nota Geral (0 a 10)</label>
-              <NotaSelector value={notaGeral} onChange={setNotaGeral} />
-            </div>
-          )}
+            <>
+              {!usarNotaGeral ? (
+                <div className="space-y-4 pt-2">
+                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700/60 pb-2">
+                    <h4 className="font-semibold text-slate-700 dark:text-slate-200">Critérios de Avaliação</h4>
+                    {media !== null && (
+                      <span className={`px-2 py-1 rounded font-bold text-sm ${media >= 9 ? 'bg-green-100 text-green-700' : media >= 7 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                        Média: {media.toFixed(1)}
+                      </span>
+                    )}
+                  </div>
+                  {criterios.map(c => (
+                    <div key={c.id}>
+                      <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">{c.nome}</label>
+                      <NotaSelector
+                        value={notasCriterios[c.id] ?? null}
+                        onChange={(n) => setNotasCriterios(prev => ({...prev, [c.id]: n}))}
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">Nota Geral (0 a 10)</label>
+                  <NotaSelector value={notaGeral} onChange={setNotaGeral} />
+                </div>
+              )}
 
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Comentário (Opcional)</label>
-            <textarea value={comentario} onChange={e=>setComentario(e.target.value)} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" rows={3}></textarea>
-          </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1">Comentário (Opcional)</label>
+                <textarea value={comentario} onChange={e=>setComentario(e.target.value)} className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none" rows={3}></textarea>
+              </div>
+            </>
+          )}
 
           <div className="flex justify-end gap-3 pt-2 border-t border-slate-100 dark:border-slate-700/60">
             <button type="button" onClick={onClose} className="px-4 py-2 font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">Cancelar</button>
-            <button type="submit" className="px-5 py-2 bg-blue-600 font-medium text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm">Salvar Avaliação</button>
+            <button type="submit" className={`px-5 py-2 font-medium text-white rounded-lg transition-colors shadow-sm ${recusaAtiva ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'}`}>
+              {recusaAtiva ? 'Registrar recusa' : 'Salvar Avaliação'}
+            </button>
           </div>
         </form>
       </div>

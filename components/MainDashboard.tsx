@@ -228,6 +228,7 @@ export default function MainDashboard() {
   // ---- Reclamações ----
   const totalReclamacoes = reclamacoes.length;
   const reclamacoesResolvidas = reclamacoes.filter(r => r.status?.conta_como_resolvido).length;
+  const reclamacoesAbertas = totalReclamacoes - reclamacoesResolvidas;
   // % de avaliações do período que viraram reclamação — usa avaliação
   // distintas (avaliacao_id), pra não contar duas vezes se por acaso uma
   // avaliação tivesse mais de uma reclamação vinculada.
@@ -650,10 +651,29 @@ export default function MainDashboard() {
                 </div>
               </div>
               <div className="text-3xl font-bold text-slate-800 dark:text-slate-100">{totalReclamacoes}</div>
-              <div className="mt-2 text-sm text-slate-500 dark:text-slate-400 flex items-center gap-2 flex-wrap">
+              <div className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                 <span className="font-bold text-red-600">{percentualNpsVirouReclamacao}% dos NPS viraram reclamação</span>
               </div>
-              <div className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">{reclamacoesResolvidas} resolvida{reclamacoesResolvidas === 1 ? '' : 's'} no período</div>
+              {/* Resolvidas x em aberto — mesmo padrão visual (barrinha +
+                  lista) do card "Classificação" do NPS logo acima. */}
+              {totalReclamacoes > 0 ? (
+                <div className="flex h-2.5 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800 mt-3 mb-2">
+                  <div className="bg-green-500 h-full" style={{ width: `${(reclamacoesResolvidas / totalReclamacoes) * 100}%` }} />
+                  <div className="bg-red-500 h-full" style={{ width: `${(reclamacoesAbertas / totalReclamacoes) * 100}%` }} />
+                </div>
+              ) : (
+                <div className="h-2.5 rounded-full bg-slate-100 dark:bg-slate-800 mt-3 mb-2" />
+              )}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400"><span className="w-2 h-2 rounded-full bg-green-500 shrink-0" />Resolvidas</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-100">{reclamacoesResolvidas}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400"><span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />Em aberto</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-100">{reclamacoesAbertas}</span>
+                </div>
+              </div>
               <button
                 onClick={() => setShowReclamacoesModal(true)}
                 disabled={totalReclamacoes === 0}
