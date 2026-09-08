@@ -312,7 +312,12 @@ export default function PainelPendencias() {
 function LinhaPendencia({ p, onAvaliar, onSemRetorno, onDescartar, onVincular }: {
   p: Pendencia, onAvaliar: () => void, onSemRetorno: () => void, onDescartar: () => void, onVincular: () => void,
 }) {
-  const dias = p.data_atendimento ? Math.floor(diasDesde(p.data_atendimento)) : null;
+  // Dias desde que a pendência ENTROU no Girow (created_at), não desde a
+  // data do atendimento na planilha original — senão um import de dados
+  // antigos (comum na primeira carga) já nasceria com o selo de "parado",
+  // dando a entender que alguém está devendo uma ligação há semanas quando
+  // na real ela acabou de cair na fila.
+  const dias = p.created_at ? Math.floor(diasDesde(p.created_at)) : null;
   const parado = dias !== null && dias >= 3 && p.status !== 'avaliado' && p.status !== 'recusado' && p.status !== 'descartado';
   const nome = p.associado?.nome_completo || p.nome_beneficiario || 'Sem nome';
   const telefone = p.associado?.telefone || p.telefone_principal;
