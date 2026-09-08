@@ -415,7 +415,7 @@ function BuscarOuCriarAssociado({ sugestaoNome, sugestaoTelefone, sugestaoPlaca,
       veiculos: [{ id: v.id, placa: v.placa, modelo: v.modelo }],
     }));
     const combinados = [...porNomeCpfData, ...porPlacaData];
-    const unicos = Array.from(new Map(combinados.map(a => [a.id, a])).values());
+    const unicos = Array.from(new Map<string, any>(combinados.map(a => [a.id, a])).values());
     setResultados(unicos);
     setBuscando(false);
   };
@@ -668,7 +668,7 @@ function ModalImportarCSV({ setores, situacoes, onClose, onImportado }: any) {
   const [preview, setPreview] = useState<{ grupos: GrupoPreview[], totalLinhas: number, naoElegiveis: number } | null>(null);
   const [importando, setImportando] = useState(false);
 
-  const elegiveis = useMemo(() => new Set(situacoes.filter((s: any) => s.conta_como_elegivel).map((s: any) => s.nome.toUpperCase())), [situacoes]);
+  const elegiveis = useMemo(() => new Set<string>(situacoes.filter((s: any) => s.conta_como_elegivel).map((s: any) => String(s.nome).toUpperCase())), [situacoes]);
 
   const handleArquivo = async (file: File | undefined) => {
     if (!file) return;
@@ -687,8 +687,8 @@ function ModalImportarCSV({ setores, situacoes, onClose, onImportado }: any) {
         supabase.from('veiculos').select('id, placa, associado_id').in('placa', placas.length ? placas : ['__none__']),
         supabase.from('avaliacao_pendencias').select('chave_dedup').in('chave_dedup', chaves.length ? chaves : ['__none__']),
       ]);
-      const porPlaca = new Map((veiculosRes.data || []).map((v: any) => [v.placa, v]));
-      const chavesExistentes = new Set((existentesRes.data || []).map((e: any) => e.chave_dedup));
+      const porPlaca = new Map<string, any>((veiculosRes.data || []).map((v: any) => [v.placa, v]));
+      const chavesExistentes = new Set<string>((existentesRes.data || []).map((e: any) => e.chave_dedup));
 
       const grupoComMatch: GrupoPreview[] = elegiveisGrupos.map(g => ({
         ...g,
