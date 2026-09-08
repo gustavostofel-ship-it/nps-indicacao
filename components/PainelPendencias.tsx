@@ -348,20 +348,27 @@ function LinhaPendencia({ p, onAvaliar, onSemRetorno, onDescartar, onVincular }:
             <PhoneCall className="w-3.5 h-3.5" /> {telefone}
           </a>
         )}
-        {!p.associado_id ? (
+        {/* "Sem retorno" não depende de estar vinculado a um associado —
+            "tentei ligar e não atendeu" não exige cadastro formal. Só
+            "Avaliar" precisa do vínculo, porque a nota tem que ficar presa
+            a um associado/veículo no banco. */}
+        {!p.associado_id && (
           <button onClick={onVincular} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors">
             <UserPlus className="w-3.5 h-3.5" /> Vincular associado
           </button>
-        ) : (p.status === 'pendente' || p.status === 'contatado' || p.status === 'sem_retorno') ? (
+        )}
+        {(p.status === 'pendente' || p.status === 'contatado' || p.status === 'sem_retorno') && (
           <>
-            <button onClick={onAvaliar} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-green-50 text-green-700 hover:bg-green-100 transition-colors">
-              <Star className="w-3.5 h-3.5" /> Avaliar
-            </button>
+            {p.associado_id && (
+              <button onClick={onAvaliar} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-green-50 text-green-700 hover:bg-green-100 transition-colors">
+                <Star className="w-3.5 h-3.5" /> Avaliar
+              </button>
+            )}
             <button onClick={onSemRetorno} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
               <PhoneOff className="w-3.5 h-3.5" /> Sem retorno
             </button>
           </>
-        ) : null}
+        )}
         {p.status !== 'descartado' && p.status !== 'avaliado' && p.status !== 'recusado' && (
           <button onClick={onDescartar} title="Descartar" className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-red-600 rounded-lg hover:bg-red-50 transition-colors">
             <XCircle className="w-4 h-4" />
