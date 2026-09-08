@@ -221,7 +221,7 @@ export default function PainelPendencias() {
     setVinculando(null);
   };
 
-  // Ponto único pra "Pegar pra mim" (novoResponsavelId = meu id), "Largar o
+  // Ponto único pra "Assumir caso" (novoResponsavelId = meu id), "Largar o
   // caso" (novoResponsavelId = null) e "Transferir" (novoResponsavelId =
   // outro colaborador) — pensando já num setor onde uma pessoa só distribui
   // casos pros outros, sem nunca ser ela mesma a responsável. Assumir
@@ -230,16 +230,19 @@ export default function PainelPendencias() {
   // mexer se já foi além, tipo sem_retorno).
   const handleAlterarResponsavel = async (p: Pendencia, novoResponsavelId: string | null) => {
     const { data: { user } } = await supabase.auth.getUser();
-    const novoNome = novoResponsavelId
-      ? (novoResponsavelId === user?.id ? 'Você' : usuarios.find(u => u.id === novoResponsavelId)?.nome || 'Alguém da equipe')
-      : null;
+    // Nunca grava "Você" no histórico — quem olha o protocolo depois (ou a
+    // pessoa pra quem foi transferido) precisa ver o nome de verdade, não um
+    // pronome que só fazia sentido pra quem clicou na hora.
+    const nomeAnterior = p.responsavel_id ? (usuarios.find(u => u.id === p.responsavel_id)?.nome || null) : null;
+    const nomeNovo = novoResponsavelId ? (usuarios.find(u => u.id === novoResponsavelId)?.nome || 'Alguém da equipe') : null;
     const novoStatus = novoResponsavelId
       ? (p.status === 'pendente' ? 'contatado' : p.status)
       : (p.status === 'contatado' ? 'pendente' : p.status);
     await Promise.all([
       atualizarPendencia(p.id, { responsavel_id: novoResponsavelId, status: novoStatus }),
       supabase.from('avaliacao_pendencia_eventos').insert({
-        pendencia_id: p.id, tipo: 'responsavel_alterado', autor_id: user?.id, valor_novo: novoNome,
+        pendencia_id: p.id, tipo: 'responsavel_alterado', autor_id: user?.id,
+        valor_anterior: nomeAnterior, valor_novo: nomeNovo,
       }),
     ]);
   };
@@ -551,7 +554,7 @@ function LinhaPendencia({ p, usuarios, onAvaliar, onSemRetorno, onDescartar, onV
 }
 
 // ---------------------------------------------------------------------------
-// Detalhe de uma pendência: responsável (com "Pegar pra mim"), campo de
+// Detalhe de uma pendência: responsável (com "Assumir caso"), campo de
 // observação e histórico de eventos — mesma ideia de IndicacaoTimeline/
 // ReclamacaoTimeline, só que embutida num modal em vez de expandir inline,
 // porque a fila já é uma lista longa e não cabe expandir cada linha nela.
@@ -683,18 +686,21 @@ function ModalDetalhePendencia({ pendencia, usuarios, currentUserId, onClose, on
                 </button>
               ) : (
                 <button onClick={handlePegar} disabled={alterandoResponsavel} className="text-xs font-semibold text-blue-600 hover:underline disabled:opacity-50 shrink-0">
-                  Pegar pra mim
+                  Assumir caso
                 </button>
               )}
             </div>
             <div className="flex items-center gap-2">
+              {/* Não lista quem já é responsável nem a própria pessoa
+                  transferindo — pra assumir o caso pra si é o "Assumir caso"
+                  acima, não transferir pra si mesmo. */}
               <select
                 value={transferirParaId}
                 onChange={e => setTransferirParaId(e.target.value)}
                 className="flex-1 min-w-0 px-2 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg outline-none"
               >
                 <option value="">Transferir para...</option>
-                {usuarios.filter(u => u.id !== responsavelIdLocal).map(u => (
+                {usuarios.filter(u => u.id !== responsavelIdLocal && u.id !== currentUserId).map(u => (
                   <option key={u.id} value={u.id}>{u.nome}</option>
                 ))}
               </select>
@@ -750,13 +756,27 @@ function ModalDetalhePendencia({ pendencia, usuarios, currentUserId, onClose, on
             ) : eventos.length === 0 ? (
               <p className="text-xs text-slate-400 dark:text-slate-500">Nenhum evento registrado ainda — criada em {new Date(pendencia.created_at).toLocaleString('pt-BR')}.</p>
             ) : (
-              <ul className="space-y-2 max-h-40 overflow-y-auto">
-                {eventos.map(ev => (
-                  <li key={ev.id} className="text-xs border-l-2 border-slate-200 dark:border-slate-700 pl-3">
-                    <p className="text-slate-700 dark:text-slate-200 font-medium">{descreverEventoPendencia(ev)}</p>
-                    <p className="text-slate-400 dark:text-slate-500">{new Date(ev.created_at).toLocaleString('pt-BR')}</p>
-                  </li>
-                ))}
+              // Estilo protocolo: autor + data/hora em destaque, texto do
+              // evento/comentário embaixo — comentário de verdade (tipo
+              // "observacao") ganha borda azul e texto normal; eventos do
+              // sistema (transferência, tentativa sem retorno, etc.) ficam
+              // em itálico cinza pra não competir visualmente.
+              <ul className="space-y-3 max-h-56 overflow-y-auto pr-1">
+                {eventos.map(ev => {
+                  const autorNome = ev.autor_id ? (usuarios.find(u => u.id === ev.autor_id)?.nome || 'Alguém da equipe') : 'Sistema';
+                  const isComentario = ev.tipo === 'observacao';
+                  return (
+                    <li key={ev.id} className={`text-xs border-l-2 pl-3 ${isComentario ? 'border-blue-400 dark:border-blue-500/60' : 'border-slate-200 dark:border-slate-700'}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-bold text-slate-700 dark:text-slate-200">{autorNome}</span>
+                        <span className="text-slate-400 dark:text-slate-500 shrink-0">{new Date(ev.created_at).toLocaleString('pt-BR')}</span>
+                      </div>
+                      <p className={`mt-0.5 ${isComentario ? 'text-slate-800 dark:text-slate-100' : 'text-slate-500 dark:text-slate-400 italic'}`}>
+                        {descreverEventoPendencia(ev)}
+                      </p>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>

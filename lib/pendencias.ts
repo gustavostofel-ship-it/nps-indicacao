@@ -46,16 +46,21 @@ export async function buscarEventosPendencia(supabase: any, pendenciaId: string)
   return data || [];
 }
 
+// Bug corrigido aqui: 'observacao' retornava um rótulo genérico ("Observação
+// adicionada") em vez do texto de verdade que a pessoa escreveu — na
+// prática isso fazia o comentário "sumir" do histórico (o autor e a hora
+// ficavam registrados, mas o conteúdo não aparecia em lugar nenhum).
 export function descreverEventoPendencia(evento: PendenciaEvento) {
   switch (evento.tipo) {
     case 'criacao':
       return evento.descricao || 'Pendência criada';
     case 'responsavel_alterado':
-      return evento.valor_novo ? `Assumida por ${evento.valor_novo}` : 'Responsável removido';
+      if (!evento.valor_novo) return `Caso liberado${evento.valor_anterior ? ` (estava com ${evento.valor_anterior})` : ''}`;
+      return evento.valor_anterior ? `Transferido de ${evento.valor_anterior} para ${evento.valor_novo}` : `Atribuído a ${evento.valor_novo}`;
     case 'tentativa_sem_retorno':
       return evento.descricao || 'Tentativa de contato sem retorno';
     case 'observacao':
-      return 'Observação adicionada';
+      return evento.descricao || 'Observação adicionada';
     case 'vinculado':
       return evento.descricao || 'Associado vinculado';
     case 'descartado':
