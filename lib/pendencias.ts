@@ -17,6 +17,76 @@ export const ROTULO_STATUS_PENDENCIA: Record<StatusPendencia, string> = {
   descartado: 'Descartado',
 };
 
+// Histórico imutável de uma pendência — mesmo padrão de IndicacaoEvento/
+// ReclamacaoEvento (lib/indicacoes.ts / lib/reclamacoes.ts), adaptado pra
+// esse domínio: quem pegou o caso, tentativas sem retorno, observações.
+export type TipoEventoPendencia = 'criacao' | 'responsavel_alterado' | 'tentativa_sem_retorno' | 'observacao' | 'vinculado' | 'descartado';
+
+export type PendenciaEvento = {
+  id: string;
+  pendencia_id: string;
+  tipo: TipoEventoPendencia;
+  autor_id: string | null;
+  descricao: string | null;
+  valor_anterior: string | null;
+  valor_novo: string | null;
+  created_at: string;
+};
+
+export async function buscarEventosPendencia(supabase: any, pendenciaId: string): Promise<PendenciaEvento[]> {
+  const { data, error } = await supabase
+    .from('avaliacao_pendencia_eventos')
+    .select('*')
+    .eq('pendencia_id', pendenciaId)
+    .order('created_at', { ascending: false });
+  if (error) {
+    console.error('Erro ao carregar histórico da pendência:', error);
+    return [];
+  }
+  return data || [];
+}
+
+export function descreverEventoPendencia(evento: PendenciaEvento) {
+  switch (evento.tipo) {
+    case 'criacao':
+      return evento.descricao || 'Pendência criada';
+    case 'responsavel_alterado':
+      return evento.valor_novo ? `Assumida por ${evento.valor_novo}` : 'Responsável removido';
+    case 'tentativa_sem_retorno':
+      return evento.descricao || 'Tentativa de contato sem retorno';
+    case 'observacao':
+      return 'Observação adicionada';
+    case 'vinculado':
+      return evento.descricao || 'Associado vinculado';
+    case 'descartado':
+      return 'Pendência descartada';
+    default:
+      return evento.descricao || 'Evento registrado';
+  }
+}
+
+// Registra uma observação na linha do tempo da pendência (não sobrescreve as
+// anteriores) e também atualiza avaliacao_pendencias.observacoes como atalho
+// pra "última nota" — mesmo padrão de registrarObservacaoReclamacao
+// (lib/reclamacoes.ts).
+export async function registrarObservacaoPendencia(
+  supabase: any,
+  pendenciaId: string,
+  texto: string,
+  autorId: string | undefined
+) {
+  const [eventoRes, updateRes] = await Promise.all([
+    supabase.from('avaliacao_pendencia_eventos').insert({
+      pendencia_id: pendenciaId,
+      tipo: 'observacao',
+      autor_id: autorId,
+      descricao: texto,
+    }),
+    supabase.from('avaliacao_pendencias').update({ observacoes: texto, updated_at: new Date().toISOString() }).eq('id', pendenciaId),
+  ]);
+  return eventoRes.error || updateRes.error || null;
+}
+
 // Quantas tentativas de contato sem sucesso até considerar "sem retorno
 // definitivo" — usado só como referência visual na tela (não bloqueia nada).
 export const LIMITE_TENTATIVAS = 3;

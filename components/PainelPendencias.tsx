@@ -15,14 +15,17 @@ import { createClient } from '@/lib/supabase/client';
 import toast from 'react-hot-toast';
 import {
   Upload, ClipboardList, PhoneCall, PhoneOff, UserPlus, UserCheck, Star, XCircle,
-  CheckCircle2, AlertTriangle, Filter, X, Search, Car, Inbox
+  CheckCircle2, AlertTriangle, Filter, X, Search, Car, Inbox, MessageSquare, UserCog,
 } from 'lucide-react';
 import { ModalNovaAvaliacao, ResultadoAvaliacao } from '@/components/AvaliacaoModal';
+import { ModalNovaReclamacao } from '@/components/ReclamacaoModal';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { maskCPF, maskPhone, maskPlaca, validarCPF, validarPlaca, diasDesde } from '@/lib/utils';
+import { buscarStatusReclamacao, buscarMotivosReclamacao, StatusReclamacao, MotivoReclamacao } from '@/lib/reclamacoes';
 import {
   parseRelatorioAtendimento, agruparAtendimentos, dataBrParaISO,
   ROTULO_STATUS_PENDENCIA, LIMITE_TENTATIVAS, StatusPendencia, AtendimentoAgrupado,
+  buscarEventosPendencia, descreverEventoPendencia, registrarObservacaoPendencia, PendenciaEvento,
 } from '@/lib/pendencias';
 
 const supabase = createClient();
@@ -45,6 +48,8 @@ type Pendencia = {
   linhas_agrupadas: number;
   status: StatusPendencia;
   tentativas: number;
+  responsavel_id: string | null;
+  observacoes: string | null;
   created_at: string;
   associado: { id: string, nome_completo: string, cpf: string, telefone: string | null } | null;
   veiculo: { id: string, placa: string, modelo: string } | null;
@@ -58,6 +63,10 @@ export default function PainelPendencias() {
   const [setores, setSetores] = useState<any[]>([]);
   const [situacoes, setSituacoes] = useState<any[]>([]);
   const [motivosAtendimento, setMotivosAtendimento] = useState<any[]>([]);
+  const [usuarios, setUsuarios] = useState<{ id: string, nome: string }[]>([]);
+  const [statusReclamacao, setStatusReclamacao] = useState<StatusReclamacao[]>([]);
+  const [motivosReclamacao, setMotivosReclamacao] = useState<MotivoReclamacao[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
   const [pendencias, setPendencias] = useState<Pendencia[]>([]);
   const [contagens, setContagens] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
@@ -70,16 +79,27 @@ export default function PainelPendencias() {
   const [vinculando, setVinculando] = useState<Pendencia | null>(null);
   const [avaliando, setAvaliando] = useState<{ pendencia: Pendencia, veiculos: any[] } | null>(null);
   const [descartando, setDescartando] = useState<Pendencia | null>(null);
+  const [detalhando, setDetalhando] = useState<Pendencia | null>(null);
+  // Depois de registrar uma avaliação a partir da fila, oferece abrir uma
+  // reclamação na hora, sem precisar ir buscar o associado em /atendimento.
+  const [ofereceReclamacao, setOfereceReclamacao] = useState<{ pendencia: Pendencia, avaliacaoId: string } | null>(null);
+  const [abrindoReclamacao, setAbrindoReclamacao] = useState<{ associadoId: string, avaliacao: any } | null>(null);
 
   const fetchListas = async () => {
-    const [setoresRes, situacoesRes, motivosRes] = await Promise.all([
+    const [setoresRes, situacoesRes, motivosRes, usuariosRes, userRes] = await Promise.all([
       supabase.from('setores').select('id, nome').eq('ativo', true).order('ordem', { ascending: true }),
       supabase.from('atendimento_situacao').select('*').order('ordem', { ascending: true }),
       supabase.from('atendimento_motivo').select('*').eq('ativo', true).order('ordem', { ascending: true }),
+      supabase.from('perfis_usuarios').select('id, nome'),
+      supabase.auth.getUser(),
     ]);
     setSetores(setoresRes.data || []);
     setSituacoes(situacoesRes.data || []);
     setMotivosAtendimento(motivosRes.data || []);
+    setUsuarios(usuariosRes.data || []);
+    setCurrentUserId(userRes.data.user?.id);
+    buscarStatusReclamacao(supabase).then(setStatusReclamacao);
+    buscarMotivosReclamacao(supabase).then(setMotivosReclamacao);
   };
 
   const fetchContagens = async () => {
@@ -144,26 +164,68 @@ export default function PainelPendencias() {
 
   const handleAvaliacaoSalva = async (p: Pendencia, resultado?: ResultadoAvaliacao) => {
     if (!resultado) return;
-    if (resultado.tipo === 'avaliacao') await atualizarPendencia(p.id, { status: 'avaliado', avaliacao_id: resultado.id });
-    else await atualizarPendencia(p.id, { status: 'recusado', avaliacao_recusa_id: resultado.id });
+    if (resultado.tipo === 'avaliacao') {
+      await atualizarPendencia(p.id, { status: 'avaliado', avaliacao_id: resultado.id });
+      // Oferece abrir uma reclamação na hora, vinculada a essa avaliação —
+      // sem precisar sair da fila pra ir procurar o associado em /atendimento.
+      if (resultado.id) setOfereceReclamacao({ pendencia: p, avaliacaoId: resultado.id });
+    } else {
+      await atualizarPendencia(p.id, { status: 'recusado', avaliacao_recusa_id: resultado.id });
+    }
   };
 
   const handleSemRetorno = async (p: Pendencia) => {
     const tentativas = p.tentativas + 1;
     const status = tentativas >= LIMITE_TENTATIVAS ? 'sem_retorno' : 'pendente';
-    await atualizarPendencia(p.id, { tentativas, status });
+    const { data: { user } } = await supabase.auth.getUser();
+    await Promise.all([
+      atualizarPendencia(p.id, { tentativas, status }),
+      supabase.from('avaliacao_pendencia_eventos').insert({
+        pendencia_id: p.id, tipo: 'tentativa_sem_retorno', autor_id: user?.id,
+        descricao: `Tentativa ${tentativas} sem retorno`,
+      }),
+    ]);
   };
 
   const handleDescartar = async () => {
     if (!descartando) return;
-    await atualizarPendencia(descartando.id, { status: 'descartado' });
+    const { data: { user } } = await supabase.auth.getUser();
+    await Promise.all([
+      atualizarPendencia(descartando.id, { status: 'descartado' }),
+      supabase.from('avaliacao_pendencia_eventos').insert({ pendencia_id: descartando.id, tipo: 'descartado', autor_id: user?.id }),
+    ]);
     setDescartando(null);
   };
 
   const handleVinculado = async (associadoId: string, veiculoId: string) => {
     if (!vinculando) return;
-    await atualizarPendencia(vinculando.id, { associado_id: associadoId, veiculo_id: veiculoId });
+    const { data: { user } } = await supabase.auth.getUser();
+    await Promise.all([
+      atualizarPendencia(vinculando.id, { associado_id: associadoId, veiculo_id: veiculoId }),
+      supabase.from('avaliacao_pendencia_eventos').insert({ pendencia_id: vinculando.id, tipo: 'vinculado', autor_id: user?.id, descricao: 'Associado vinculado' }),
+    ]);
     setVinculando(null);
+  };
+
+  // "Pegar pra mim": assume a responsabilidade pelo caso — se ainda estava
+  // pendente, também marca como "contatado" (alguém já está tratando).
+  const handlePegarProMim = async (p: Pendencia) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const meuNome = usuarios.find(u => u.id === user.id)?.nome || 'Você';
+    await Promise.all([
+      atualizarPendencia(p.id, { responsavel_id: user.id, status: p.status === 'pendente' ? 'contatado' : p.status }),
+      supabase.from('avaliacao_pendencia_eventos').insert({
+        pendencia_id: p.id, tipo: 'responsavel_alterado', autor_id: user.id, valor_novo: meuNome,
+      }),
+    ]);
+  };
+
+  const handleAbrirReclamacaoAgora = async () => {
+    if (!ofereceReclamacao?.pendencia.associado_id) return;
+    const { data } = await supabase.from('avaliacoes').select('id, nota, setor:setores(nome)').eq('id', ofereceReclamacao.avaliacaoId).single();
+    setAbrindoReclamacao({ associadoId: ofereceReclamacao.pendencia.associado_id, avaliacao: data });
+    setOfereceReclamacao(null);
   };
 
   const cardsStatus: { chave: StatusPendencia, cor: string, Icon: any }[] = [
@@ -242,6 +304,7 @@ export default function PainelPendencias() {
                 onSemRetorno={() => handleSemRetorno(p)}
                 onDescartar={() => setDescartando(p)}
                 onVincular={() => setVinculando(p)}
+                onDetalhe={() => setDetalhando(p)}
               />
             ))}
           </ul>
@@ -305,12 +368,48 @@ export default function PainelPendencias() {
         onConfirm={handleDescartar}
         onCancel={() => setDescartando(null)}
       />
+
+      <ConfirmDialog
+        open={!!ofereceReclamacao}
+        title="Abrir reclamação agora?"
+        message="A avaliação foi registrada. Se o associado relatou algo que precisa de tratativa, dá pra abrir a reclamação vinculada agora mesmo, sem sair da fila."
+        confirmLabel="Abrir reclamação"
+        danger={false}
+        onConfirm={handleAbrirReclamacaoAgora}
+        onCancel={() => setOfereceReclamacao(null)}
+      />
+
+      {abrindoReclamacao && (
+        <ModalNovaReclamacao
+          associadoId={abrindoReclamacao.associadoId}
+          avaliacao={abrindoReclamacao.avaliacao}
+          statusList={statusReclamacao}
+          motivosList={motivosReclamacao}
+          onClose={() => setAbrindoReclamacao(null)}
+          onSave={() => setAbrindoReclamacao(null)}
+        />
+      )}
+
+      {detalhando && (
+        <ModalDetalhePendencia
+          pendencia={detalhando}
+          usuarios={usuarios}
+          currentUserId={currentUserId}
+          onClose={() => setDetalhando(null)}
+          onPegarProMim={() => handlePegarProMim(detalhando)}
+          onAvaliar={() => { setDetalhando(null); handleAbrirAvaliar(detalhando); }}
+          onSemRetorno={() => handleSemRetorno(detalhando)}
+          onVincular={() => { setDetalhando(null); setVinculando(detalhando); }}
+          onDescartar={() => { setDetalhando(null); setDescartando(detalhando); }}
+          onAtualizado={() => { fetchPendencias(); }}
+        />
+      )}
     </div>
   );
 }
 
-function LinhaPendencia({ p, onAvaliar, onSemRetorno, onDescartar, onVincular }: {
-  p: Pendencia, onAvaliar: () => void, onSemRetorno: () => void, onDescartar: () => void, onVincular: () => void,
+function LinhaPendencia({ p, onAvaliar, onSemRetorno, onDescartar, onVincular, onDetalhe }: {
+  p: Pendencia, onAvaliar: () => void, onSemRetorno: () => void, onDescartar: () => void, onVincular: () => void, onDetalhe: () => void,
 }) {
   // Dias desde que a pendência ENTROU no Girow (created_at), não desde a
   // data do atendimento na planilha original — senão um import de dados
@@ -324,7 +423,11 @@ function LinhaPendencia({ p, onAvaliar, onSemRetorno, onDescartar, onVincular }:
   const contexto = [p.motivo?.nome, p.motivo_texto, p.servico_origem].filter(Boolean).join(' · ');
 
   return (
-    <li className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+    <li
+      onClick={onDetalhe}
+      className="p-4 flex flex-col sm:flex-row sm:items-center gap-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors"
+      title="Ver detalhes, responsável e histórico"
+    >
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-bold text-slate-800 dark:text-slate-100">{nome}</span>
@@ -347,7 +450,7 @@ function LinhaPendencia({ p, onAvaliar, onSemRetorno, onDescartar, onVincular }:
         </div>
       </div>
 
-      <div className="flex items-center gap-2 shrink-0 flex-wrap">
+      <div className="flex items-center gap-2 shrink-0 flex-wrap" onClick={e => e.stopPropagation()}>
         {telefone && (
           <a href={`tel:${telefone.replace(/\D/g, '')}`} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
             <PhoneCall className="w-3.5 h-3.5" /> {telefone}
@@ -381,6 +484,176 @@ function LinhaPendencia({ p, onAvaliar, onSemRetorno, onDescartar, onVincular }:
         )}
       </div>
     </li>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Detalhe de uma pendência: responsável (com "Pegar pra mim"), campo de
+// observação e histórico de eventos — mesma ideia de IndicacaoTimeline/
+// ReclamacaoTimeline, só que embutida num modal em vez de expandir inline,
+// porque a fila já é uma lista longa e não cabe expandir cada linha nela.
+// ---------------------------------------------------------------------------
+function ModalDetalhePendencia({ pendencia, usuarios, currentUserId, onClose, onPegarProMim, onAvaliar, onSemRetorno, onVincular, onDescartar, onAtualizado }: {
+  pendencia: Pendencia;
+  usuarios: { id: string, nome: string }[];
+  currentUserId: string | undefined;
+  onClose: () => void;
+  onPegarProMim: () => void;
+  onAvaliar: () => void;
+  onSemRetorno: () => void;
+  onVincular: () => void;
+  onDescartar: () => void;
+  onAtualizado: () => void;
+}) {
+  const [eventos, setEventos] = useState<PendenciaEvento[]>([]);
+  const [carregandoEventos, setCarregandoEventos] = useState(true);
+  const [observacao, setObservacao] = useState('');
+  const [salvandoObs, setSalvandoObs] = useState(false);
+  const [pegando, setPegando] = useState(false);
+
+  const carregarEventos = async () => {
+    setCarregandoEventos(true);
+    setEventos(await buscarEventosPendencia(supabase, pendencia.id));
+    setCarregandoEventos(false);
+  };
+
+  useEffect(() => { carregarEventos(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [pendencia.id]);
+
+  const nome = pendencia.associado?.nome_completo || pendencia.nome_beneficiario || 'Sem nome';
+  const telefone = pendencia.associado?.telefone || pendencia.telefone_principal;
+  // Estado local pra refletir "Pegar pra mim" na hora — a pendência recebida
+  // por prop é um retrato de quando a linha foi clicada, e só atualiza de
+  // verdade quando a fila por trás recarrega (o modal já estará fechado
+  // nessa hora).
+  const [responsavelIdLocal, setResponsavelIdLocal] = useState(pendencia.responsavel_id);
+  const responsavelNome = responsavelIdLocal ? (usuarios.find(u => u.id === responsavelIdLocal)?.nome || 'Alguém da equipe') : null;
+  const souEuOResponsavel = responsavelIdLocal === currentUserId;
+
+  const handlePegar = async () => {
+    setPegando(true);
+    await onPegarProMim();
+    if (currentUserId) setResponsavelIdLocal(currentUserId);
+    await carregarEventos();
+    setPegando(false);
+  };
+
+  const handleSalvarObservacao = async () => {
+    if (!observacao.trim()) return;
+    setSalvandoObs(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    const erro = await registrarObservacaoPendencia(supabase, pendencia.id, observacao.trim(), user?.id);
+    setSalvandoObs(false);
+    if (erro) { toast.error('Erro ao salvar observação: ' + erro.message); return; }
+    toast.success('Observação adicionada!');
+    setObservacao('');
+    await carregarEventos();
+    onAtualizado();
+  };
+
+  const podeAgir = pendencia.status === 'pendente' || pendencia.status === 'contatado' || pendencia.status === 'sem_retorno';
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-700/60 flex justify-between items-center bg-slate-50 dark:bg-slate-900/40">
+          <div>
+            <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100">{nome}</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {pendencia.setor?.nome} {pendencia.veiculo?.placa || pendencia.placa ? `· ${pendencia.veiculo?.placa || pendencia.placa}` : ''} · {ROTULO_STATUS_PENDENCIA[pendencia.status]}
+            </p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200"><X className="w-5 h-5" /></button>
+        </div>
+
+        <div className="p-6 space-y-5 overflow-y-auto">
+          {telefone && (
+            <a href={`tel:${telefone.replace(/\D/g, '')}`} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+              <PhoneCall className="w-3.5 h-3.5" /> {telefone}
+            </a>
+          )}
+
+          {[pendencia.motivo?.nome, pendencia.motivo_texto, pendencia.servico_origem].filter(Boolean).length > 0 && (
+            <p className="text-sm text-slate-600 dark:text-slate-300">
+              {[pendencia.motivo?.nome, pendencia.motivo_texto, pendencia.servico_origem].filter(Boolean).join(' · ')}
+            </p>
+          )}
+
+          {/* Responsável */}
+          <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/40 rounded-lg border border-slate-100 dark:border-slate-700/60">
+            <div className="flex items-center gap-2 text-sm">
+              <UserCog className="w-4 h-4 text-slate-400 dark:text-slate-500" />
+              {responsavelNome ? (
+                <span className="text-slate-700 dark:text-slate-200 font-medium">{souEuOResponsavel ? 'Você' : responsavelNome} está tratando este caso</span>
+              ) : (
+                <span className="text-slate-500 dark:text-slate-400">Ninguém assumiu esse caso ainda</span>
+              )}
+            </div>
+            {!souEuOResponsavel && (
+              <button onClick={handlePegar} disabled={pegando} className="text-xs font-semibold text-blue-600 hover:underline disabled:opacity-50">
+                Pegar pra mim
+              </button>
+            )}
+          </div>
+
+          {/* Ações rápidas — as mesmas da fila, disponíveis aqui também */}
+          {podeAgir && (
+            <div className="flex flex-wrap gap-2">
+              {pendencia.associado_id ? (
+                <button onClick={onAvaliar} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-green-50 text-green-700 hover:bg-green-100 transition-colors">
+                  <Star className="w-3.5 h-3.5" /> Avaliar
+                </button>
+              ) : (
+                <button onClick={onVincular} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors">
+                  <UserPlus className="w-3.5 h-3.5" /> Vincular associado
+                </button>
+              )}
+              <button onClick={onSemRetorno} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">
+                <PhoneOff className="w-3.5 h-3.5" /> Sem retorno
+              </button>
+              <button onClick={onDescartar} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg text-red-600 hover:bg-red-50 transition-colors">
+                <XCircle className="w-3.5 h-3.5" /> Descartar
+              </button>
+            </div>
+          )}
+
+          {/* Observação */}
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1 flex items-center gap-1.5">
+              <MessageSquare className="w-4 h-4 text-slate-400 dark:text-slate-500" /> Adicionar observação
+            </label>
+            <textarea
+              value={observacao}
+              onChange={e => setObservacao(e.target.value)}
+              rows={2}
+              placeholder="Ex: pediu pra ligar depois das 18h"
+              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+            />
+            <button onClick={handleSalvarObservacao} disabled={salvandoObs || !observacao.trim()} className="mt-2 text-xs font-semibold bg-slate-800 text-white px-3 py-1.5 rounded-lg hover:bg-slate-900 disabled:opacity-50">
+              Salvar observação
+            </button>
+          </div>
+
+          {/* Histórico */}
+          <div>
+            <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2">Histórico</h4>
+            {carregandoEventos ? (
+              <p className="text-xs text-slate-400 dark:text-slate-500">Carregando...</p>
+            ) : eventos.length === 0 ? (
+              <p className="text-xs text-slate-400 dark:text-slate-500">Nenhum evento registrado ainda — criada em {new Date(pendencia.created_at).toLocaleString('pt-BR')}.</p>
+            ) : (
+              <ul className="space-y-2 max-h-40 overflow-y-auto">
+                {eventos.map(ev => (
+                  <li key={ev.id} className="text-xs border-l-2 border-slate-200 dark:border-slate-700 pl-3">
+                    <p className="text-slate-700 dark:text-slate-200 font-medium">{descreverEventoPendencia(ev)}</p>
+                    <p className="text-slate-400 dark:text-slate-500">{new Date(ev.created_at).toLocaleString('pt-BR')}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
