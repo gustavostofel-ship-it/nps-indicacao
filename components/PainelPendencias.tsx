@@ -20,7 +20,7 @@ import {
 import { ModalNovaAvaliacao, ResultadoAvaliacao } from '@/components/AvaliacaoModal';
 import { ModalNovaReclamacao } from '@/components/ReclamacaoModal';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import { maskCPF, maskPhone, maskPlaca, validarCPF, validarPlaca, diasDesde } from '@/lib/utils';
+import { maskCPF, maskPhone, maskPlaca, validarCPF, validarPlaca, diasDesde, nomeComInicial, iniciaisNome } from '@/lib/utils';
 import { buscarStatusReclamacao, buscarMotivosReclamacao, StatusReclamacao, MotivoReclamacao } from '@/lib/reclamacoes';
 import {
   parseRelatorioAtendimento, agruparAtendimentos, dataBrParaISO,
@@ -312,6 +312,7 @@ export default function PainelPendencias() {
               <LinhaPendencia
                 key={p.id}
                 p={p}
+                usuarios={usuarios}
                 onAvaliar={() => handleAbrirAvaliar(p)}
                 onSemRetorno={() => handleSemRetorno(p)}
                 onDescartar={() => setDescartando(p)}
@@ -420,8 +421,8 @@ export default function PainelPendencias() {
   );
 }
 
-function LinhaPendencia({ p, onAvaliar, onSemRetorno, onDescartar, onVincular, onDetalhe }: {
-  p: Pendencia, onAvaliar: () => void, onSemRetorno: () => void, onDescartar: () => void, onVincular: () => void, onDetalhe: () => void,
+function LinhaPendencia({ p, usuarios, onAvaliar, onSemRetorno, onDescartar, onVincular, onDetalhe }: {
+  p: Pendencia, usuarios: { id: string, nome: string }[], onAvaliar: () => void, onSemRetorno: () => void, onDescartar: () => void, onVincular: () => void, onDetalhe: () => void,
 }) {
   // Dias desde que a pendência ENTROU no Girow (created_at), não desde a
   // data do atendimento na planilha original — senão um import de dados
@@ -436,6 +437,7 @@ function LinhaPendencia({ p, onAvaliar, onSemRetorno, onDescartar, onVincular, o
   // contexto antes de ligar — merece destaque de badge, não texto solto. O
   // serviço prestado (ex: "Reboque Moto") é só detalhe secundário.
   const tipoAtendimento = p.motivo?.nome || p.motivo_texto || null;
+  const nomeResponsavel = p.responsavel_id ? usuarios.find(u => u.id === p.responsavel_id)?.nome : null;
 
   return (
     <li
@@ -451,6 +453,19 @@ function LinhaPendencia({ p, onAvaliar, onSemRetorno, onDescartar, onVincular, o
             <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> {dias}d na fila</span>
           )}
           {p.tentativas > 0 && <span className="text-[10px] text-slate-400 dark:text-slate-500">{p.tentativas} tentativa(s)</span>}
+          {/* Quem pegou o caso — nome completo some primeiro que qualquer
+              outra coisa quando o espaço aperta (title mostra "Nome I."
+              completo no hover); a bolinha com iniciais é o que sobra na
+              versão minimizada. */}
+          {nomeResponsavel && (
+            <span
+              title={`Responsável: ${nomeComInicial(nomeResponsavel)}`}
+              className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500 dark:text-slate-400"
+            >
+              <span className="hidden sm:inline">{nomeComInicial(nomeResponsavel)}</span>
+              <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold">{iniciaisNome(nomeResponsavel)}</span>
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
           {p.setor?.nome && (
@@ -621,7 +636,9 @@ function ModalDetalhePendencia({ pendencia, usuarios, currentUserId, onClose, on
             <div className="flex items-center gap-2 text-sm">
               <UserCog className="w-4 h-4 text-slate-400 dark:text-slate-500" />
               {responsavelNome ? (
-                <span className="text-slate-700 dark:text-slate-200 font-medium">{souEuOResponsavel ? 'Você' : responsavelNome} está tratando este caso</span>
+                <span className="text-slate-700 dark:text-slate-200 font-medium">
+                  Responsável: {souEuOResponsavel ? 'Você' : (responsavelNome ? nomeComInicial(responsavelNome) : '')}
+                </span>
               ) : (
                 <span className="text-slate-500 dark:text-slate-400">Ninguém assumiu esse caso ainda</span>
               )}
