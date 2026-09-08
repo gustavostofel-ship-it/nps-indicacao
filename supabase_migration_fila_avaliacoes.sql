@@ -46,18 +46,18 @@ CREATE POLICY "Apenas admins podem modificar atendimento_situacao"
 ON atendimento_situacao FOR ALL TO authenticated USING (is_admin());
 
 -- Seed com os valores exatos observados na planilha atual da Assistência
--- 24h. Só "Finalizado" nasce elegível por padrão — ajuste em Configurações
--- se "Cancelado com Saída" (guincho saiu, mas foi cancelado depois) também
--- deveria virar pendência de avaliação.
+-- 24h. Todas nascem elegíveis por padrão — se o atendimento chegou a entrar
+-- na planilha, o colaborador já considera que vale ligar pra avaliar (ver
+-- decisão no chat). Ajustável em Configurações a qualquer momento.
 INSERT INTO atendimento_situacao (nome, cor, ordem, conta_como_elegivel)
 SELECT * FROM (VALUES
   ('FINALIZADO', 'verde', 0, true),
-  ('AGUARDANDO CHECK LIST', 'amarelo', 1, false),
-  ('PRESTADOR A CAMINHO', 'azul', 2, false),
-  ('CHECK LIST NAO ENVIADO', 'amarelo', 3, false),
-  ('PROTOCOLO ABERTO', 'cinza', 4, false),
-  ('CANCELADO', 'vermelho', 5, false),
-  ('CANCELADO COM SAIDA', 'vermelho', 6, false)
+  ('AGUARDANDO CHECK LIST', 'amarelo', 1, true),
+  ('PRESTADOR A CAMINHO', 'azul', 2, true),
+  ('CHECK LIST NAO ENVIADO', 'amarelo', 3, true),
+  ('PROTOCOLO ABERTO', 'cinza', 4, true),
+  ('CANCELADO', 'vermelho', 5, true),
+  ('CANCELADO COM SAIDA', 'vermelho', 6, true)
 ) AS v(nome, cor, ordem, conta_como_elegivel)
 WHERE NOT EXISTS (SELECT 1 FROM atendimento_situacao);
 

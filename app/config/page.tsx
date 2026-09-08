@@ -119,7 +119,7 @@ export default function ConfigPage() {
           campoFlag="conta_como_elegivel"
           rotuloFlag="Elegível p/ avaliação"
           titulo="Situações de Atendimento (Assistência 24h)"
-          descricao={'As "Situação" que vêm na planilha de atendimentos, ao importar na Fila de Avaliações Pendentes. "Elegível p/ avaliação" define quais situações viram pendência — normalmente só quem já foi atendido de verdade (ex: Finalizado).'}
+          descricao={'As "Situação" que vêm na planilha de atendimentos, ao importar na Fila de Avaliações Pendentes. "Elegível p/ avaliação" define quais situações viram pendência de contato — desmarque aqui se alguma situação específica não deveria gerar ligação (por padrão, todas geram).'}
         />
       </div>
 
