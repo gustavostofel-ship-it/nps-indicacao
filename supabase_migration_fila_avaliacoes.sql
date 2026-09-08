@@ -18,8 +18,8 @@
 --    situação vira pendência de avaliação ao importar (só quem já foi
 --    atendido de verdade deveria ser perguntado).
 -- 2) atendimento_motivo — lista configurável usada no lançamento manual do
---    Eventos (ex: "Casamento", "Evento Corporativo"). A Assistência 24h não
---    usa essa tabela — o motivo dela vem solto da própria planilha
+--    setor Eventos (tipos de sinistro: Colisão, Roubo, Furto...). A
+--    Assistência 24h não usa essa tabela — o motivo dela vem solto da própria planilha
 --    (avaliacao_pendencias.motivo_texto), porque é um vocabulário que não é
 --    a Girow quem controla.
 -- 3) avaliacao_pendencias — a fila em si. Uma linha = um atendimento (ou um
@@ -77,14 +77,18 @@ DROP POLICY IF EXISTS "Apenas admins podem modificar atendimento_motivo" ON aten
 CREATE POLICY "Apenas admins podem modificar atendimento_motivo"
 ON atendimento_motivo FOR ALL TO authenticated USING (is_admin());
 
--- Seed só de exemplo — ajuste em Configurações pros tipos de evento reais.
+-- O setor "Eventos" aqui é sinistro (associação de proteção veicular, não
+-- evento social) — tipos de sinistro cobertos. Editável em Configurações a
+-- qualquer momento.
 INSERT INTO atendimento_motivo (nome, ordem)
 SELECT * FROM (VALUES
-  ('Casamento', 0),
-  ('Formatura', 1),
-  ('Evento Corporativo', 2),
-  ('Confraternização', 3),
-  ('Outro', 4)
+  ('Colisão', 0),
+  ('Roubo', 1),
+  ('Furto', 2),
+  ('Incêndio', 3),
+  ('Roubo/Furto Recuperado', 4),
+  ('Carro Reserva', 5),
+  ('Vidros', 6)
 ) AS v(nome, ordem)
 WHERE NOT EXISTS (SELECT 1 FROM atendimento_motivo);
 

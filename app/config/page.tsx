@@ -385,10 +385,10 @@ function MotivosReclamacaoManager({ motivos, onUpdate, supabase }: any) {
 }
 
 // Lista de motivos usada no lançamento manual de atendimento do setor de
-// Eventos (ex: "Casamento", "Evento Corporativo"), na Fila de Avaliações
-// Pendentes — mesma estrutura de MotivosReclamacaoManager, só apontando pra
-// atendimento_motivo. A Assistência 24h não usa essa lista: o motivo dela
-// vem solto da própria planilha importada.
+// Eventos (tipos de sinistro: Colisão, Roubo, Furto...), na Fila de
+// Avaliações Pendentes — mesma estrutura de MotivosReclamacaoManager, só
+// apontando pra atendimento_motivo. A Assistência 24h não usa essa lista: o
+// motivo dela vem solto da própria planilha importada.
 function MotivosAtendimentoManager({ motivos, onUpdate, supabase }: any) {
   const [nome, setNome] = useState('');
 
@@ -437,10 +437,10 @@ function MotivosAtendimentoManager({ motivos, onUpdate, supabase }: any) {
     <div>
       <div className="flex items-center gap-2 mb-1">
         <Columns3 className="w-5 h-5 text-slate-400 dark:text-slate-500" />
-        <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Motivos de Atendimento (Eventos)</h3>
+        <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Tipos de Sinistro (Eventos)</h3>
       </div>
       <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
-        Tipos de evento que aparecem ao lançar um atendimento manualmente na Fila de Avaliações Pendentes (ex: "Casamento", "Evento Corporativo"). Ajuste essa lista pros tipos de evento reais do seu setor.
+        Tipos de sinistro que aparecem ao lançar um atendimento manualmente na Fila de Avaliações Pendentes (ex: "Colisão", "Roubo", "Furto"). Ajuste essa lista sempre que precisar.
       </p>
 
       <form onSubmit={handleAdd} className="flex gap-3 mb-6 max-w-lg">
