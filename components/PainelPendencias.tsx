@@ -678,6 +678,7 @@ function ModalImportarCSV({ setores, situacoes, onClose, onImportado }: any) {
   const [processando, setProcessando] = useState(false);
   const [preview, setPreview] = useState<{ grupos: GrupoPreview[], totalLinhas: number, naoElegiveis: number } | null>(null);
   const [importando, setImportando] = useState(false);
+  const [mostrarTodos, setMostrarTodos] = useState(false);
 
   const elegiveis = useMemo(() => new Set<string>(situacoes.filter((s: any) => s.conta_como_elegivel).map((s: any) => String(s.nome).toUpperCase())), [situacoes]);
 
@@ -845,20 +846,52 @@ function ModalImportarCSV({ setores, situacoes, onClose, onImportado }: any) {
                 {preview.naoElegiveis} atendimento(s) da planilha não estão numa situação elegível pra avaliação (ajustável em Configurações) e não entram na fila.
                 Vão ser adicionadas <strong>{novosCount}</strong> pendência(s) novas — {seraoCriados > 0 && <>as <strong>{seraoCriados}</strong> sem associado já vão nascer cadastradas automaticamente (nome/placa/telefone da própria planilha, CPF em branco).</>}
               </p>
-              <div className="max-h-56 overflow-y-auto border border-slate-100 dark:border-slate-700/60 rounded-lg divide-y divide-slate-100 dark:divide-slate-700/60">
-                {preview.grupos.slice(0, 50).map(g => {
-                  const vaiCriar = !g.jaExiste && !g.veiculoMatch && validarPlaca(g.placa);
-                  const rotulo = g.jaExiste ? 'já importado' : g.veiculoMatch ? 'associado encontrado' : vaiCriar ? 'será cadastrado' : 'placa inválida — vincular à mão';
-                  const cor = g.jaExiste ? 'text-slate-400' : g.veiculoMatch ? 'text-green-600' : vaiCriar ? 'text-blue-600' : 'text-red-600';
-                  return (
-                    <div key={g.chave_dedup} className={`p-2.5 text-xs flex items-center justify-between gap-2 ${g.jaExiste ? 'opacity-40' : ''}`}>
-                      <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">{g.nome_beneficiario} <span className="text-slate-400 dark:text-slate-500 font-normal">{g.placa}</span></span>
-                      <span className={`shrink-0 font-bold ${cor}`}>{rotulo}</span>
-                    </div>
-                  );
-                })}
-              </div>
-              <button onClick={() => setPreview(null)} className="text-xs font-semibold text-blue-600 hover:underline">Escolher outro arquivo</button>
+
+              {/* Por padrão só mostra quem precisa de ação sua (placa fora do
+                  formato ABC1234 ou ABC1D23/Mercosul — inclusive placa vazia,
+                  o caso mais comum, de linhas tipo "Protocolo Aberto" sem
+                  quase nenhum dado). O resto (114 de 114, por exemplo) entra
+                  sozinho, sem precisar aparecer aqui. */}
+              {semPlacaValida === 0 ? (
+                <p className="text-xs font-semibold text-green-700 bg-green-50 rounded-lg p-3">
+                  Nenhum problema encontrado — os {novosCount} atendimentos serão processados sem precisar de ação manual.
+                </p>
+              ) : (
+                <div>
+                  <p className="text-xs font-semibold text-red-700 mb-2">
+                    {semPlacaValida} atendimento(s) com placa vazia ou fora do formato aceito (ABC1234 ou ABC1D23) — vão entrar na fila, mas sem associado vinculado. Use "Vincular associado" na Fila NPS depois de importar.
+                  </p>
+                  <div className="max-h-56 overflow-y-auto border border-red-100 rounded-lg divide-y divide-red-100">
+                    {preview.grupos.filter(g => !g.jaExiste && !g.veiculoMatch && !validarPlaca(g.placa)).map(g => (
+                      <div key={g.chave_dedup} className="p-2.5 text-xs flex items-center justify-between gap-2">
+                        <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">{g.nome_beneficiario}</span>
+                        <span className="shrink-0 font-bold text-red-600">{g.placa ? `placa "${g.placa}" inválida` : 'sem placa informada'}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <button onClick={() => setMostrarTodos(v => !v)} className="text-xs font-semibold text-blue-600 hover:underline">
+                {mostrarTodos ? 'Esconder' : 'Ver'} lista completa ({preview.grupos.length})
+              </button>
+              {mostrarTodos && (
+                <div className="max-h-56 overflow-y-auto border border-slate-100 dark:border-slate-700/60 rounded-lg divide-y divide-slate-100 dark:divide-slate-700/60">
+                  {preview.grupos.slice(0, 200).map(g => {
+                    const vaiCriar = !g.jaExiste && !g.veiculoMatch && validarPlaca(g.placa);
+                    const rotulo = g.jaExiste ? 'já importado' : g.veiculoMatch ? 'associado já existia' : vaiCriar ? 'será cadastrado' : 'placa inválida';
+                    const cor = g.jaExiste ? 'text-slate-400' : g.veiculoMatch ? 'text-green-600' : vaiCriar ? 'text-blue-600' : 'text-red-600';
+                    return (
+                      <div key={g.chave_dedup} className={`p-2.5 text-xs flex items-center justify-between gap-2 ${g.jaExiste ? 'opacity-40' : ''}`}>
+                        <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">{g.nome_beneficiario} <span className="text-slate-400 dark:text-slate-500 font-normal">{g.placa}</span></span>
+                        <span className={`shrink-0 font-bold ${cor}`}>{rotulo}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <button onClick={() => setPreview(null)} className="text-xs font-semibold text-blue-600 hover:underline block">Escolher outro arquivo</button>
             </div>
           )}
 
