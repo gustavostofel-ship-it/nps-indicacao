@@ -16,6 +16,7 @@ import toast from 'react-hot-toast';
 import {
   Upload, ClipboardList, PhoneCall, PhoneOff, UserPlus, UserCheck, Star, XCircle,
   CheckCircle2, AlertTriangle, Filter, X, Search, Car, Inbox, MessageSquare, UserCog, Building2, Tag,
+  ChevronDown, ChevronUp, FileSpreadsheet,
 } from 'lucide-react';
 import { ModalNovaAvaliacao, ResultadoAvaliacao } from '@/components/AvaliacaoModal';
 import { ModalNovaReclamacao } from '@/components/ReclamacaoModal';
@@ -26,6 +27,7 @@ import {
   parseRelatorioAtendimento, agruparAtendimentos, dataBrParaISO,
   ROTULO_STATUS_PENDENCIA, LIMITE_TENTATIVAS, StatusPendencia, AtendimentoAgrupado,
   buscarEventosPendencia, descreverEventoPendencia, registrarObservacaoPendencia, PendenciaEvento,
+  CABECALHO_ESPERADO,
 } from '@/lib/pendencias';
 
 const supabase = createClient();
@@ -1080,12 +1082,27 @@ function ModalNovoAtendimentoManual({ setores, motivos, onClose, onSalvo }: any)
 // ---------------------------------------------------------------------------
 type GrupoPreview = AtendimentoAgrupado & { veiculoMatch: { id: string, associado_id: string } | null, jaExiste: boolean };
 
+// "Título de Cada Coluna" a partir de CABECALHO_ESPERADO (lib/pendencias.ts)
+// — mesma lista que o parser realmente valida, então a referência mostrada
+// na tela nunca fica desatualizada em relação ao que o import de fato aceita.
+const STOPWORDS_TITULO = new Set(['do', 'de', 'da']);
+function tituloColuna(coluna: string) {
+  return coluna.split(' ').map((p, i) => (STOPWORDS_TITULO.has(p) && i !== 0) ? p : p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+}
+// Uma linha de exemplo, na mesma ordem de CABECALHO_ESPERADO, só pra
+// ilustrar — não precisa bater com nenhum dado real.
+const EXEMPLO_LINHA_CSV = [
+  '28/07/2026', 'Kaick', 'Ricardo de Jesus Henriques', 'KZT7755', 'FINALIZADO',
+  'PANE MECANICA', '(21) 98409-4715', 'Ricardo', 'Genesis Padrão - 350 KM', 'Reboque Leve', 'Karla Joaquim',
+];
+
 function ModalImportarCSV({ setores, situacoes, onClose, onImportado }: any) {
   const [setorId, setSetorId] = useState(setores.find((s: any) => s.nome.toLowerCase().includes('assist'))?.id || setores[0]?.id || '');
   const [processando, setProcessando] = useState(false);
   const [preview, setPreview] = useState<{ grupos: GrupoPreview[], totalLinhas: number, naoElegiveis: number } | null>(null);
   const [importando, setImportando] = useState(false);
   const [mostrarTodos, setMostrarTodos] = useState(false);
+  const [mostrarFormato, setMostrarFormato] = useState(false);
 
   const elegiveis = useMemo(() => new Set<string>(situacoes.filter((s: any) => s.conta_como_elegivel).map((s: any) => String(s.nome).toUpperCase())), [situacoes]);
 
@@ -1212,6 +1229,49 @@ function ModalImportarCSV({ setores, situacoes, onClose, onImportado }: any) {
               {setores.map((s: any) => <option key={s.id} value={s.id}>{s.nome}</option>)}
             </select>
           </div>
+
+          {!preview && (
+            <div>
+              <button
+                type="button"
+                onClick={() => setMostrarFormato(v => !v)}
+                className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:underline"
+              >
+                {mostrarFormato ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                Ver formato esperado da planilha
+              </button>
+              {mostrarFormato && (
+                <div className="mt-3 p-3 bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-700/60 rounded-lg space-y-3">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
+                    <FileSpreadsheet className="w-4 h-4 text-slate-400 dark:text-slate-500 shrink-0" /> Colunas que o arquivo precisa ter (a ordem não importa, só os nomes)
+                  </div>
+                  <div className="overflow-x-auto -mx-1 px-1">
+                    <table className="text-[11px] border-collapse">
+                      <thead>
+                        <tr>
+                          {CABECALHO_ESPERADO.map(c => (
+                            <th key={c} className="text-left font-bold text-slate-500 dark:text-slate-400 uppercase pr-4 pb-1 whitespace-nowrap">{tituloColuna(c)}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          {EXEMPLO_LINHA_CSV.map((v, i) => (
+                            <td key={i} className="text-slate-700 dark:text-slate-200 pr-4 py-1 whitespace-nowrap">{v}</td>
+                          ))}
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <ul className="text-[11px] text-slate-500 dark:text-slate-400 space-y-1 list-disc pl-4">
+                    <li>Arquivo <strong>.csv</strong> separado por ponto e vírgula ( ; ) — o mesmo formato que o relatório de atendimento já exporta, sem precisar editar nada.</li>
+                    <li>Data no formato <strong>DD/MM/AAAA</strong>.</li>
+                    <li>Mesma placa + mesma data + mesmo solicitante em mais de uma linha? O sistema junta automaticamente num só atendimento.</li>
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
 
           {!preview ? (
             <label className="flex flex-col items-center justify-center gap-2 p-10 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl cursor-pointer hover:border-blue-300 transition-colors">

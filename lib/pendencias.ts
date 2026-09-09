@@ -113,7 +113,11 @@ export type LinhaAtendimentoBruta = {
   representante: string;
 };
 
-const CABECALHO_ESPERADO = [
+// Exportado (não só usado internamente) pra alimentar o "Ver formato
+// esperado" na tela de import — uma única fonte de verdade: se essa lista
+// mudar, o que a tela mostra pro colaborador muda junto, sem risco de ficar
+// desatualizado.
+export const CABECALHO_ESPERADO = [
   'data do atendimento', 'atendente', 'nome do beneficiário', 'placa', 'situação',
   'motivo', 'telefone solicitante', 'solicitante', 'produto', 'serviço', 'representante',
 ];
