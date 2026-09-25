@@ -1159,20 +1159,43 @@ function ModalImportarCSV({ setores, situacoes, onClose, onImportado }: any) {
     // manual). Dedup por placa dentro do próprio lote, pra não tentar criar
     // o mesmo veículo duas vezes se ele aparecer em dois grupos diferentes
     // (ex: mesma placa em dois dias distintos).
+    //
+    // Antes isso era um loop sequencial (1 associado + 1 veículo por vez,
+    // esperando cada um terminar) — com 100+ placas sem match isso levava
+    // mais de um minuto e, se a pessoa saísse da tela antes de acabar,
+    // ficava pela metade (associados órfãos, sem a pendência correspondente
+    // criada ainda, porque isso só acontece depois que o loop inteiro
+    // termina). Agora são só 2 requisições no total: todos os associados de
+    // uma vez, depois todos os veículos de uma vez — o Postgres garante que
+    // a ordem de retorno bate com a ordem de entrada num INSERT em lote
+    // único, por isso dá pra casar pelo índice sem precisar de loop.
     toast.loading('Cadastrando associados novos...', { id: tid });
     const semMatch = novos.filter(g => !g.veiculoMatch && validarPlaca(g.placa));
     const placasUnicas = Array.from(new Map(semMatch.map(g => [g.placa, g])).values());
     const criadosPorPlaca = new Map<string, { associado_id: string, veiculo_id: string }>();
-    for (const g of placasUnicas) {
-      const { data: assocData, error: assocError } = await supabase.from('associados')
-        .insert({ nome_completo: g.nome_beneficiario || `Associado ${g.placa}`, telefone: g.telefones[0] || null })
-        .select().single();
-      if (assocError) { console.error('Erro ao criar associado automaticamente', g.placa, assocError); continue; }
-      const { data: veiculoData, error: veiculoError } = await supabase.from('veiculos')
-        .insert({ associado_id: assocData.id, placa: g.placa, modelo: 'Não informado' })
-        .select().single();
-      if (veiculoError) { console.error('Erro ao criar veículo automaticamente', g.placa, veiculoError); continue; }
-      criadosPorPlaca.set(g.placa, { associado_id: assocData.id, veiculo_id: veiculoData.id });
+
+    if (placasUnicas.length > 0) {
+      const { data: associadosCriados, error: assocError } = await supabase.from('associados')
+        .insert(placasUnicas.map(g => ({ nome_completo: g.nome_beneficiario || `Associado ${g.placa}`, telefone: g.telefones[0] || null })))
+        .select();
+
+      if (assocError) {
+        setImportando(false);
+        return toast.error('Erro ao cadastrar associados automaticamente: ' + assocError.message, { id: tid });
+      }
+
+      const { data: veiculosCriados, error: veiculoError } = await supabase.from('veiculos')
+        .insert(placasUnicas.map((g, i) => ({ associado_id: associadosCriados[i].id, placa: g.placa, modelo: 'Não informado' })))
+        .select();
+
+      if (veiculoError) {
+        setImportando(false);
+        return toast.error('Associados criados, mas houve erro ao cadastrar os veículos: ' + veiculoError.message, { id: tid });
+      }
+
+      placasUnicas.forEach((g, i) => {
+        criadosPorPlaca.set(g.placa, { associado_id: associadosCriados[i].id, veiculo_id: veiculosCriados[i].id });
+      });
     }
 
     toast.loading(`Importando ${novos.length} atendimento(s)...`, { id: tid });
