@@ -126,6 +126,35 @@ export const CABECALHO_ESPERADO = [
 // Relatório" não bate) quanto pra validar cada linha.
 const REGEX_DATA_BR = /^\d{2}\/\d{2}\/\d{4}$/;
 
+// Decodifica os bytes do arquivo tentando achar a codificação certa, em vez
+// de assumir UTF-8 (o que `File.text()` faz sempre, sem opção de escolher).
+// O relatório da Assistência 24h às vezes sai do sistema deles em
+// Windows-1252 (comum em exports de planilha no Windows) — decodificado como
+// UTF-8, palavras acentuadas do cabeçalho ("situação", "serviço",
+// "beneficiário") viram lixo, o header deixa de bater e o import é
+// recusado com "faltam colunas" mesmo o arquivo estando certo. Tenta UTF-8
+// primeiro (é o mais comum); se as palavras-chave acentuadas não aparecerem
+// do jeito esperado, tenta de novo como Windows-1252.
+export function decodificarCSV(buffer: ArrayBuffer): string {
+  const candidatos = ['situação', 'serviço', 'beneficiário'];
+  const bateTodas = (txt: string) => candidatos.every(c => txt.toLowerCase().includes(c));
+
+  const utf8 = new TextDecoder('utf-8').decode(buffer);
+  if (bateTodas(utf8)) return utf8;
+
+  try {
+    const win1252 = new TextDecoder('windows-1252').decode(buffer);
+    if (bateTodas(win1252)) return win1252;
+  } catch {
+    // navegador sem suporte a windows-1252 — segue com o UTF-8 mesmo
+  }
+
+  // Nenhuma das duas bateu 100% (arquivo pode estar mesmo fora do padrão);
+  // devolve UTF-8 e deixa o parser dar um erro claro sobre qual coluna não
+  // achou, em vez de travar aqui.
+  return utf8;
+}
+
 function normalizarPlaca(placa: string) {
   return (placa || '').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
 }

@@ -24,7 +24,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { maskCPF, maskPhone, maskPlaca, validarCPF, validarPlaca, diasDesde, nomeComInicial, iniciaisNome } from '@/lib/utils';
 import { buscarStatusReclamacao, buscarMotivosReclamacao, StatusReclamacao, MotivoReclamacao } from '@/lib/reclamacoes';
 import {
-  parseRelatorioAtendimento, agruparAtendimentos, dataBrParaISO,
+  parseRelatorioAtendimento, agruparAtendimentos, dataBrParaISO, decodificarCSV,
   ROTULO_STATUS_PENDENCIA, LIMITE_TENTATIVAS, StatusPendencia, AtendimentoAgrupado,
   buscarEventosPendencia, descreverEventoPendencia, registrarObservacaoPendencia, PendenciaEvento,
   CABECALHO_ESPERADO,
@@ -1110,7 +1110,8 @@ function ModalImportarCSV({ setores, situacoes, onClose, onImportado }: any) {
     if (!file) return;
     setProcessando(true);
     try {
-      const texto = await file.text();
+      const buffer = await file.arrayBuffer();
+      const texto = decodificarCSV(buffer);
       const linhas = parseRelatorioAtendimento(texto);
       if (linhas.length === 0) throw new Error('Nenhuma linha de dados encontrada nesse arquivo.');
 
