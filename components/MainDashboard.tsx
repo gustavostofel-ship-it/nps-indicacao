@@ -4,12 +4,17 @@ import { useState, useEffect, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, Legend } from 'recharts';
 import { startOfMonth, format, subDays, isAfter, isBefore } from 'date-fns';
-import { ArrowRight, Star, Megaphone, Users, Target, CheckCircle2, AlertCircle, ArrowUpRight, ArrowDownRight, Clock, AlertTriangle, Download, Filter, Wifi, X, AlertOctagon, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowRight, Star, Megaphone, Users, Target, CheckCircle2, AlertCircle, ArrowUpRight, ArrowDownRight, Clock, AlertTriangle, Filter, Wifi, X, AlertOctagon, ChevronDown, ChevronUp } from 'lucide-react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { buscarStatusIndicacao, corStatus, normalizarStatusEmbutido, DIAS_LIMITE_PARADA, StatusIndicacao } from '@/lib/indicacoes';
 import { buscarStatusReclamacao, StatusReclamacao } from '@/lib/reclamacoes';
 import { useIsDark } from '@/lib/theme';
+import { BotaoExportar } from '@/components/BotaoExportar';
+import { exportarExcel, exportarCSV } from '@/lib/exportacao';
+import {
+  FiltroGeral, relatorioAvaliacoes, relatorioIndicacoes, relatorioReclamacoes, relatorioCompletoGeral,
+} from '@/lib/relatorios';
 
 const supabase = createClient();
 
@@ -377,42 +382,73 @@ export default function MainDashboard() {
   }, [avaliacoes, indicacoes]);
   const totalComCorrelacao = correlacaoData.reduce((a, c) => a + c.value, 0);
 
-  // ---- Exportar CSV ----
-  const exportarCSV = (tipo: 'indicacoes' | 'avaliacoes') => {
-    const linhas: string[] = [];
-    if (tipo === 'indicacoes') {
-      linhas.push('Protocolo,Data,Indicado,Status,Dias Parado,Data Fechamento');
-      indicacoes.forEach(i => {
-        const dias = ((agora.getTime() - new Date(i.updated_at || i.data_indicacao).getTime()) / (1000 * 60 * 60 * 24)).toFixed(1);
-        linhas.push([
-          i.protocolo || '',
-          new Date(i.data_indicacao).toLocaleDateString('pt-BR'),
-          `"${(i.nome_indicado || '').replace(/"/g, '""')}"`,
-          i.status?.nome || '',
-          dias,
-          i.data_fechamento ? new Date(i.data_fechamento).toLocaleDateString('pt-BR') : ''
-        ].join(','));
-      });
-    } else {
-      linhas.push('Data,Setor,Nota');
-      avaliacoes.forEach(a => {
-        const setorNome = Array.isArray(a.setor) ? a.setor[0]?.nome : a.setor?.nome;
-        linhas.push([
-          new Date(a.data_avaliacao).toLocaleDateString('pt-BR'),
-          `"${(setorNome || '').replace(/"/g, '""')}"`,
-          String(a.nota)
-        ].join(','));
-      });
-    }
-    const csvContent = '\uFEFF' + linhas.join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${tipo}_${dateFilter.start}_a_${dateFilter.end}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+  // ---- Exportar relat\u00F3rios ----
+  // Os relat\u00F3rios buscam os dados de novo no clique (com todos os campos e
+  // paginando) em vez de reaproveitar o que j\u00E1 est\u00E1 na tela \u2014 a tela s\u00F3
+  // carrega o necess\u00E1rio pros gr\u00E1ficos, o relat\u00F3rio precisa do cadastro
+  // completo (associado, CPF, ve\u00EDculo, crit\u00E9rios, respons\u00E1vel, hist\u00F3rico).
+  const brData = (iso: string) => iso.split('-').reverse().join('/');
+
+  const montarFiltroGeral = (): FiltroGeral => ({
+    inicioISO: dateFilter.start ? new Date(`${dateFilter.start}T00:00:00`).toISOString() : undefined,
+    fimISO: dateFilter.end ? new Date(`${dateFilter.end}T23:59:59.999`).toISOString() : undefined,
+    setorId: setorFilter || undefined,
+    rotuloPeriodo:
+      dateFilter.start && dateFilter.end ? `${brData(dateFilter.start)} a ${brData(dateFilter.end)}`
+      : dateFilter.start ? `a partir de ${brData(dateFilter.start)}`
+      : dateFilter.end ? `at\u00E9 ${brData(dateFilter.end)}`
+      : 'Todo o per\u00EDodo',
+    rotuloSetor: setoresList.find(s => s.id === setorFilter)?.nome || 'Todos os setores',
+  });
+
+  const montarContexto = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    return {
+      usuarios,
+      geradoPor: usuarios.find(u => u.id === user?.id)?.nome || user?.email || undefined,
+    };
   };
+
+  const gruposExportacao = [
+    {
+      titulo: 'Tudo de uma vez',
+      opcoes: [
+        {
+          rotulo: 'Relat\u00F3rio completo (Excel)',
+          descricao: 'Avalia\u00E7\u00F5es, indica\u00E7\u00F5es e reclama\u00E7\u00F5es do per\u00EDodo, com resumo e dicion\u00E1rio.',
+          formato: 'excel' as const,
+          executar: async () => exportarExcel(await relatorioCompletoGeral(supabase, montarFiltroGeral(), await montarContexto())),
+        },
+      ],
+    },
+    {
+      titulo: 'Avalia\u00E7\u00F5es NPS',
+      opcoes: [
+        { rotulo: 'Avalia\u00E7\u00F5es (Excel)', descricao: 'Com notas por crit\u00E9rio em aba separada.', formato: 'excel' as const,
+          executar: async () => exportarExcel(await relatorioAvaliacoes(supabase, montarFiltroGeral(), await montarContexto())) },
+        { rotulo: 'Avalia\u00E7\u00F5es (CSV)', formato: 'csv' as const,
+          executar: async () => { const r = await relatorioAvaliacoes(supabase, montarFiltroGeral(), await montarContexto()); exportarCSV(r.arquivo, r.abas[0]); } },
+      ],
+    },
+    {
+      titulo: 'Indica\u00E7\u00F5es',
+      opcoes: [
+        { rotulo: 'Indica\u00E7\u00F5es (Excel)', formato: 'excel' as const,
+          executar: async () => exportarExcel(await relatorioIndicacoes(supabase, montarFiltroGeral(), await montarContexto())) },
+        { rotulo: 'Indica\u00E7\u00F5es (CSV)', formato: 'csv' as const,
+          executar: async () => { const r = await relatorioIndicacoes(supabase, montarFiltroGeral(), await montarContexto()); exportarCSV(r.arquivo, r.abas[0]); } },
+      ],
+    },
+    {
+      titulo: 'Reclama\u00E7\u00F5es',
+      opcoes: [
+        { rotulo: 'Reclama\u00E7\u00F5es (Excel)', formato: 'excel' as const,
+          executar: async () => exportarExcel(await relatorioReclamacoes(supabase, montarFiltroGeral(), await montarContexto())) },
+        { rotulo: 'Reclama\u00E7\u00F5es (CSV)', formato: 'csv' as const,
+          executar: async () => { const r = await relatorioReclamacoes(supabase, montarFiltroGeral(), await montarContexto()); exportarCSV(r.arquivo, r.abas[0]); } },
+      ],
+    },
+  ];
 
   const applyShortcut = (type: 'hoje'|'7dias'|'mes') => {
     const today = new Date();
@@ -497,14 +533,8 @@ export default function MainDashboard() {
                 acima, assim os botões ficam alinhados com os campos de Setor/Data,
                 não com o topo do bloco inteiro. */}
             <label className="hidden sm:block text-sm font-medium mb-1 invisible" aria-hidden="true">Exportar</label>
-            <div className="flex gap-2">
-              <button onClick={() => exportarCSV('avaliacoes')} title="Exportar avaliações do período em CSV" className="h-10 flex items-center gap-1.5 text-xs font-semibold px-3 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-                <Download className="w-3.5 h-3.5" /> Avaliações
-              </button>
-              <button onClick={() => exportarCSV('indicacoes')} title="Exportar indicações do período em CSV" className="h-10 flex items-center gap-1.5 text-xs font-semibold px-3 border border-slate-300 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-                <Download className="w-3.5 h-3.5" /> Indicações
-              </button>
-            </div>
+            <BotaoExportar grupos={gruposExportacao} />
+
           </div>
         </div>
       </div>

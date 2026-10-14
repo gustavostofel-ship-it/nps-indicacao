@@ -5,6 +5,8 @@
 
 import Papa from 'papaparse';
 import { maskPhone } from '@/lib/utils';
+import { resumirNotas, percentual, ResumoNotas } from '@/lib/nps';
+import { buscarTodasPaginas } from '@/lib/exportacao';
 
 export type StatusPendencia = 'pendente' | 'contatado' | 'avaliado' | 'recusado' | 'sem_retorno' | 'descartado';
 
@@ -300,4 +302,111 @@ export function agruparAtendimentos(
 export function dataBrParaISO(dataBr: string) {
   const [d, m, y] = dataBr.split('/');
   return `${y}-${m}-${d}`;
+}
+
+// ---------------------------------------------------------------------------
+// Dashboard / relatórios da Fila NPS
+// ---------------------------------------------------------------------------
+
+export const STATUS_PENDENCIA_LISTA: StatusPendencia[] = [
+  'pendente', 'contatado', 'avaliado', 'recusado', 'sem_retorno', 'descartado',
+];
+
+// Filtros compartilhados pela lista, pelo dashboard e pela exportação — o
+// filtro de status fica de fora de propósito (o dashboard precisa enxergar
+// todos os status pra comparar um com o outro).
+export type FiltrosPendencias = {
+  setorId?: string;
+  responsavelId?: string;
+  de?: string; // yyyy-mm-dd — data do atendimento
+  ate?: string; // yyyy-mm-dd — data do atendimento
+};
+
+export function aplicarFiltrosPendencias(q: any, f: FiltrosPendencias) {
+  if (f.setorId) q = q.eq('setor_id', f.setorId);
+  if (f.responsavelId) q = q.eq('responsavel_id', f.responsavelId);
+  if (f.de) q = q.gte('data_atendimento', f.de);
+  if (f.ate) q = q.lte('data_atendimento', f.ate);
+  return q;
+}
+
+export type ResultadoContato = 'Sucesso' | 'Sem sucesso' | 'Em aberto' | 'Descartado';
+
+// Sucesso = o associado atendeu e avaliou. Sem sucesso = recusou avaliar ou
+// esgotou as tentativas sem retorno. Em aberto = ainda dá pra tentar.
+export function resultadoDoContato(status: StatusPendencia): ResultadoContato {
+  switch (status) {
+    case 'avaliado': return 'Sucesso';
+    case 'recusado':
+    case 'sem_retorno': return 'Sem sucesso';
+    case 'descartado': return 'Descartado';
+    default: return 'Em aberto';
+  }
+}
+
+export type ResumoPendencias = {
+  porStatus: Record<StatusPendencia, number>;
+  totalFila: number; // tudo, menos descartadas
+  tratados: number; // avaliou + recusou + sem retorno (contato já concluído)
+  emAberto: number; // pendente + contatado
+  sucesso: number; // avaliou
+  semSucesso: number; // recusou + sem retorno
+  recusaram: number;
+  semRetorno: number;
+  descartados: number;
+  taxaSucesso: number | null; // % de sucesso sobre os tratados
+  notas: ResumoNotas; // classificação das avaliações obtidas
+};
+
+export function resumirPendencias(porStatus: Record<StatusPendencia, number>, notas: number[]): ResumoPendencias {
+  const sucesso = porStatus.avaliado;
+  const recusaram = porStatus.recusado;
+  const semRetorno = porStatus.sem_retorno;
+  const tratados = sucesso + recusaram + semRetorno;
+  const emAberto = porStatus.pendente + porStatus.contatado;
+  return {
+    porStatus,
+    totalFila: tratados + emAberto,
+    tratados,
+    emAberto,
+    sucesso,
+    semSucesso: recusaram + semRetorno,
+    recusaram,
+    semRetorno,
+    descartados: porStatus.descartado,
+    taxaSucesso: tratados > 0 ? percentual(sucesso, tratados) : null,
+    notas: resumirNotas(notas),
+  };
+}
+
+// Busca o resumo direto no banco: contagem por status (barata, só conta) +
+// as notas das pendências já avaliadas (precisa das linhas, paginadas).
+export async function buscarResumoPendencias(supabase: any, f: FiltrosPendencias): Promise<ResumoPendencias> {
+  const contagens = await Promise.all(
+    STATUS_PENDENCIA_LISTA.map(s =>
+      aplicarFiltrosPendencias(
+        supabase.from('avaliacao_pendencias').select('id', { count: 'exact', head: true }).eq('status', s),
+        f
+      )
+    )
+  );
+  const porStatus = {} as Record<StatusPendencia, number>;
+  STATUS_PENDENCIA_LISTA.forEach((s, i) => {
+    if (contagens[i].error) throw new Error(contagens[i].error.message);
+    porStatus[s] = contagens[i].count || 0;
+  });
+
+  const linhas = await buscarTodasPaginas<any>((de, ate) =>
+    aplicarFiltrosPendencias(
+      supabase.from('avaliacao_pendencias').select('id, avaliacao:avaliacoes(nota)').eq('status', 'avaliado'),
+      f
+    ).order('id').range(de, ate)
+  );
+  const notas: number[] = [];
+  for (const l of linhas) {
+    const a = Array.isArray(l.avaliacao) ? l.avaliacao[0] : l.avaliacao;
+    if (a && a.nota !== null && a.nota !== undefined) notas.push(Number(a.nota));
+  }
+
+  return resumirPendencias(porStatus, notas);
 }

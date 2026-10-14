@@ -10,24 +10,29 @@
 // associado: "Avaliar" (ModalNovaAvaliacao, compartilhado) ou "Cliente não
 // quer avaliar" (dentro do mesmo modal).
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import toast from 'react-hot-toast';
+import { format, subDays, startOfMonth } from 'date-fns';
 import {
   Upload, ClipboardList, PhoneCall, PhoneOff, UserPlus, UserCheck, Star, XCircle,
   CheckCircle2, AlertTriangle, Filter, X, Search, Car, Inbox, MessageSquare, UserCog, Building2, Tag,
-  ChevronDown, ChevronUp, FileSpreadsheet,
+  ChevronDown, ChevronUp, FileSpreadsheet, CalendarDays,
 } from 'lucide-react';
 import { ModalNovaAvaliacao, ResultadoAvaliacao } from '@/components/AvaliacaoModal';
 import { ModalNovaReclamacao } from '@/components/ReclamacaoModal';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { ResumoFila } from '@/components/ResumoFila';
+import { BotaoExportar } from '@/components/BotaoExportar';
 import { maskCPF, maskPhone, maskPlaca, validarCPF, validarPlaca, diasDesde, nomeComInicial, iniciaisNome } from '@/lib/utils';
 import { buscarStatusReclamacao, buscarMotivosReclamacao, StatusReclamacao, MotivoReclamacao } from '@/lib/reclamacoes';
+import { exportarExcel, exportarCSV, emLotes } from '@/lib/exportacao';
+import { relatorioFila } from '@/lib/relatorios';
 import {
   parseRelatorioAtendimento, agruparAtendimentos, dataBrParaISO, decodificarCSV,
   ROTULO_STATUS_PENDENCIA, LIMITE_TENTATIVAS, StatusPendencia, AtendimentoAgrupado,
   buscarEventosPendencia, descreverEventoPendencia, registrarObservacaoPendencia, PendenciaEvento,
-  CABECALHO_ESPERADO,
+  CABECALHO_ESPERADO, FiltrosPendencias, ResumoPendencias, aplicarFiltrosPendencias, buscarResumoPendencias,
 } from '@/lib/pendencias';
 
 const supabase = createClient();
@@ -82,12 +87,21 @@ export default function PainelPendencias() {
   const [motivosReclamacao, setMotivosReclamacao] = useState<MotivoReclamacao[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
   const [pendencias, setPendencias] = useState<Pendencia[]>([]);
-  const [contagens, setContagens] = useState<Record<string, number>>({});
+  const [resumo, setResumo] = useState<ResumoPendencias | null>(null);
+  const [carregandoResumo, setCarregandoResumo] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const [filtroSetor, setFiltroSetor] = useState('');
   const [filtroStatus, setFiltroStatus] = useState<'ativas' | 'todas' | StatusPendencia>('ativas');
   const [filtroResponsavel, setFiltroResponsavel] = useState<'todos' | 'meus'>('todos');
+  // Período do atendimento (data do atendimento, não de quando entrou na
+  // fila) — vazio = sem limite.
+  const [periodo, setPeriodo] = useState<{ de: string, ate: string }>({ de: '', ate: '' });
+
+  // Seleção em massa (atribuir/assumir várias de uma vez)
+  const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
+  const [destinoMassa, setDestinoMassa] = useState('');
+  const [processandoMassa, setProcessandoMassa] = useState(false);
 
   const [showImportar, setShowImportar] = useState(false);
   const [showNovoManual, setShowNovoManual] = useState(false);
@@ -117,54 +131,207 @@ export default function PainelPendencias() {
     buscarMotivosReclamacao(supabase).then(setMotivosReclamacao);
   };
 
-  const fetchContagens = async () => {
-    const statuses: StatusPendencia[] = ['pendente', 'contatado', 'avaliado', 'recusado', 'sem_retorno', 'descartado'];
-    const results = await Promise.all(
-      statuses.map(s => supabase.from('avaliacao_pendencias').select('id', { count: 'exact', head: true }).eq('status', s))
-    );
-    const novo: Record<string, number> = {};
-    statuses.forEach((s, i) => { novo[s] = results[i].count || 0; });
-    setContagens(novo);
+  // Filtros que valem pra lista, pro resumo e pra exportação (o status fica
+  // de fora: o resumo compara um status com o outro, e a exportação traz
+  // todos pra quem for montar relatório filtrar depois).
+  const filtrosBase: FiltrosPendencias = {
+    setorId: filtroSetor || undefined,
+    responsavelId: filtroResponsavel === 'meus' ? currentUserId : undefined,
+    de: periodo.de || undefined,
+    ate: periodo.ate || undefined,
+  };
+
+  const carregarResumo = async () => {
+    // "Meus" sem saber ainda quem sou eu: espera o usuário carregar, senão o
+    // resumo viria com a fila inteira por um instante.
+    if (filtroResponsavel === 'meus' && !currentUserId) return;
+    setCarregandoResumo(true);
+    try {
+      setResumo(await buscarResumoPendencias(supabase, filtrosBase));
+    } catch (e: any) {
+      console.error('Erro ao carregar resumo da fila:', e);
+      toast.error('Erro ao carregar o resumo: ' + (e?.message || ''));
+    } finally {
+      setCarregandoResumo(false);
+    }
   };
 
   const fetchPendencias = async () => {
     setLoading(true);
-    let q = supabase.from('avaliacao_pendencias')
-      .select('*, associado:associados(id,nome_completo,cpf,telefone), veiculo:veiculos(id,placa,modelo), setor:setores(id,nome), motivo:atendimento_motivo(id,nome)')
-      .order('data_atendimento', { ascending: true })
-      .limit(300);
-    if (filtroSetor) q = q.eq('setor_id', filtroSetor);
+    let q = aplicarFiltrosPendencias(
+      supabase.from('avaliacao_pendencias')
+        .select('*, associado:associados(id,nome_completo,cpf,telefone), veiculo:veiculos(id,placa,modelo), setor:setores(id,nome), motivo:atendimento_motivo(id,nome)'),
+      filtrosBase
+    ).order('data_atendimento', { ascending: true }).limit(300);
     if (filtroStatus === 'ativas') q = q.in('status', STATUS_ATIVOS);
     else if (filtroStatus !== 'todas') q = q.eq('status', filtroStatus);
-    if (filtroResponsavel === 'meus' && currentUserId) q = q.eq('responsavel_id', currentUserId);
 
     const { data, error } = await q;
     if (error) {
       console.error('Erro ao carregar fila:', error);
       toast.error('Erro ao carregar a fila: ' + error.message);
     }
-    setPendencias((data as any) || []);
+    const lista: Pendencia[] = (data as any) || [];
+    setPendencias(lista);
+    // Tira da seleção quem saiu da lista (foi tratada, mudou o filtro, etc.)
+    setSelecionadas(prev => {
+      const ids = new Set(lista.map(p => p.id));
+      const mantidas = Array.from(prev).filter(id => ids.has(id));
+      return mantidas.length === prev.size ? prev : new Set(mantidas);
+    });
     setLoading(false);
   };
 
-  useEffect(() => { fetchListas(); fetchContagens(); }, []);
-  useEffect(() => { fetchPendencias(); }, [filtroSetor, filtroStatus, filtroResponsavel, currentUserId]);
+  useEffect(() => { fetchListas(); }, []);
+  useEffect(() => { fetchPendencias(); }, [filtroSetor, filtroStatus, filtroResponsavel, currentUserId, periodo.de, periodo.ate]);
+  useEffect(() => { carregarResumo(); }, [filtroSetor, filtroResponsavel, currentUserId, periodo.de, periodo.ate]);
 
+  // Mudou o recorte (setor, período, quem): a seleção antiga não vale mais.
+  useEffect(() => { setSelecionadas(new Set()); }, [filtroSetor, filtroStatus, filtroResponsavel, periodo.de, periodo.ate]);
+
+  // Tempo real: qualquer mudança na tabela (de qualquer colaborador) refaz
+  // lista e resumo. Com debounce — um clique do colega pode disparar vários
+  // eventos seguidos (atualização + evento no histórico, ou uma ação em
+  // massa mexendo em dezenas de linhas), e sem isso cada um refaria todas
+  // as consultas.
+  const temporizadorAtualizacao = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     const channel = supabase
       .channel('fila-pendencias')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'avaliacao_pendencias' }, () => { fetchPendencias(); fetchContagens(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'avaliacao_pendencias' }, () => {
+        if (temporizadorAtualizacao.current) clearTimeout(temporizadorAtualizacao.current);
+        temporizadorAtualizacao.current = setTimeout(() => { fetchPendencias(); carregarResumo(); }, 700);
+      })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      if (temporizadorAtualizacao.current) clearTimeout(temporizadorAtualizacao.current);
+      supabase.removeChannel(channel);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtroSetor, filtroStatus, filtroResponsavel]);
+  }, [filtroSetor, filtroStatus, filtroResponsavel, currentUserId, periodo.de, periodo.ate]);
 
   const atualizarPendencia = async (id: string, patch: Record<string, any>) => {
     const { error } = await supabase.from('avaliacao_pendencias').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', id);
     if (error) { toast.error('Erro ao atualizar: ' + error.message); return false; }
     fetchPendencias();
-    fetchContagens();
+    carregarResumo();
     return true;
+  };
+
+  // ---- Seleção em massa ----
+  const nomeDe = (id: string | null | undefined) => (id ? usuarios.find(u => u.id === id)?.nome || null : null);
+
+  const alternarSelecao = (id: string) => {
+    setSelecionadas(prev => {
+      const novo = new Set(prev);
+      if (novo.has(id)) novo.delete(id); else novo.add(id);
+      return novo;
+    });
+  };
+
+  // Só pendências ainda em andamento podem receber responsável — as já
+  // avaliadas/recusadas/descartadas ficam de fora da seleção.
+  const selecionaveis = pendencias.filter(p => STATUS_ATIVOS.includes(p.status));
+  const todasSelecionadas = selecionaveis.length > 0 && selecionaveis.every(p => selecionadas.has(p.id));
+
+  const alternarTodas = () => {
+    setSelecionadas(todasSelecionadas ? new Set() : new Set(selecionaveis.map(p => p.id)));
+  };
+
+  // Atribui (ou larga, com novoId = null) várias pendências de uma vez.
+  // Mesma regra do individual: assumir marca "contatado" se estava pendente;
+  // largar devolve pra "pendente" se estava só "contatado". Cada pendência
+  // ganha o seu evento no histórico, com quem era o responsável antes.
+  const alterarResponsavelEmMassa = async (novoId: string | null) => {
+    const alvo = pendencias.filter(p => selecionadas.has(p.id) && STATUS_ATIVOS.includes(p.status));
+    if (alvo.length === 0) return;
+
+    setProcessandoMassa(true);
+    const tid = toast.loading(`Atualizando ${alvo.length} pendência(s)...`);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const agora = new Date().toISOString();
+      const ids = alvo.map(p => p.id);
+
+      for (const lote of emLotes(ids, 100)) {
+        const { error } = await supabase.from('avaliacao_pendencias')
+          .update({ responsavel_id: novoId, updated_at: agora }).in('id', lote);
+        if (error) throw error;
+      }
+
+      const origemStatus = novoId ? 'pendente' : 'contatado';
+      const destinoStatus = novoId ? 'contatado' : 'pendente';
+      const idsParaMudarStatus = alvo.filter(p => p.status === origemStatus).map(p => p.id);
+      for (const lote of emLotes(idsParaMudarStatus, 100)) {
+        const { error } = await supabase.from('avaliacao_pendencias')
+          .update({ status: destinoStatus }).in('id', lote).eq('status', origemStatus);
+        if (error) throw error;
+      }
+
+      const nomeNovo = novoId ? nomeDe(novoId) || 'Alguém da equipe' : null;
+      const eventos = alvo.map(p => ({
+        pendencia_id: p.id,
+        tipo: 'responsavel_alterado',
+        autor_id: user?.id,
+        valor_anterior: nomeDe(p.responsavel_id),
+        valor_novo: nomeNovo,
+      }));
+      for (const lote of emLotes(eventos, 200)) {
+        const { error } = await supabase.from('avaliacao_pendencia_eventos').insert(lote);
+        if (error) throw error;
+      }
+
+      toast.success(
+        novoId
+          ? `${alvo.length} pendência(s) atribuída(s) a ${novoId === user?.id ? 'você' : nomeNovo}.`
+          : `${alvo.length} pendência(s) liberada(s).`,
+        { id: tid }
+      );
+      setSelecionadas(new Set());
+      setDestinoMassa('');
+      fetchPendencias();
+      carregarResumo();
+    } catch (e: any) {
+      console.error('Erro na atribuição em massa:', e);
+      toast.error('Erro ao atualizar: ' + (e?.message || 'tente novamente'), { id: tid });
+    } finally {
+      setProcessandoMassa(false);
+    }
+  };
+
+  // ---- Período ----
+  const atalhoPeriodo = (tipo: 'hoje' | '7dias' | '30dias' | 'mes' | 'tudo') => {
+    const hoje = new Date();
+    if (tipo === 'tudo') return setPeriodo({ de: '', ate: '' });
+    let inicio = hoje;
+    if (tipo === '7dias') inicio = subDays(hoje, 7);
+    if (tipo === '30dias') inicio = subDays(hoje, 30);
+    if (tipo === 'mes') inicio = startOfMonth(hoje);
+    setPeriodo({ de: format(inicio, 'yyyy-MM-dd'), ate: format(hoje, 'yyyy-MM-dd') });
+  };
+
+  // ---- Exportação ----
+  const rotuloPeriodoExport = () => {
+    const br = (iso: string) => iso.split('-').reverse().join('/');
+    if (periodo.de && periodo.ate) return `${br(periodo.de)} a ${br(periodo.ate)}`;
+    if (periodo.de) return `a partir de ${br(periodo.de)}`;
+    if (periodo.ate) return `até ${br(periodo.ate)}`;
+    return 'Todo o período';
+  };
+
+  const gerarRelatorioFila = async (incluirHistorico: boolean) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    return relatorioFila(
+      supabase,
+      filtrosBase,
+      {
+        rotuloSetor: setores.find(s => s.id === filtroSetor)?.nome || 'Todos os setores',
+        rotuloResponsavel: filtroResponsavel === 'meus' ? `Somente os meus (${nomeDe(user?.id) || 'eu'})` : 'Todos',
+        rotuloPeriodo: rotuloPeriodoExport(),
+        incluirHistorico,
+      },
+      { usuarios, geradoPor: nomeDe(user?.id) || user?.email || undefined }
+    );
   };
 
   const handleAbrirAvaliar = async (p: Pendencia) => {
@@ -258,13 +425,14 @@ export default function PainelPendencias() {
 
   const cardsStatus: { chave: StatusPendencia, cor: string, Icon: any }[] = [
     { chave: 'pendente', cor: 'text-slate-600 bg-slate-100 dark:bg-slate-800 dark:text-slate-300', Icon: Inbox },
+    { chave: 'contatado', cor: 'text-blue-700 bg-blue-100', Icon: UserCheck },
     { chave: 'avaliado', cor: 'text-green-700 bg-green-100', Icon: CheckCircle2 },
     { chave: 'recusado', cor: 'text-orange-700 bg-orange-100', Icon: XCircle },
     { chave: 'sem_retorno', cor: 'text-red-700 bg-red-100', Icon: PhoneOff },
   ];
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className={`space-y-6 animate-in fade-in duration-500 ${selecionadas.size > 0 ? 'pb-28' : ''}`}>
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <div className="p-3 bg-blue-100 text-blue-600 rounded-xl">
@@ -275,7 +443,31 @@ export default function PainelPendencias() {
             <p className="text-slate-500 dark:text-slate-400 text-sm">Assistência 24h (import de planilha) e Eventos (lançamento manual) — tudo num lugar só</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <BotaoExportar
+            grupos={[
+              {
+                titulo: 'Respeita os filtros de setor, responsável e período',
+                opcoes: [
+                  {
+                    rotulo: 'Relatório completo (Excel)',
+                    descricao: 'Resumo, fila, histórico de contatos e dicionário — pronto pra tabela dinâmica.',
+                    formato: 'excel',
+                    executar: async () => exportarExcel(await gerarRelatorioFila(true)),
+                  },
+                  {
+                    rotulo: 'Só os dados (CSV)',
+                    descricao: 'Uma linha por pendência, abre em qualquer planilha ou ferramenta de BI.',
+                    formato: 'csv',
+                    executar: async () => {
+                      const rel = await gerarRelatorioFila(false);
+                      exportarCSV(rel.arquivo, rel.abas[0]);
+                    },
+                  },
+                ],
+              },
+            ]}
+          />
           <button onClick={() => setShowNovoManual(true)} className="flex items-center gap-2 px-4 py-2 bg-slate-800 dark:bg-slate-700 text-white rounded-lg font-semibold text-sm hover:bg-slate-900 dark:hover:bg-slate-600 transition-colors">
             <UserPlus className="w-4 h-4" /> Novo Atendimento
           </button>
@@ -285,7 +477,9 @@ export default function PainelPendencias() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <ResumoFila resumo={resumo} carregando={carregandoResumo} />
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         {cardsStatus.map(({ chave, cor, Icon }) => (
           <button
             key={chave}
@@ -293,7 +487,7 @@ export default function PainelPendencias() {
             className={`p-4 rounded-2xl border text-left transition-colors ${filtroStatus === chave ? 'border-blue-400 ring-2 ring-blue-100 dark:ring-blue-500/20' : 'border-slate-200 dark:border-slate-700 hover:border-slate-300'} bg-white dark:bg-slate-800`}
           >
             <div className={`w-8 h-8 rounded-lg flex items-center justify-center mb-2 ${cor}`}><Icon className="w-4 h-4" /></div>
-            <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">{contagens[chave] ?? '—'}</div>
+            <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">{resumo ? resumo.porStatus[chave] : '—'}</div>
             <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">{ROTULO_STATUS_PENDENCIA[chave]}</div>
           </button>
         ))}
@@ -328,6 +522,42 @@ export default function PainelPendencias() {
           <span className="text-xs text-slate-400 dark:text-slate-500 ml-auto">{pendencias.length} na lista</span>
         </div>
 
+        {/* Período do atendimento — vale pra lista, resumo e exportação */}
+        <div className="px-4 py-2.5 border-b border-slate-100 dark:border-slate-700/60 flex items-center gap-2 flex-wrap text-xs">
+          <span className="flex items-center gap-1.5 font-semibold text-slate-500 dark:text-slate-400">
+            <CalendarDays className="w-4 h-4" /> Período do atendimento
+          </span>
+          <input
+            type="date"
+            value={periodo.de}
+            onChange={e => setPeriodo(p => ({ ...p, de: e.target.value }))}
+            className="px-2 py-1 text-sm bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg outline-none dark:[color-scheme:dark]"
+          />
+          <span className="text-slate-400 dark:text-slate-500">até</span>
+          <input
+            type="date"
+            value={periodo.ate}
+            onChange={e => setPeriodo(p => ({ ...p, ate: e.target.value }))}
+            className="px-2 py-1 text-sm bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg outline-none dark:[color-scheme:dark]"
+          />
+          <span className="flex items-center gap-3 ml-1">
+            <button onClick={() => atalhoPeriodo('hoje')} className="text-blue-600 font-semibold hover:underline">Hoje</button>
+            <button onClick={() => atalhoPeriodo('7dias')} className="text-blue-600 font-semibold hover:underline">7 dias</button>
+            <button onClick={() => atalhoPeriodo('30dias')} className="text-blue-600 font-semibold hover:underline">30 dias</button>
+            <button onClick={() => atalhoPeriodo('mes')} className="text-blue-600 font-semibold hover:underline">Este mês</button>
+            <button onClick={() => atalhoPeriodo('tudo')} className="text-slate-500 dark:text-slate-400 font-semibold hover:underline">Todo o período</button>
+          </span>
+        </div>
+
+        {/* Seleção em massa */}
+        {selecionaveis.length > 0 && (
+          <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-700/60 bg-slate-50/60 dark:bg-slate-900/20">
+            <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300 cursor-pointer select-none">
+              <input type="checkbox" checked={todasSelecionadas} onChange={alternarTodas} className="w-4 h-4 accent-blue-600 cursor-pointer" />
+              Selecionar todas as {selecionaveis.length} em andamento desta lista
+            </label>
+          </div>
+        )}
         {loading ? (
           <div className="flex justify-center items-center h-40"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>
         ) : pendencias.length === 0 ? (
@@ -343,6 +573,9 @@ export default function PainelPendencias() {
                 key={p.id}
                 p={p}
                 usuarios={usuarios}
+                selecionavel={STATUS_ATIVOS.includes(p.status)}
+                selecionada={selecionadas.has(p.id)}
+                onAlternarSelecao={() => alternarSelecao(p.id)}
                 onAvaliar={() => handleAbrirAvaliar(p)}
                 onSemRetorno={() => handleSemRetorno(p)}
                 onDescartar={() => setDescartando(p)}
@@ -359,7 +592,7 @@ export default function PainelPendencias() {
           setores={setores}
           situacoes={situacoes}
           onClose={() => setShowImportar(false)}
-          onImportado={() => { setShowImportar(false); fetchPendencias(); fetchContagens(); }}
+          onImportado={() => { setShowImportar(false); fetchPendencias(); carregarResumo(); }}
         />
       )}
 
@@ -368,7 +601,7 @@ export default function PainelPendencias() {
           setores={setores}
           motivos={motivosAtendimento}
           onClose={() => setShowNovoManual(false)}
-          onSalvo={() => { setShowNovoManual(false); fetchPendencias(); fetchContagens(); }}
+          onSalvo={() => { setShowNovoManual(false); fetchPendencias(); carregarResumo(); }}
         />
       )}
 
@@ -447,12 +680,57 @@ export default function PainelPendencias() {
           onAtualizado={() => { fetchPendencias(); }}
         />
       )}
+
+      {/* Ações em massa: painel flutuante fixo no rodapé da tela. Antes era
+          uma faixa inserida acima da lista — ao marcar a primeira caixa a
+          lista descia e o clique seguinte caía na linha errada. */}
+      {selecionadas.size > 0 && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 w-[calc(100vw-2rem)] max-w-3xl bg-white dark:bg-slate-800 border border-blue-200 dark:border-blue-500/30 shadow-2xl shadow-slate-900/20 rounded-2xl px-4 py-3 flex items-center gap-3 flex-wrap animate-in fade-in slide-in-from-bottom-4">
+          <span className="text-sm font-bold text-blue-700 dark:text-blue-300">{selecionadas.size} selecionada(s)</span>
+          <button
+            onClick={() => currentUserId && alterarResponsavelEmMassa(currentUserId)}
+            disabled={processandoMassa || !currentUserId}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          >
+            <UserCheck className="w-3.5 h-3.5" /> Assumir
+          </button>
+          <span className="flex items-center gap-1.5">
+            <select
+              value={destinoMassa}
+              onChange={e => setDestinoMassa(e.target.value)}
+              className="px-2 py-1.5 text-xs bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg outline-none"
+            >
+              <option value="">Atribuir a...</option>
+              {usuarios.filter(u => u.id !== currentUserId).map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
+            </select>
+            <button
+              onClick={() => destinoMassa && alterarResponsavelEmMassa(destinoMassa)}
+              disabled={processandoMassa || !destinoMassa}
+              className="px-3 py-1.5 text-xs font-bold rounded-lg bg-slate-800 dark:bg-slate-600 text-white hover:bg-slate-900 disabled:opacity-40 transition-colors"
+            >
+              Atribuir
+            </button>
+          </span>
+          <button
+            onClick={() => alterarResponsavelEmMassa(null)}
+            disabled={processandoMassa}
+            className="px-3 py-1.5 text-xs font-semibold rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-50 transition-colors"
+          >
+            Largar
+          </button>
+          <button onClick={() => setSelecionadas(new Set())} className="ml-auto text-xs font-semibold text-slate-500 dark:text-slate-400 hover:underline">
+            Limpar seleção
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
-function LinhaPendencia({ p, usuarios, onAvaliar, onSemRetorno, onDescartar, onVincular, onDetalhe }: {
-  p: Pendencia, usuarios: { id: string, nome: string }[], onAvaliar: () => void, onSemRetorno: () => void, onDescartar: () => void, onVincular: () => void, onDetalhe: () => void,
+function LinhaPendencia({ p, usuarios, selecionavel, selecionada, onAlternarSelecao, onAvaliar, onSemRetorno, onDescartar, onVincular, onDetalhe }: {
+  p: Pendencia, usuarios: { id: string, nome: string }[],
+  selecionavel: boolean, selecionada: boolean, onAlternarSelecao: () => void,
+  onAvaliar: () => void, onSemRetorno: () => void, onDescartar: () => void, onVincular: () => void, onDetalhe: () => void,
 }) {
   // Dias desde que a pendência ENTROU no Girow (created_at), não desde a
   // data do atendimento na planilha original — senão um import de dados
@@ -472,9 +750,21 @@ function LinhaPendencia({ p, usuarios, onAvaliar, onSemRetorno, onDescartar, onV
   return (
     <li
       onClick={onDetalhe}
-      className="p-4 flex flex-col sm:flex-row sm:items-center gap-3 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors"
+      className={`relative p-4 pl-12 flex flex-col sm:flex-row sm:items-center gap-3 cursor-pointer transition-colors ${selecionada ? 'bg-blue-50/70 dark:bg-blue-500/10' : 'hover:bg-slate-50 dark:hover:bg-slate-900/30'}`}
       title="Ver detalhes, responsável e histórico"
     >
+      {/* Caixa de seleção (atribuir em massa) — só pra pendência ainda em
+          andamento; a coluna fica reservada nas demais pra alinhar o texto. */}
+      {selecionavel && (
+        <input
+          type="checkbox"
+          checked={selecionada}
+          onChange={onAlternarSelecao}
+          onClick={e => e.stopPropagation()}
+          aria-label="Selecionar pendência"
+          className="absolute left-4 top-5 w-4 h-4 accent-blue-600 cursor-pointer"
+        />
+      )}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-bold text-slate-800 dark:text-slate-100">{nome}</span>
